@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Stickman Arena v10 — Vacky Games</title>
+<title>Stickman Arena v18 — Vacky Games</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{height:100%;background:#f2e8d7;overflow:hidden;user-select:none;
@@ -24,6 +24,11 @@
     cursor:pointer;display:flex;gap:11px;align-items:center;text-align:left;
     box-shadow:3px 3px 0 #2b2620}
   .card:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #2b2620}
+  .card.rare{border-color:#8a53c4;background:#f7eefc;
+    box-shadow:3px 3px 0 #8a53c4, 0 0 16px rgba(138,83,196,.35)}
+  .card.rare:active{box-shadow:1px 1px 0 #8a53c4}
+  .card.rare b{color:#7b3fb5}
+  .card.rare .rr{font-size:10px;letter-spacing:.14em;color:#8a53c4;font-weight:800}
   .card canvas{background:transparent;flex:0 0 40px}
   .card b{display:block;font-size:14px}
   .card span{font-size:11.5px;opacity:.65}
@@ -34,25 +39,29 @@
     cursor:pointer;z-index:8;font-family:inherit;color:#2b2620;padding:0}
   .hud-btn:disabled{opacity:.42;box-shadow:none;cursor:default}
   .hud-btn:not(:disabled):active{transform:translate(2px,2px);box-shadow:1px 1px 0 #2b2620}
-  .hud-btn i{width:26px;height:26px;border:2.5px solid #2b2620;border-radius:5px;background:#d8cbb4}
+  .hud-btn canvas{width:36px;height:36px}
   .hud-btn em{font-style:normal;font-size:10.5px;font-weight:700;letter-spacing:.02em}
   .hud-pause{position:fixed;left:14px;top:56px;width:44px;height:44px;border-radius:12px;
     border:3px solid #2b2620;background:#fdf6e8;box-shadow:3px 3px 0 #2b2620;cursor:pointer;
     display:flex;align-items:center;justify-content:center;gap:5px;z-index:8;padding:0}
   .hud-pause:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #2b2620}
   .hud-pause b{display:block;width:5px;height:17px;background:#2b2620;border-radius:2px}
-  .hud-circle{position:fixed;left:14px;bottom:22px;width:62px;height:62px;border-radius:50%;
-    border:3px solid #2b2620;background:#fdf6e8;display:flex;align-items:center;
-    justify-content:center;z-index:8;font-weight:800;font-size:19px;
-    box-shadow:3px 3px 0 #2b2620}
+  /* ВРЕМЕННО: тестовая кнопка, перед публикацией удалить */
+  .hud-dev{position:fixed;left:14px;top:108px;height:34px;padding:0 12px;border-radius:9px;
+    border:2.5px dashed #8d8178;background:rgba(253,246,232,.85);color:#6d6459;cursor:pointer;
+    font-family:inherit;font-weight:800;font-size:13px;letter-spacing:.06em;z-index:8}
+  .hud-dev:active{transform:translate(1px,1px)}
+  .hud-badge{position:fixed;left:14px;bottom:22px;width:88px;height:88px;z-index:8;
+    pointer-events:auto}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <button id="pauseBtn" class="hud-pause" title="Пауза (P)"><b></b><b></b></button>
-<div id="petTimer" class="hud-circle hidden"><span id="petSec">0</span></div>
+<button id="devLvl" class="hud-dev" title="Тестовая кнопка: +1 уровень">+LV</button>
+<canvas id="petBadge" class="hud-badge hidden" width="176" height="176"></canvas>
 <button id="useBtn" class="hud-btn" disabled>
-  <i id="useIco"></i><em id="useName">пусто</em>
+  <canvas id="useIco" width="72" height="72"></canvas><em id="useName">пусто</em>
 </button>
 
 <div id="start" class="overlay">
@@ -178,6 +187,17 @@ const GEAR = {
   cape:   { name: "Плащ",     desc: "Опыт летит издалека", max: 3 },
 };
 const GK = Object.keys(GEAR);
+
+/* Редкие стволы. Базовый есть всегда, редкие выпадают нечасто
+   и полностью меняют способ стрельбы.                          */
+const WEAPONS = {
+  basic:   { name: "Ружьё",     rare: 0, desc: "Надёжный ствол" },
+  shotgun: { name: "Дробовик",  rare: 1, desc: "Веер дроби, но близко" },
+  sniper:  { name: "Снайперка", rare: 1, desc: "Прошивает всех насквозь" },
+  minigun: { name: "Миниган",   rare: 1, desc: "Шквал огня в упор" },
+};
+const RARE_KEYS = Object.keys(WEAPONS).filter(k => WEAPONS[k].rare);
+const RARE_CHANCE = .24;
 const TIER = ["#8a8178", "#4e8f4a", "#3d78bd", "#8a53c4", "#dfa128"];
 
 const PERKS = {
@@ -202,9 +222,11 @@ const PETS = {
   cat:    { name: "Кошка",   desc: "Автомат на спине, стреляет сама" },
   parrot: { name: "Попугай", desc: "Летает и роняет мини-мины" },
   mole:   { name: "Крот",    desc: "Ныряет и ставит турели" },
+  boar:   { name: "Кабан",   desc: "Взрывается на крупных врагах", revive: 19000 },
+  chicken:{ name: "Курица",  desc: "Несёт яйца, из них цыплята" },
 };
 const PET_MAX = 5;
-let turrets = [], pendingPet = null, lastPetRoll = null, queuedLevels = 0;
+let turrets = [], eggs = [], chicks = [], pendingPet = null, pendingRare = null, lastPetRoll = null, queuedLevels = 0;
 
 function petStats(p) {
   const l = p.lvl;
@@ -219,12 +241,18 @@ function petStats(p) {
     turCap:  1 + Math.floor(l / 2),
     turDmg:  .8 + .4 * l,
     turCd:   760 - 70 * l,
+    boarR:   96 + 24 * l,
+    boarDmg: 8 + 4.5 * l,
+    eggCap:  2 + l,
+    eggCd:   3400 - 330 * l,
+    chickDmg:.7 + .38 * l,
   };
 }
 function makePet(type) {
   return { type, lvl: 1, x: P.x + 40, y: P.y + 20, a: 0, face: 1, phase: 0,
            cd: 0, drop: 0, state: "up", timer: 1400, saw: 0, aim: 0, bite: 0,
-           r: 11, hp: 4, hpMax: 4, hurt: 0, dead: 0 };
+           r: 11, hp: 4, hpMax: 4, hurt: 0, dead: 0,
+           reviveMs: PETS[type].revive || 12000 };
 }
 
 function updatePet(dt, k) {
@@ -323,6 +351,40 @@ function updatePet(dt, k) {
       mines.push({ x: p.x, y: p.y + 26, arm: 500, mini: true, dmg: S.mineDmg });
     }
 
+  } else if (p.type === "boar") {
+    // ищем крупную цель, ради неё и живёт
+    let tg = null, bd = 1e9;
+    for (const e of enemies) {
+      if (e.kind !== "tank" && e.kind !== "elite") continue;
+      const d = Math.hypot(e.x - p.x, e.y - p.y);
+      if (d < bd) { bd = d; tg = e; }
+    }
+    if (!tg) {                                   // крупных нет — берём любого рядом
+      for (const e of enemies) {
+        const d = Math.hypot(e.x - p.x, e.y - p.y);
+        if (d < 280 && d < bd) { bd = d; tg = e; }
+      }
+    }
+    if (tg && bd < 950) {
+      goto(tg.x, tg.y, 3.5);
+      p.fuse = (p.fuse || 0) + dt;
+      if (bd < tg.r + 20) {
+        explode(p.x, p.y, S.boarR, S.boarDmg);
+        p.hp = 0; p.dead = p.reviveMs; p.fuse = 0; SFX.dead();
+        return;
+      }
+    } else if (Math.hypot(P.x - p.x, P.y - p.y) > 90) goto(P.x, P.y, 3.0);
+
+  } else if (p.type === "chicken") {
+    const hx = P.x - P.face * 42, hy = P.y + 24;
+    if (Math.hypot(hx - p.x, hy - p.y) > 26) goto(hx, hy, 2.6);
+    p.drop -= dt;
+    if (p.drop <= 0 && eggs.length + chicks.length < S.eggCap) {
+      p.drop = S.eggCd;
+      eggs.push({ x: p.x - p.face * 12, y: p.y + 5, t: 2600, wob: 0 });
+      beep(880, .06, "sine", .035, 180);
+    }
+
   } else if (p.type === "mole") {
     p.timer -= dt;
     if (p.state === "up") {
@@ -347,6 +409,7 @@ function updatePet(dt, k) {
     }
   }
 
+  if (p.dead > 0) return;
   pushOut(p);                             // питомец больше не ходит сквозь камни
 
   // урон питомцу
@@ -355,7 +418,7 @@ function updatePet(dt, k) {
       p.hp--; p.hurt = 900;
       pops.push({ x: p.x, y: p.y - 28, txt: "-1", life: .9, col: "#c8402c" });
       if (p.hp <= 0) {
-        p.dead = 12000; SFX.dead();
+        p.dead = p.reviveMs; SFX.dead();
         for (let i = 0; i < 14; i++) {
           const a = Math.random() * 6.28, sp = rnd(.8, 2.6);
           puffs.push({ x: p.x, y: p.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, r: rnd(2, 5) });
@@ -380,6 +443,52 @@ function updatePet(dt, k) {
     }
   }
   turrets = turrets.filter(tu => tu.life > 0);
+}
+
+function updateFarm(dt, k) {
+  const S = P.pet ? petStats(P.pet) : null;
+  for (const eg of eggs) {
+    eg.t -= dt; eg.wob += dt / 110;
+    if (eg.t <= 0) {
+      eg.dead = true;
+      chicks.push({ x: eg.x, y: eg.y, hp: 2, hurt: 0, life: 21000, cd: 0, phase: rnd(0, 6), face: 1 });
+      beep(1150, .07, "triangle", .04, 260);
+      for (let i = 0; i < 5; i++) {
+        const a = Math.random() * 6.28;
+        puffs.push({ x: eg.x, y: eg.y, vx: Math.cos(a) * 1.2, vy: Math.sin(a) * 1.2, life: .7, r: rnd(2, 3.5) });
+      }
+    }
+  }
+  eggs = eggs.filter(e => !e.dead);
+
+  for (const ch of chicks) {
+    ch.life -= dt; ch.phase += .34 * k;
+    if (ch.cd > 0) ch.cd -= dt;
+    if (ch.hurt > 0) ch.hurt -= dt;
+    let tg = null, bd = 210;
+    for (const e of enemies) {
+      const d = Math.hypot(e.x - ch.x, e.y - ch.y);
+      if (d < bd) { bd = d; tg = e; }
+    }
+    const go = (tx, ty, sp) => {
+      const dx = tx - ch.x, dy = ty - ch.y, d = Math.hypot(dx, dy) || 1;
+      if (d > 6) { ch.x += dx / d * sp * k; ch.y += dy / d * sp * k; ch.face = dx > 0 ? 1 : -1; }
+      return d;
+    };
+    if (tg) {
+      go(tg.x, tg.y, 2.7);
+      if (bd < tg.r + 13 && ch.cd <= 0) {
+        hit(tg, S ? S.chickDmg : .8, ch.x, ch.y); ch.cd = 620;
+        beep(1300, .04, "square", .02, -300);
+      }
+    } else if (Math.hypot(P.x - ch.x, P.y - ch.y) > 90) go(P.x, P.y, 2.4);
+    for (const e of enemies) {
+      if (ch.hurt <= 0 && Math.hypot(e.x - ch.x, e.y - ch.y) < e.r + 8) {
+        ch.hp--; ch.hurt = 700; break;
+      }
+    }
+  }
+  chicks = chicks.filter(c => c.hp > 0 && c.life > 0);
 }
 
 /* ── рисование питомцев ───────────────────────────────────── */
@@ -446,24 +555,147 @@ function drawPet(g, x, y, type, lvl, face, phase, p) {
     g.globalAlpha = .18; g.fillStyle = INK;
     g.beginPath(); g.ellipse(0, 12, 9, 3, 0, 0, 7); g.fill(); g.globalAlpha = 1;
 
+  } else if (type === "boar") {
+    g.save(); g.scale(face, 1);
+    spoly(g, [[-15, -18], [8, -20], [12, -6], [-14, -5]], "#6f5b4a");     // туша
+    sline(g, -9, -5, -10 + sw * 4, 3); sline(g, -5, -5, -6 - sw * 4, 3);
+    sline(g, 5, -6, 6 - sw * 4, 3); sline(g, 9, -6, 10 + sw * 4, 3);
+    scircle(g, 15, -20, 6, "#7d6754");                                     // голова
+    spoly(g, [[19, -22], [27, -19], [19, -15]], "#5a4839");                // рыло
+    spoly(g, [[20, -18], [25, -25], [21, -16]], "#efe6d2");                // клык
+    spoly(g, [[11, -25], [13, -31], [17, -25]], "#5a4839");                // ухо
+    g.fillStyle = INK; g.beginPath(); g.arc(17, -22, .9, 0, 7); g.fill();
+    spoly(g, [[-10, -24], [0, -26], [1, -18], [-9, -16]], "#c8402c");      // динамит
+    for (let i = 0; i < 2; i++) sline(g, -8 + i * 4, -25, -8 + i * 4, -17);
+    g.strokeStyle = "#8a7355"; sline(g, -5, -26, -9, -33);                 // фитиль
+    const spark = 2 + Math.abs(Math.sin(phase * 3)) * (1.6 + lvl * .5);
+    g.fillStyle = "#e08a2a";
+    g.beginPath(); g.arc(-9, -33, spark, 0, 7); g.fill();
+    g.strokeStyle = INK;
+    g.restore();
+
+  } else if (type === "chicken") {
+    g.save(); g.scale(face, 1);
+    g.translate(0, Math.sin(phase * 2) * 1.3);
+    for (let i = 0; i < 3; i++) {                                  // хвост из перьев
+      const a2 = -.5 - i * .38;
+      spoly(g, [[-11, -13], [-11 + Math.cos(a2) * 15, -13 + Math.sin(a2) * 15],
+                [-9 + Math.cos(a2) * 13, -9 + Math.sin(a2) * 13]], i % 2 ? "#e9e0cc" : "#f6f1e4");
+    }
+    g.beginPath(); g.ellipse(-1, -13, 12, 10.5, -.12, 0, 7);       // тело
+    g.fillStyle = "#f8f3e6"; g.fill(); g.stroke();
+    g.beginPath(); g.ellipse(-2, -12, 7, 5, .25, 0, 7);            // крыло
+    g.fillStyle = "#ece3d0"; g.fill(); g.stroke();
+    g.lineWidth = 1.5; sline(g, -6, -11, 1, -13); sline(g, -6, -9, 1, -11);
+    g.strokeStyle = "#e08a2a"; g.lineWidth = 2.2;                  // лапы
+    const st = Math.sin(phase * 2) * 3;
+    sline(g, -3, -4, -4 + st, 4); sline(g, 3, -4, 4 - st, 4);
+    sline(g, -4 + st, 4, -8 + st, 5); sline(g, -4 + st, 4, -6 + st, 6.5);
+    sline(g, 4 - st, 4, 8 - st, 5); sline(g, 4 - st, 4, 6 - st, 6.5);
+    g.strokeStyle = INK;
+    sline(g, 7, -18, 9, -23);                                      // шея
+    g.beginPath(); g.ellipse(10, -26, 5.4, 5, .1, 0, 7);           // голова
+    g.fillStyle = "#fbf7ec"; g.fill(); g.stroke();
+    spoly(g, [[5, -30], [6.5, -35], [8.5, -30.5], [10.5, -36], [12.5, -30.5],
+              [14, -34], [14.5, -29]], "#d2412c");                 // гребень
+    spoly(g, [[13, -24], [15.5, -30], [16, -23]], "#e08a2a");      // клюв
+    spoly(g, [[9, -21], [11.5, -16], [7.5, -19]], "#d2412c");      // бородка
+    g.fillStyle = INK; g.beginPath(); g.arc(11.6, -27, 1, 0, 7); g.fill();
+    g.restore();
+
   } else if (type === "mole") {
     if (p && p.state === "down") {
-      spoly(g, [[-14, 2], [-7, -7], [7, -7], [14, 2]], "#a98055");
-      sline(g, -6, 0, -2, -4); sline(g, 3, 0, 7, -4);
+      spoly(g, [[-17, 3], [-9, -9], [9, -9], [17, 3]], "#a98055");     // холмик земли
+      g.lineWidth = 1.6;
+      sline(g, -8, 1, -4, -4); sline(g, 2, 1, 6, -4); sline(g, -1, 2, 0, -6);
+      g.lineWidth = 2.2;
     } else {
       g.save(); g.scale(face, 1);
-      spoly(g, [[-11, -13], [8, -15], [10, -2], [-11, -2]], "#8d6b4e");
-      sline(g, -7, -2, -8 + sw * 3, 3); sline(g, 3, -2, 4 - sw * 3, 3);
-      spoly(g, [[10, -12], [17, -9], [10, -5]], "#d99a8a");
-      g.strokeStyle = col; g.lineWidth = 2.6; sline(g, 2, -12, 11, -12);
-      g.strokeStyle = INK; g.lineWidth = 2.2;
-      sline(g, -11, -8, -16, -5);
+      g.beginPath(); g.ellipse(-2, -12, 13, 10, -.08, 0, 7);           // тело
+      g.fillStyle = "#8d6b4e"; g.fill(); g.stroke();
+      g.lineWidth = 2; sline(g, -8, -3, -10, 2); sline(g, -2, -3, -3, 2);
+      g.lineWidth = 2.2;
+      g.beginPath(); g.ellipse(10, -14, 7, 6.5, .05, 0, 7);            // морда
+      g.fillStyle = "#9b7857"; g.fill(); g.stroke();
+      spoly(g, [[15, -17], [23, -14], [15, -11]], "#e0a0a0");          // нос-лопатка
+      g.fillStyle = INK; g.beginPath(); g.arc(21, -14, 1.1, 0, 7); g.fill();
+      g.lineWidth = 1.5;                                               // усы и прищур
+      sline(g, 17, -12, 23, -9); sline(g, 17, -11, 23, -7); sline(g, 17, -16, 23, -18);
+      g.lineWidth = 1.8; sline(g, 8, -18, 12, -18);
+      g.lineWidth = 2.2;
+      spoly(g, [[6, -8], [13, -6], [12, 0], [5, -2]], "#7a5b41");      // лапа-копалка
+      g.lineWidth = 1.5;
+      for (let i = 0; i < 3; i++) sline(g, 12, -5 + i * 2.4, 17, -6 + i * 2.4);
+      g.lineWidth = 2.2;
+      g.fillStyle = col;                                               // каска по уровню
+      g.beginPath(); g.arc(4, -20, 8, Math.PI, 0); g.fill(); g.stroke();
+      sline(g, -4, -20, 13, -20);
+      if (lvl >= 3) { g.fillStyle = "#f7e08a"; g.beginPath(); g.arc(9, -23, 2.6, 0, 7); g.fill(); g.stroke(); }
       g.restore();
     }
   }
   g.restore();
 }
 
+function drawItemIcon(g, key, x, y, sc) {
+  g.save(); g.translate(x, y); g.scale(sc, sc);
+  g.strokeStyle = INK; g.lineWidth = 2.2; g.lineJoin = "round"; g.lineCap = "round";
+  if (key === "nade") {                                   // граната-лимонка
+    g.beginPath(); g.ellipse(0, 1, 8, 9, 0, 0, 7);
+    g.fillStyle = "#4e8f4a"; g.fill(); g.stroke();
+    g.lineWidth = 1.3;
+    for (let i = -1; i <= 1; i++) { sline(g, -7, i * 4.5, 7, i * 4.5); sline(g, i * 4.5, -7, i * 4.5, 8); }
+    g.lineWidth = 2.2;
+    spoly(g, [[-4, -8], [4, -8], [3, -12], [-3, -12]], "#6f6a5a");   // горловина
+    sline(g, 3, -12, 8, -6);                                          // рычаг
+    g.beginPath(); g.arc(-5, -13, 3, 0, 7); g.stroke();               // кольцо
+  } else if (key === "mine") {                            // мина с усиками
+    for (let i = 0; i < 6; i++) {
+      const a = -Math.PI + i * Math.PI / 5;
+      sline(g, Math.cos(a) * 6, Math.sin(a) * 6 - 1, Math.cos(a) * 11, Math.sin(a) * 11 - 2);
+    }
+    g.beginPath(); g.arc(0, 0, 7.5, 0, 7);
+    g.fillStyle = "#c8402c"; g.fill(); g.stroke();
+    g.fillStyle = "#ffe0b0"; g.beginPath(); g.arc(0, 0, 2.6, 0, 7); g.fill();
+  } else if (key === "ice") {                             // снежинка
+    g.strokeStyle = "#3f97bd"; g.lineWidth = 2.4;
+    for (let i = 0; i < 3; i++) {
+      const a = i * Math.PI / 3;
+      sline(g, -Math.cos(a) * 10, -Math.sin(a) * 10, Math.cos(a) * 10, Math.sin(a) * 10);
+      sline(g, Math.cos(a) * 6, Math.sin(a) * 6, Math.cos(a) * 6 + Math.cos(a + 1) * 4.5, Math.sin(a) * 6 + Math.sin(a + 1) * 4.5);
+      sline(g, -Math.cos(a) * 6, -Math.sin(a) * 6, -Math.cos(a) * 6 - Math.cos(a + 1) * 4.5, -Math.sin(a) * 6 - Math.sin(a + 1) * 4.5);
+    }
+    g.strokeStyle = INK;
+  } else {                                                // кристалл опыта
+    spoly(g, [[0, -11], [7, -2], [4, 9], [-4, 9], [-7, -2]], "#e8c247");
+    g.lineWidth = 1.4;
+    sline(g, 0, -11, 0, 9); sline(g, -7, -2, 7, -2);
+    g.lineWidth = 2.2;
+  }
+  g.restore();
+}
+
+function drawEgg(g, e) {
+  const w = Math.sin(e.wob) * (e.t < 900 ? .16 : .05);
+  g.save(); g.translate(e.x, e.y); g.rotate(w);
+  g.strokeStyle = INK; g.lineWidth = 2.2; g.fillStyle = "#fbf4e4";
+  g.beginPath(); g.ellipse(0, -7, 6, 8, 0, 0, 7); g.fill(); g.stroke();
+  if (e.t < 900) { g.lineWidth = 1.6; sline(g, -5, -8, -1, -5); sline(g, -1, -5, 3, -9); }
+  g.restore();
+}
+function drawChick(g, c) {
+  const bob = Math.sin(c.phase * 2) * 1.2;
+  g.save(); g.translate(c.x, c.y + bob); g.scale(c.face, 1);
+  g.strokeStyle = INK; g.lineWidth = 2;
+  scircle(g, 0, -8, 6, "#f2d472");
+  scircle(g, 5, -15, 4.2, "#f7dd85");
+  spoly(g, [[8, -15], [13, -14], [8, -12.5]], "#e08a2a");
+  g.strokeStyle = "#e08a2a"; g.lineWidth = 1.8;
+  const sw = Math.sin(c.phase * 2.4) * 2.4;
+  sline(g, -2, -2, -2 + sw, 3); sline(g, 2, -2, 2 - sw, 3);
+  g.fillStyle = INK; g.beginPath(); g.arc(6.4, -16, .8, 0, 7); g.fill();
+  g.restore();
+}
 function drawTurret(g, tu) {
   g.save(); g.translate(tu.x, tu.y); g.strokeStyle = INK; g.lineWidth = 2.2;
   sline(g, -7, 6, 0, -4); sline(g, 7, 6, 0, -4); sline(g, 0, 8, 0, -4);
@@ -475,7 +707,7 @@ function drawTurret(g, tu) {
 
 /* ── состояние ────────────────────────────────────────────── */
 const P = {};
-let enemies, shots, orbs, puffs, pops, props, chests, mines, nades, ices, booms, hearts;
+let enemies, shots, orbs, puffs, pops, props, chests, mines, nades, ices, booms, pickups, corpses;
 let running, paused, t, spawnT, shotT, eliteT, chestT, healT, score, shake, pointer, xpBoost;
 const rnd = (a, b) => a + Math.random() * (b - a);
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -500,13 +732,13 @@ function buildProps() {
 
 function reset() {
   Object.assign(P, {
-    x: WORLD / 2, y: WORLD / 2, r: 12, phase: 0, face: 1, hurt: 0, orbA: 0,
+    x: WORLD / 2, y: WORLD / 2, r: 14, phase: 0, face: 1, hurt: 0, orbA: 0,
     aim: 0, muzzle: 0, hp: 5 + meta.hp, lvl: 1, xp: 0, xpNext: 5,
-    gear: Object.fromEntries(GK.map(k => [k, 0])), item: null, pet: null,
+    gear: Object.fromEntries(GK.map(k => [k, 0])), item: null, pet: null, wtype: "basic",
   });
-  turrets = []; pendingPet = null; lastPetRoll = null; queuedLevels = 0;
+  turrets = []; eggs = []; chicks = []; pendingPet = null; lastPetRoll = null; queuedLevels = 0;
   enemies = []; shots = []; orbs = []; puffs = []; pops = [];
-  chests = []; mines = []; nades = []; ices = []; booms = []; hearts = [];
+  chests = []; mines = []; nades = []; ices = []; booms = []; pickups = []; corpses = [];
   buildProps();
   t = 0; spawnT = 0; shotT = 0; eliteT = 45000; chestT = 6000; healT = 14000;
   score = 0; shake = 0; xpBoost = 0; paused = false;
@@ -514,13 +746,30 @@ function reset() {
   applyGear();
 }
 function applyGear() {
-  const g = P.gear;
-  P.fireRate = 620 * Math.pow(.82, g.gloves);
+  const g = P.gear, L = g.gun, w = P.wtype;
+  const dm = 1 + .15 * meta.dmg;
+
+  if (w === "shotgun") {
+    P.rate = 880; P.damage = (.42 + .11 * L) * dm;
+    P.range = 168 + 34 * g.scope; P.pellets = 5 + L + g.clip;
+    P.spread = .52; P.pierce = 0; P.nShots = 1;
+  } else if (w === "sniper") {
+    P.rate = 1550 - 140 * L; P.damage = (3.2 + 2.3 * L) * dm;
+    P.range = 520 + 110 * g.scope; P.pellets = 1;
+    P.spread = 0; P.pierce = 1; P.nShots = 1 + g.clip;
+  } else if (w === "minigun") {
+    P.rate = 205 - 21 * L; P.damage = (.46 + .23 * L) * dm;
+    P.range = 205 + 42 * g.scope; P.pellets = 1;
+    P.spread = .17; P.pierce = 0; P.nShots = 1;
+  } else {
+    P.rate = 620; P.damage = (1 + L) * dm;
+    P.range = 215 + 55 * g.scope; P.pellets = 1;
+    P.spread = 0; P.pierce = 0; P.nShots = 1 + g.clip;
+  }
+  P.fireRate = Math.max(60, P.rate * Math.pow(.86, g.gloves));
+
   P.speed = (2.15 + .42 * g.boots) * (1 + .08 * meta.spd);
-  P.damage = (1 + g.gun) * (1 + .15 * meta.dmg);
   P.hpMax = 5 + meta.hp + g.helm;
-  P.range = 215 + 55 * g.scope;
-  P.nShots = 1 + g.clip;
   P.magnet = 120 + 75 * g.cape;
   P.iframe = 950 + 320 * g.jacket;
   P.hp = Math.min(P.hp, P.hpMax);
@@ -582,9 +831,30 @@ function spawn(kind) {
   const grow = 1 + t / 90000, hp = Math.ceil(K.hp * grow);
   enemies.push({ kind, x, y, r: K.r, xp: K.xp, hp, maxhp: hp,
     speed: K.spd + Math.min(.4, t / 160000), phase: rnd(0, 6),
-    face: 1, flash: 0, kb: 0, kbx: 0, kby: 0, orbCd: 0, slip: 0 });
+    face: 1, flash: 0, kb: 0, kbx: 0, kby: 0, orbCd: 0, slip: 0,
+    lx: x, ly: y, stuckT: 0, wander: 0, wanderT: 0, bob: rnd(0, 6) });
 }
 function popEnemy(e) {
+  // у каждого типа своя смерть
+  const c = { kind: e.kind, x: e.x, y: e.y, face: e.face, sc: e.r / 11,
+              rot: 0, rotV: 0, vx: e.kbx * 2.4, vy: e.kby * 2.4,
+              life: 1, max: 1, mode: "puff", phase: e.phase };
+  if (e.kind === "runner") {                       // кувыркается и тает
+    c.mode = "tumble"; c.rotV = (Math.random() < .5 ? -1 : 1) * .14;
+    c.vx = e.kbx * 4.2 + rnd(-.6, .6); c.vy = e.kby * 4.2 - 1.9; c.max = 1.25; c.life = 1.25;
+  } else if (e.kind === "tank") {                  // тяжело заваливается набок
+    c.mode = "fall"; c.max = 1.6; c.life = 1.6;
+  } else if (e.kind === "elite") {                 // разлетается с ударной волной
+    c.mode = "blast"; c.max = 1.2; c.life = 1.2;
+    booms.push({ x: e.x, y: e.y, r: 14, max: 150, life: 1 });
+    booms.push({ x: e.x, y: e.y, r: 8, max: 96, life: .8 });
+    shake = Math.max(shake, 20);
+  } else {                                         // обычный просто лопается
+    c.mode = "pop"; c.max = .34; c.life = .34;
+  }
+  corpses.push(c);
+  if (corpses.length > 40) corpses.shift();
+
   for (let i = 0; i < (e.kind === "elite" ? 24 : 8); i++) {
     const a = Math.random() * 6.28, s = rnd(.6, 3);
     puffs.push({ x: e.x, y: e.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1, r: rnd(2, 5) });
@@ -633,16 +903,43 @@ function spawnChest() {
     return;
   }
 }
+const BOOSTS = {
+  heart: { w: 5, col: "#c8402c" },
+  haste: { w: 3, col: "#e0a52f" },
+  ghost: { w: 3, col: "#4aa8cf" },
+};
+function rollBoost() {
+  const keys = Object.keys(BOOSTS);
+  let total = keys.reduce((a, k) => a + BOOSTS[k].w, 0), r = Math.random() * total;
+  for (const k of keys) { r -= BOOSTS[k].w; if (r <= 0) return k; }
+  return "heart";
+}
 function spawnHeart() {
-  if (hearts.length >= 3) return;
+  if (pickups.length >= 4) return;
   for (let i = 0; i < 30; i++) {
     const a = Math.random() * 6.283, d = rnd(230, 640);
     const x = P.x + Math.cos(a) * d, y = P.y + Math.sin(a) * d;
     if (x < 60 || y < 60 || x > WORLD - 60 || y > WORLD - 60) continue;
     if (props.some(o => Math.hypot(o.x - x, o.y - y) < o.r + 34)) continue;
-    hearts.push({ x, y, a: Math.random() * 6 });
+    pickups.push({ x, y, a: Math.random() * 6, kind: rollBoost() });
     return;
   }
+}
+function drawPickup(g, p) {
+  const y = p.y - 4 + Math.sin(p.a) * 5;
+  if (p.kind === "heart") { drawHeart(g, p.x, y, 1.4); return; }
+  g.save(); g.translate(p.x, y);
+  g.lineWidth = 2.4; g.lineJoin = "round";
+  if (p.kind === "haste") {
+    g.strokeStyle = "#a8761a";
+    spoly(g, [[-3, -12], [6, -12], [1, -2], [7, -2], [-5, 12], [-1, 0], [-6, 0]], "#f0c443");
+  } else {
+    g.strokeStyle = "#2f7d9c";
+    spoly(g, [[0, -13], [10, -8], [10, 2], [0, 13], [-10, 2], [-10, -8]], "#a9dcf0");
+    g.lineWidth = 1.6; g.strokeStyle = "#2f7d9c";
+    sline(g, 0, -9, 0, 8); sline(g, -6, -1, 6, -1);
+  }
+  g.restore();
 }
 function drawHeart(g, x, y, s2) {
   g.save(); g.translate(x, y); g.scale(s2, s2);
@@ -676,12 +973,15 @@ function update(dt) {
   if (shake > 0) shake = Math.max(0, shake - dt * .045);
   if (xpBoost > 0) xpBoost -= dt;
   if (P.muzzle > 0) P.muzzle -= dt;
+  if (P.hasteT > 0) P.hasteT -= dt;
+  if (P.invT > 0) P.invT -= dt;
 
   if (pointer.active) {
     const dx = pointer.x - P.x, dy = pointer.y - P.y, d = Math.hypot(dx, dy);
     if (d > 5) {
-      const v = Math.min(P.speed * k, d);
-      P.x += dx / d * v; P.y += dy / d * v; P.phase += .27 * k;
+      const hs = P.hasteT > 0 ? 1.6 : 1;
+      const v = Math.min(P.speed * hs * k, d);
+      P.x += dx / d * v; P.y += dy / d * v; P.phase += .27 * hs * k;
       if (Math.abs(dx) > 1) P.face = dx > 0 ? 1 : -1;
     }
   }
@@ -701,16 +1001,25 @@ function update(dt) {
   chestT -= dt; if (chestT <= 0) { chestT = 13000 - meta.luck * 2200; spawnChest(); }
   healT -= dt; if (healT <= 0) { healT = 15000; spawnHeart(); }
 
-  for (const h of hearts) {
+  for (const h of pickups) {
     h.a += .05 * k;
-    if (dist(h, P) < 34) {
-      h.dead = true;
-      if (P.hp < P.hpMax) { P.hp++; pops.push({ x: P.x, y: P.y - 46, txt: "+1", life: 1.2, col: "#c8402c" }); }
-      else { for (let i = 0; i < 3; i++) orbs.push({ x: P.x + rnd(-20, 20), y: P.y + rnd(-20, 20), vx: 0, vy: 0 }); }
+    if (dist(h, P) >= 34) continue;
+    h.dead = true;
+    if (h.kind === "heart") {
+      if (P.hp < P.hpMax) { P.hp++; pops.push({ x: P.x, y: P.y - 52, txt: "+1", life: 1.2, col: "#c8402c" }); }
+      else for (let i = 0; i < 3; i++) orbs.push({ x: P.x + rnd(-20, 20), y: P.y + rnd(-20, 20), vx: 0, vy: 0 });
       SFX.heal();
+    } else if (h.kind === "haste") {
+      P.hasteT = 7000;
+      pops.push({ x: P.x, y: P.y - 52, txt: "УСКОРЕНИЕ", life: 1.4, col: "#a8761a" });
+      chain([700, 900, 1200], "square", .05);
+    } else {
+      P.invT = 6000; P.seen = { x: P.x, y: P.y };
+      pops.push({ x: P.x, y: P.y - 52, txt: "НЕУЯЗВИМОСТЬ", life: 1.4, col: "#2f7d9c" });
+      chain([500, 700, 990], "sine", .055);
     }
   }
-  hearts = hearts.filter(h => !h.dead);
+  pickups = pickups.filter(h => !h.dead);
 
   for (const ic of ices) ic.life -= dt;
   ices = ices.filter(i => i.life > 0);
@@ -723,17 +1032,35 @@ function update(dt) {
     if (e.hp <= 0) { popEnemy(e); continue; }
     if (e.kb > 0) { e.x += e.kbx * e.kb * k; e.y += e.kby * e.kb * k; e.kb *= .82; }
     else {
-      const dx = P.x - e.x, dy = P.y - e.y, d = Math.hypot(dx, dy) || 1;
+      const tx = P.invT > 0 ? P.seen.x : P.x, ty = P.invT > 0 ? P.seen.y : P.y;
+      const dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy) || 1;
       let vx = dx / d, vy = dy / d;
-      // обход препятствий: если камень по курсу — скользим вдоль него
-      for (const o of props) {
-        const ox = o.x - e.x, oy = o.y - e.y, od = Math.hypot(ox, oy);
-        const reach = o.r * .78 + e.r + 26;
-        if (od > reach || od < .01) continue;
-        if (ox / od * vx + oy / od * vy < .1) continue;      // не по курсу
-        const side = (ox * vy - oy * vx) > 0 ? -1 : 1;       // куда ближе обходить
-        const w = (1 - od / reach) * 1.9;
-        vx += -oy / od * side * w; vy += ox / od * side * w;
+      if (P.invT > 0) { vx += Math.cos(t / 300 + e.bob) * .5; vy += Math.sin(t / 300 + e.bob) * .5; }
+
+      // если застрял — на секунду уходим вбок, пока не выберемся
+      e.stuckT += dt;
+      if (e.stuckT > 420) {
+        const moved = Math.hypot(e.x - e.lx, e.y - e.ly);
+        if (moved < 5 && e.wanderT <= 0) {
+          e.wanderT = 750;
+          e.wander = Math.atan2(dy, dx) + (Math.random() < .5 ? 1.5 : -1.5);
+        }
+        e.lx = e.x; e.ly = e.y; e.stuckT = 0;
+      }
+      if (e.wanderT > 0) {
+        e.wanderT -= dt;
+        vx = Math.cos(e.wander); vy = Math.sin(e.wander);
+      } else {
+        // обход препятствий: смотрим дальше вперёд и отворачиваем сильнее
+        for (const o of props) {
+          const ox = o.x - e.x, oy = o.y - e.y, od = Math.hypot(ox, oy);
+          const reach = o.r * .78 + e.r + 44;
+          if (od > reach || od < .01) continue;
+          if (ox / od * vx + oy / od * vy < -.05) continue;
+          const side = (ox * vy - oy * vx) > 0 ? -1 : 1;
+          const w = (1 - od / reach) * 3.0;
+          vx += -oy / od * side * w; vy += ox / od * side * w;
+        }
       }
       const j = e.slip > 0 ? rnd(-.6, .6) : 0;
       const vl = Math.hypot(vx, vy) || 1;
@@ -741,12 +1068,13 @@ function update(dt) {
       e.y += (vy / vl + j) * e.speed * slow * k;
       e.face = dx > 0 ? 1 : -1;
     }
-    e.phase += (.23 * slow + (e.slip > 0 ? .3 : 0)) * k;
+    const anim = e.kind === 'runner' ? .30 : e.kind === 'tank' ? .13 : e.kind === 'elite' ? .17 : .23;
+    e.phase += (anim * slow + (e.slip > 0 ? .3 : 0)) * k;
     if (e.slip > 0) e.slip -= dt / 500;
     if (e.flash > 0) e.flash -= dt;
     if (e.orbCd > 0) e.orbCd -= dt;
     pushOut(e);
-    if (dist(e, P) < P.r + e.r && P.hurt <= 0) {
+    if (dist(e, P) < P.r + e.r && P.hurt <= 0 && P.invT <= 0) {
       P.hp--; P.hurt = P.iframe; shake = 12; SFX.hurt();
       pops.push({ x: P.x, y: P.y - 40, txt: "-1", life: 1, col: FOE });
       if (P.hp <= 0) return gameOver();
@@ -775,6 +1103,7 @@ function update(dt) {
   enemies = enemies.filter(e => e.hp > 0);
 
   updatePet(dt, k);
+  updateFarm(dt, k);
 
   for (const m of mines) {
     if (m.arm > 0) { m.arm -= dt; continue; }
@@ -792,22 +1121,44 @@ function update(dt) {
     .sort((a, b) => a.d - b.d).slice(0, P.nShots);
   if (near.length) {
     const tg = near[0].e;
-    P.aim = Math.atan2(tg.y - (P.y - 14), tg.x - P.x);
+    P.aim = Math.atan2(tg.y - (P.y - 11), tg.x - P.x);
     P.face = Math.cos(P.aim) > 0 ? 1 : -1;
   }
   shotT -= dt;
   if (shotT <= 0 && near.length) {
-    shotT = P.fireRate; SFX.shot(); P.muzzle = 90;
-    for (const { e } of near) {
-      const a = Math.atan2(e.y - (P.y - 14), e.x - P.x);
-      const mx = P.x + Math.cos(a) * 26, my = P.y - 14 + Math.sin(a) * 26;
-      shots.push({ x: mx, y: my, vx: Math.cos(a) * 7.2, vy: Math.sin(a) * 7.2, a, life: 950 });
+    shotT = P.fireRate * (P.hasteT > 0 ? .55 : 1); SFX.shot(); P.muzzle = P.wtype === "minigun" ? 60 : 100;
+    const mk = (a, dmg, kind) => {
+      const mx = P.x + Math.cos(a) * 34, my = P.y - 11 + Math.sin(a) * 34;
+      const sp = kind === "sniper" ? 13 : kind === "pellet" ? 7.4 : 7.2;
+      shots.push({ x: mx, y: my, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+                   a, life: kind === "sniper" ? 1400 : 850, dmg, kind,
+                   pierce: kind === "sniper", hit: [] });
+    };
+    const ang = e => Math.atan2(e.y - (P.y - 11), e.x - P.x);
+    if (P.wtype === "shotgun") {
+      const a0 = ang(near[0].e);
+      for (let i = 0; i < P.pellets; i++)
+        mk(a0 + (i / (P.pellets - 1) - .5) * P.spread + rnd(-.05, .05), P.damage, "pellet");
+      P.recoil = 1;
+    } else if (P.wtype === "minigun") {
+      mk(ang(near[0].e) + rnd(-P.spread, P.spread) / 2, P.damage, "mini");
+      P.spin = (P.spin || 0) + 1.1;
+    } else if (P.wtype === "sniper") {
+      for (const { e } of near) mk(ang(e), P.damage, "sniper");
+      shake = Math.max(shake, 7); P.recoil = 1;
+    } else {
+      for (const { e } of near) mk(ang(e), P.damage, "basic");
     }
   }
   for (const s of shots) {
     s.x += s.vx * k; s.y += s.vy * k; s.life -= dt;
-    for (const e of enemies)
-      if (e.hp > 0 && Math.hypot(e.x - s.x, e.y - s.y) < e.r + 4) { hit(e, s.dmg || P.damage, s.x, s.y); s.life = 0; break; }
+    for (const e of enemies) {
+      if (e.hp <= 0 || Math.hypot(e.x - s.x, e.y - s.y) > e.r + 4) continue;
+      if (s.pierce) {
+        if (s.hit.includes(e)) continue;
+        s.hit.push(e); hit(e, s.dmg || P.damage, s.x, s.y);
+      } else { hit(e, s.dmg || P.damage, s.x, s.y); s.life = 0; break; }
+    }
   }
   shots = shots.filter(s => s.life > 0);
   enemies = enemies.filter(e => e.hp > 0);
@@ -826,6 +1177,16 @@ function update(dt) {
     if (d < 20) { o.dead = true; gainXP(); }
   }
   orbs = orbs.filter(o => !o.dead);
+  for (const c of corpses) {
+    c.life -= dt / 1000;
+    c.x += c.vx * k; c.y += c.vy * k;
+    c.vx *= .90; c.vy *= .90;
+    if (c.mode === "tumble") { c.rot += c.rotV * k; c.vy += .14 * k; }
+    if (c.mode === "fall") c.rot += (1.5 - c.rot) * .09 * k;
+    if (c.mode === "blast") c.rot += .06 * k;
+  }
+  corpses = corpses.filter(c => c.life > 0);
+
   for (const p of puffs) { p.x += p.vx * k; p.y += p.vy * k; p.vx *= .92; p.vy *= .92; p.life -= dt / 430; }
   puffs = puffs.filter(p => p.life > 0);
   for (const p of pops) { p.y -= .55 * k; p.life -= dt / 750; }
@@ -848,14 +1209,14 @@ function gainXP() {
 }
 
 /* ── карточки ─────────────────────────────────────────────── */
-function card(box, icon, title, sub, cb) {
+function card(box, icon, title, sub, cb, rare) {
   const el = document.createElement("div");
-  el.className = "card";
+  el.className = rare ? "card rare" : "card";
   el.innerHTML = `<canvas width="40" height="52"></canvas><div><b>${title}</b><span>${sub}</span></div>`;
   icon(el.querySelector("canvas").getContext("2d"));
   el.onclick = cb; box.appendChild(el);
 }
-const heroIcon = gear => g => drawHero(g, 20, 46, 1, 0, gear, .82, 0, 0);
+const heroIcon = gear => g => drawHero(g, 18, 50, 1, 0, gear, .62, -.2, 0);
 const petIcon = (type, lvl) => g => drawPet(g, 15, 42, type, lvl, 1, 0, { saw: .6, aim: -.3, state: "up", bite: 0 });
 function rollPet() {
   const all = Object.keys(PETS).filter(x => x !== lastPetRoll);
@@ -872,6 +1233,13 @@ function offerCards() {
     const c = pool[Math.random() * pool.length | 0];
     if (!pick.includes(c)) pick.push(c);
   }
+  // редкий ствол: небольшой шанс подменить одну из трёх вещей
+  const notOwned = RARE_KEYS.filter(w => w !== P.wtype);
+  if (notOwned.length && Math.random() < RARE_CHANCE) {
+    pendingRare = notOwned[Math.random() * notOwned.length | 0];
+    pick[Math.random() * pick.length | 0] = "@rare";
+  }
+
   // четвёртая строка всегда отдана питомцу
   const petRow = !P.pet || P.pet.lvl < PET_MAX;
   if (!P.pet) pendingPet = rollPet();
@@ -889,6 +1257,16 @@ function offerCards() {
   };
   const box = document.getElementById("cards"); box.innerHTML = "";
   for (const key of pick) {
+    if (key === "@rare") {
+      const w = pendingRare, W2 = WEAPONS[w];
+      card(box, heroIcon({ ...P.gear, _w: w }),
+        `${W2.name} <span class="rr">РЕДКОЕ</span>`, W2.desc, () => {
+          P.wtype = w; applyGear();
+          SFX.chest(); setTimeout(() => SFX.level(), 160);
+          close();
+        }, true);
+      continue;
+    }
     if (key === "@pet") {
       const ty = P.pet ? P.pet.type : pendingPet;
       const lv = P.pet ? P.pet.lvl + 1 : 1;
@@ -900,8 +1278,9 @@ function offerCards() {
         });
       continue;
     }
-    const g = { ...P.gear }; g[key]++;
-    card(box, heroIcon(g), `${GEAR[key].name} ${"★".repeat(g[key])}`, GEAR[key].desc, () => {
+    const g = { ...P.gear, _w: P.wtype }; g[key]++;
+    const nm = key === "gun" ? WEAPONS[P.wtype].name : GEAR[key].name;
+    card(box, heroIcon(g), `${nm} ${"★".repeat(g[key])}`, GEAR[key].desc, () => {
       P.gear[key]++; applyGear(); P.hp = Math.min(P.hpMax, P.hp + 1); close();
     });
   }
@@ -922,7 +1301,55 @@ function offerPerks() {
 
 
 /* ── пять моделей оружия ──────────────────────────────────── */
-function drawGunModel(g, lv, muzzle) {
+function drawGunModel(g, lv, muzzle, type) {
+  if (type && type !== "basic") return drawRareGun(g, lv, muzzle, type);
+  return drawBasicGun(g, lv, muzzle);
+}
+
+function drawRareGun(g, lv, muzzle, type) {
+  g.strokeStyle = INK; g.lineWidth = 2.2; g.lineCap = "round"; g.lineJoin = "round";
+  let tip = 26;
+  if (type === "shotgun") {
+    const L = 24 + lv * 2.5;
+    spoly(g, [[2, -6], [L, -6], [L, -2.6], [2, -2.6]], "#6f7a82");     // верхний ствол
+    spoly(g, [[2, -2.4], [L, -2.4], [L, 1], [2, 1]], "#6f7a82");       // нижний
+    spoly(g, [[-1, -2], [11, -2], [9, 12], [-4, 9]], "#7a5330");       // приклад
+    spoly(g, [[12, 1], [21, 1], [21, 4.6], [12, 4.6]], "#8a6238");     // цевьё
+    g.lineWidth = 1.4; sline(g, 14, 2.8, 19, 2.8); g.lineWidth = 2.2;
+    tip = L;
+  } else if (type === "sniper") {
+    const L = 40 + lv * 3.5;
+    spoly(g, [[2, -4], [L, -3], [L, -.6], [2, .6]], "#5b636a");
+    spoly(g, [[-2, -2], [12, -2], [10, 13], [-5, 10]], "#3f3a34");     // приклад
+    spoly(g, [[10, -12], [26, -12], [26, -5.4], [10, -5.4]], "#2f2c28");// прицел
+    scircle(g, 26, -8.7, 3.4, "#9fd6e8");
+    g.lineWidth = 1.4; sline(g, 12, -8.7, 22, -8.7); g.lineWidth = 2.2;
+    spoly(g, [[L - 12, 1], [L - 9, 1], [L - 4, 11], [L - 7, 11]], "#4a4a52");  // сошки
+    spoly(g, [[L - 12, 1], [L - 9, 1], [L - 16, 11], [L - 19, 11]], "#4a4a52");
+    tip = L;
+  } else {
+    const L = 26 + lv * 2;
+    spoly(g, [[-2, -3], [10, -3], [9, 12], [-5, 9]], "#3f3a34");       // корпус
+    spoly(g, [[8, 2], [19, 2], [19, 12], [8, 12]], "#5d666d");         // короб
+    g.save(); g.translate(12, -3); g.rotate((P.spin || 0));            // блок стволов
+    for (let i = 0; i < 3; i++) {
+      const a = i * 2.09, oy = Math.sin(a) * 3.4;
+      spoly(g, [[0, oy - 1.6], [L, oy - 1.6], [L, oy + 1.6], [0, oy + 1.6]], i ? "#7b848b" : "#98a1a8");
+    }
+    g.restore();
+    scircle(g, 12, -3, 5.2, "#5d666d");
+    tip = L + 12;
+  }
+  if (muzzle > 0) {
+    g.strokeStyle = "#e08a2a"; g.lineWidth = 2.6;
+    const n = type === "shotgun" ? 5 : 3;
+    for (let i = 0; i < n; i++)
+      sline(g, tip, -2, tip + 11 + lv * 2, -2 + (i - (n - 1) / 2) * (5 + lv));
+    g.strokeStyle = INK; g.lineWidth = 2.2;
+  }
+}
+
+function drawBasicGun(g, lv, muzzle) {
   g.strokeStyle = INK; g.lineWidth = 2.2; g.lineCap = "round"; g.lineJoin = "round";
   let tip = 20;
   if (lv === 0) {                                   // пистолет
@@ -963,78 +1390,280 @@ function drawGunModel(g, lv, muzzle) {
 }
 
 /* ── человечек: линии + одежда + ружьё ────────────────────── */
+/* Пропорции героя (локальные единицы, ступни на y = 0):
+   бедро -18 · плечи -40 · шея -44 · голова -52, r 8.5
+   Толщина линий задаёт иерархию: скелет 3.0, одежда 2.2, мелочи 1.4 —
+   иначе всё сливается в кашу.                                        */
 function drawHero(g, x, y, face, phase, gear, sc, aim, muzzle) {
   const sw = Math.sin(phase) * .6;
   g.save(); g.translate(x, y); g.scale(sc, sc);
   g.lineCap = "round"; g.lineJoin = "round";
-  g.strokeStyle = INK; g.lineWidth = 2.4;
+  const C = l => TIER[Math.min(4, l)];
+  const SK = 3.0, CL = 2.2, DT = 1.4;
 
-  if (gear.cape) {                                  // плащ
-    g.save(); g.scale(face, 1);
-    spoly(g, [[-2, -30], [-13 - gear.cape * 2, -4], [3, -6]], TIER[gear.cape]);
+  // тень под ногами — привязывает фигуру к земле
+  g.globalAlpha = .13; g.fillStyle = INK;
+  g.beginPath(); g.ellipse(0, 1, 13, 3.6, 0, 0, 7); g.fill();
+  g.globalAlpha = 1;
+
+  /* ── ПЛАЩ ── */
+  if (gear.cape) {
+    const L = gear.cape;
+    g.save(); g.scale(face, 1); g.strokeStyle = INK; g.lineWidth = CL;
+    if (L === 1) spoly(g, [[-3, -42], [-17, -12], [4, -15]], C(L));
+    else if (L === 2) {
+      spoly(g, [[-3, -43], [-22, -3], [5, -12]], C(L));
+      g.lineWidth = DT; sline(g, -9, -30, -14, -10);
+    } else {
+      spoly(g, [[-3, -44], [-26, 3], [-18, -2], [-22, 4], [-12, -4], [-15, 3], [5, -12]], C(L));
+      g.lineWidth = DT; sline(g, -9, -32, -16, -8); sline(g, -15, -26, -21, -4);
+    }
     g.restore();
   }
-  // ноги
-  g.strokeStyle = INK;
-  sline(g, 0, -12, sw * 9, 2); sline(g, 0, -12, -sw * 9, 2);
-  if (gear.boots) {                                 // сапоги
-    g.lineWidth = 5; g.strokeStyle = TIER[gear.boots];
-    sline(g, sw * 8, -1, sw * 9, 2); sline(g, -sw * 8, -1, -sw * 9, 2);
-    g.lineWidth = 2.4; g.strokeStyle = INK;
-  }
-  // корпус
-  sline(g, 0, -12, 0, -28);
-  if (gear.jacket) {                                // куртка
-    g.save(); g.scale(face, 1);
-    spoly(g, [[-6, -27], [6, -27], [5, -13], [-5, -13]], TIER[gear.jacket]);
+
+  /* ── НОГИ ── */
+  g.strokeStyle = INK; g.lineWidth = SK;
+  sline(g, 0, -18, sw * 11, -2); sline(g, 0, -18, -sw * 11, -2);
+
+  /* ── ОБУВЬ ── */
+  if (gear.boots) {
+    const L = gear.boots;
+    g.save(); g.scale(face, 1); g.lineWidth = CL;
+    for (const d of [1, -1]) {
+      g.save(); g.translate(d * sw * 11, -2);
+      if (L === 1) spoly(g, [[-4, -5], [4, -5], [5.5, 1], [-4, 1]], C(L));
+      else if (L === 2) {
+        spoly(g, [[-4, -12], [4, -12], [5.5, 1], [-4, 1]], C(L));
+        g.lineWidth = DT; sline(g, -4, -8, 4, -8); g.lineWidth = CL;
+      } else if (L === 3) {
+        spoly(g, [[-4.5, -15], [5, -15], [6, 1], [-4.5, 1]], C(L));
+        g.lineWidth = DT; sline(g, -4.5, -11, 5, -11); sline(g, -4.5, -6, 5.5, -6); g.lineWidth = CL;
+      } else {
+        spoly(g, [[-5, -18], [5.5, -18], [6.5, 1], [-5, 1]], C(L));
+        g.lineWidth = DT; sline(g, -5, -13, 5.5, -13); sline(g, -5, -7, 6, -7); g.lineWidth = CL;
+        spoly(g, [[6.5, -3], [11, -1], [6.5, 1]], C(L));
+      }
+      g.restore();
+    }
     g.restore();
   }
-  // руки
+
+  /* ── ТОРС ── */
+  g.strokeStyle = INK; g.lineWidth = SK;
+  sline(g, 0, -18, 0, -40);
+
+  /* ── КУРТКА ── */
+  if (gear.jacket) {
+    const L = gear.jacket;
+    g.save(); g.scale(face, 1); g.lineWidth = CL;
+    if (L === 1) {
+      spoly(g, [[-8, -39], [8, -39], [7, -19], [-7, -19]], C(L));
+      spoly(g, [[-4, -39], [0, -31], [4, -39]], PAPER);
+    } else if (L === 2) {
+      spoly(g, [[-9, -39], [9, -39], [7.5, -18], [-7.5, -18]], C(L));
+      spoly(g, [[-9, -39], [-2.5, -39], [-5, -31]], "#efe6d2");
+      spoly(g, [[9, -39], [2.5, -39], [5, -31]], "#efe6d2");
+      g.fillStyle = "#efe6d2";
+      for (let i = 0; i < 2; i++) { g.beginPath(); g.arc(0, -30 + i * 6, 1.5, 0, 7); g.fill(); }
+    } else {
+      spoly(g, [[-9.5, -39], [9.5, -39], [8, -18], [-8, -18]], C(L));
+      g.lineWidth = DT; sline(g, -8, -30, 8, -30); sline(g, 0, -39, 0, -18); g.lineWidth = CL;
+      scircle(g, -11, -37, 5.4, C(L)); scircle(g, 11, -37, 5.4, C(L));
+    }
+    g.restore();
+  }
+
+  /* ── ПОЯС ── */
+  if (gear.clip) {
+    const L = gear.clip;
+    g.save(); g.scale(face, 1);
+    g.strokeStyle = "#6b4a2a"; g.lineWidth = 3; sline(g, -8, -19, 8, -19);
+    g.strokeStyle = INK; g.lineWidth = CL;
+    for (let i = 0; i < L; i++)
+      spoly(g, [[-8 + i * 6, -18.5], [-3.4 + i * 6, -18.5], [-3.4 + i * 6, -11.5], [-8 + i * 6, -11.5]], C(L));
+    g.restore();
+  }
+
+  /* ── ЗАДНЯЯ РУКА ── */
   g.save(); g.scale(face, 1);
-  sline(g, 0, -24, -7, -16 + sw * 3);               // задняя рука
-  if (gear.gloves) { g.lineWidth = 4.5; g.strokeStyle = TIER[gear.gloves]; sline(g, -6, -17 + sw * 3, -7, -16 + sw * 3); g.lineWidth = 2.4; g.strokeStyle = INK; }
+  g.strokeStyle = INK; g.lineWidth = SK;
+  sline(g, 0, -38, -10, -26 + sw * 4);
+  if (gear.gloves) {
+    g.lineWidth = gear.gloves >= 3 ? 7 : 5.6; g.strokeStyle = C(gear.gloves);
+    sline(g, -8, -28 + sw * 4, -10.5, -25.5 + sw * 4);
+  }
   g.restore();
 
-  // ружьё в передней руке — целится, модель меняется с уровнем
-  g.save(); g.translate(0, -14); g.rotate(face > 0 ? aim : Math.PI - aim); g.scale(face, 1);
-  drawGunModel(g, gear.gun || 0, muzzle);
-  g.restore();
-  g.save(); g.scale(face, 1); g.strokeStyle = INK; g.lineWidth = 2.4;
-  sline(g, 0, -24, 8, -15);                          // передняя рука к ружью
+  /* ── РУЖЬЁ ── */
+  g.save(); g.translate(2, -27); g.rotate(face > 0 ? aim : Math.PI - aim);
+  g.scale(face * 1.3, 1.3);
+  drawGunModel(g, gear.gun || 0, muzzle, gear._w);
   g.restore();
 
-  // голова
-  g.fillStyle = PAPER; scircle(g, 0, -33, 6.2, PAPER);
+  /* ── ПЕРЕДНЯЯ РУКА ── */
+  g.save(); g.scale(face, 1);
+  g.strokeStyle = INK; g.lineWidth = SK;
+  sline(g, 0, -38, 11, -27);
+  if (gear.gloves) {
+    const L = gear.gloves;
+    g.lineWidth = L >= 3 ? 7 : 5.6; g.strokeStyle = C(L);
+    sline(g, 8.5, -29, 12, -26.5);
+    if (L >= 3) {
+      g.lineWidth = DT; g.strokeStyle = INK;
+      sline(g, 7, -31.5, 9.5, -34); sline(g, 9.5, -34, 12, -31.5);
+    }
+    if (L >= 4) { g.fillStyle = "#efe6d2"; g.beginPath(); g.arc(11, -29, 1.5, 0, 7); g.fill(); }
+  }
+  g.restore();
+
+  /* ── ШЕЯ и ГОЛОВА ── */
+  g.strokeStyle = INK; g.lineWidth = SK;
+  sline(g, 0, -40, 0, -44);
+  g.fillStyle = PAPER; scircle(g, 0, -52, 8.5, PAPER);
   g.fillStyle = INK;
-  g.beginPath(); g.arc(face * 2, -34, .95, 0, 7); g.fill();
-  if (gear.scope) { g.lineWidth = 1.8; sline(g, -5, -35, 5, -35); g.lineWidth = 2.4; }
-  if (gear.helm) {                                   // шапка
-    g.save(); g.scale(face, 1);
-    spoly(g, [[-7, -36], [7, -36], [5, -42], [-5, -42]], TIER[gear.helm]);
-    sline(g, -8, -36, 8, -36);
+  g.beginPath(); g.arc(face * 3, -53.5, 1.25, 0, 7); g.fill();
+
+  const fullHelm = gear.helm >= 3;
+
+  /* ── ОЧКИ ── */
+  if (gear.scope && !fullHelm) {
+    const L = gear.scope;
+    g.save(); g.scale(face, 1); g.strokeStyle = INK;
+    if (L === 1) {
+      g.lineWidth = DT + .3;
+      scircle(g, -3.6, -53.5, 3.2, "#dfeaf0"); scircle(g, 4.2, -53.5, 3.2, "#dfeaf0");
+      sline(g, -.4, -54, 1, -54); sline(g, 7.4, -54.4, 10, -55.6);
+    } else {
+      g.lineWidth = CL;
+      spoly(g, [[-9, -56.5], [9, -55.5], [8.4, -50], [-8.4, -51]], C(L));
+      g.lineWidth = DT; g.strokeStyle = "#efe6d2"; sline(g, -6, -54.6, 2, -53.6); g.strokeStyle = INK;
+      if (L >= 3) { sline(g, -9, -54, -13, -53.4); sline(g, 9, -53, 13, -52.4); }
+    }
     g.restore();
   }
-  if (gear.clip) {                                   // магазин на поясе
-    g.save(); g.scale(face, 1);
-    spoly(g, [[-6, -14], [-6 + gear.clip * 3, -14], [-6 + gear.clip * 3, -9], [-6, -9]], TIER[gear.clip]);
+
+  /* ── ГОЛОВНОЙ УБОР ── */
+  if (gear.helm) {
+    const L = gear.helm;
+    g.save(); g.scale(face, 1); g.strokeStyle = INK; g.lineWidth = CL;
+    if (L === 1) {
+      g.beginPath(); g.arc(0, -56, 8.7, Math.PI, 0); g.fillStyle = C(L); g.fill(); g.stroke();
+      spoly(g, [[1, -57], [15, -55], [1, -53]], C(L));
+    } else if (L === 2) {
+      g.beginPath(); g.arc(0, -56, 9.4, Math.PI, 0); g.fillStyle = C(L); g.fill(); g.stroke();
+      spoly(g, [[-11.5, -56], [11.5, -56], [10.6, -52.4], [-10.6, -52.4]], C(L));
+    } else {
+      g.beginPath(); g.arc(0, -55.5, 9.8, Math.PI, .18); g.fillStyle = C(L); g.fill(); g.stroke();
+      spoly(g, [[-12, -55.5], [12, -55.5], [11, -51.6], [-11, -51.6]], C(L));
+      spoly(g, [[2, -55], [6, -55], [5.4, -44], [2.6, -44]], C(L));      // наносник
+      if (L >= 4) {
+        g.fillStyle = "#c8402c";                                          // плюмаж
+        g.beginPath(); g.moveTo(-1, -65);
+        g.bezierCurveTo(-13, -70, -17, -56, -11, -51);
+        g.bezierCurveTo(-11, -60, -6, -63, -1, -65);
+        g.closePath(); g.fill(); g.stroke();
+        g.fillStyle = "#efe6d2"; scircle(g, 0, -64, 2.6, "#efe6d2");
+      }
+    }
     g.restore();
   }
   g.restore();
 }
 
-function drawFoe(g, x, y, face, phase, sc, col) {
+function drawFoe(g, x, y, face, phase, sc, col, kind, rot) {
   const sw = Math.sin(phase) * .6;
-  g.save(); g.translate(x, y); g.scale(sc, sc);
-  g.strokeStyle = col; g.lineWidth = 2.4; g.lineCap = "round";
-  sline(g, 0, -11, sw * 8, 2); sline(g, 0, -11, -sw * 8, 2);
-  sline(g, 0, -11, 0, -25);
-  g.save(); g.scale(face, 1);
-  sline(g, 0, -22, 8, -17 + sw * 3); sline(g, 0, -22, -8, -17 - sw * 3);
+  g.save(); g.translate(x, y);
+  if (rot) g.rotate(rot);
+  g.scale(sc, sc);
+  g.strokeStyle = col; g.lineWidth = 2.4; g.lineCap = "round"; g.lineJoin = "round";
+
+  if (kind === "runner") {
+    // бегун: наклон вперёд, руки назад, частый шаг
+    g.save(); g.scale(face, 1); g.rotate(-.20);
+    const f = Math.sin(phase * 1.55) * .85;
+    sline(g, 0, -11, f * 11, 2); sline(g, 0, -11, -f * 11, 2);
+    sline(g, 0, -11, 0, -24);
+    sline(g, 0, -21, -10, -14 + f * 4);
+    sline(g, 0, -21, -8, -25 - f * 3);
+    g.fillStyle = PAPER; scircle(g, 2, -29, 5.2, PAPER);
+    g.fillStyle = col; g.beginPath(); g.arc(4, -30, .9, 0, 7); g.fill();
+    g.restore();
+
+  } else if (kind === "tank") {
+    // танк: тяжёлый шаг, приседает на опорной ноге, широкие плечи
+    const squash = Math.abs(Math.sin(phase)) * 2.2;
+    g.translate(0, squash);
+    g.lineWidth = 3.4;
+    g.save(); g.scale(face, 1);
+    sline(g, 0, -10, sw * 7, 2); sline(g, 0, -10, -sw * 7, 2);
+    sline(g, 0, -10, 0, -24);
+    sline(g, -9, -22, 9, -22);                       // плечи
+    sline(g, 9, -22, 12, -13 + sw * 4);
+    sline(g, -9, -22, -12, -13 - sw * 4);
+    g.fillStyle = PAPER; scircle(g, 0, -30, 6.4, PAPER);
+    g.fillStyle = col; g.beginPath(); g.arc(2, -31, 1, 0, 7); g.fill();
+    g.lineWidth = 2.4;
+    sline(g, -5, -35, 5, -35);                       // насупленная бровь
+    g.restore();
+
+  } else if (kind === "elite") {
+    // элита: покачивается, руки подняты, рожки
+    const sway = Math.sin(phase * .7) * .10;
+    g.rotate(sway);
+    g.lineWidth = 3;
+    g.save(); g.scale(face, 1);
+    sline(g, 0, -12, sw * 9, 2); sline(g, 0, -12, -sw * 9, 2);
+    sline(g, 0, -12, 0, -26);
+    const arm = Math.sin(phase * 1.3) * 4;
+    sline(g, 0, -24, 11, -32 + arm); sline(g, 0, -24, -11, -32 - arm);
+    g.fillStyle = PAPER; scircle(g, 0, -33, 6.6, PAPER);
+    g.fillStyle = col;
+    g.beginPath(); g.arc(2.4, -34, 1.1, 0, 7); g.fill();
+    g.beginPath(); g.arc(-2.4, -34, 1.1, 0, 7); g.fill();
+    spoly(g, [[-6, -38], [-4, -45], [-2, -38]], col);   // рожки
+    spoly(g, [[6, -38], [4, -45], [2, -38]], col);
+    g.restore();
+
+  } else {
+    // обычный: бег с покачиванием корпуса
+    const bob = Math.sin(phase * 2) * 1.3;
+    g.translate(0, bob);
+    g.save(); g.scale(face, 1);
+    sline(g, 0, -11, sw * 8, 2); sline(g, 0, -11, -sw * 8, 2);
+    sline(g, 0, -11, 0, -25);
+    sline(g, 0, -22, 8, -17 + sw * 3); sline(g, 0, -22, -8, -17 - sw * 3);
+    g.fillStyle = PAPER; scircle(g, 0, -30, 5.6, PAPER);
+    g.fillStyle = col; g.beginPath(); g.arc(1.8, -31, .9, 0, 7); g.fill();
+    g.restore();
+  }
   g.restore();
-  g.fillStyle = PAPER; scircle(g, 0, -30, 5.6, PAPER);
-  g.fillStyle = col;
-  g.beginPath(); g.arc(face * 1.8, -31, .9, 0, 7); g.fill();
-  g.restore();
+}
+
+function drawCorpse(g, c) {
+  const a = Math.max(0, Math.min(1, c.life / c.max));
+  g.globalAlpha = a;
+  if (c.mode === "pop") {                      // лопается облачком
+    const k = 1 - a;
+    g.strokeStyle = FOE; g.lineWidth = 2.6;
+    scircle(g, c.x, c.y - 12 * c.sc, (6 + k * 18) * c.sc, null);
+    for (let i = 0; i < 5; i++) {
+      const an = i * 1.256 + c.phase;
+      sline(g, c.x + Math.cos(an) * 10 * c.sc, c.y - 12 * c.sc + Math.sin(an) * 10 * c.sc,
+               c.x + Math.cos(an) * (16 + k * 14) * c.sc, c.y - 12 * c.sc + Math.sin(an) * (16 + k * 14) * c.sc);
+    }
+  } else {
+    drawFoe(g, c.x, c.y, c.face, c.phase, c.sc, FOE, c.kind, c.rot * c.face);
+    if (c.mode === "blast") {                  // элиту рвёт на части
+      const k = 1 - a;
+      g.strokeStyle = FOE; g.lineWidth = 2.4;
+      for (let i = 0; i < 7; i++) {
+        const an = i * .9 + c.phase, r0 = 12 + k * 46;
+        sline(g, c.x + Math.cos(an) * r0, c.y - 20 + Math.sin(an) * r0,
+                 c.x + Math.cos(an) * (r0 + 11), c.y - 20 + Math.sin(an) * (r0 + 11));
+      }
+    }
+  }
+  g.globalAlpha = 1;
 }
 
 /* ── кадр ─────────────────────────────────────────────────── */
@@ -1095,9 +1724,9 @@ function draw() {
     ctx.restore();
   }
 
-  for (const h of hearts) {                      // аптечка
+  for (const h of pickups) {                     // бусты на карте
     if (!vis(h)) continue;
-    drawHeart(ctx, h.x, h.y - 4 + Math.sin(h.a) * 5, 1.4);
+    drawPickup(ctx, h);
   }
   for (const c of chests) {                      // сундук
     if (!vis(c)) continue;
@@ -1121,26 +1750,30 @@ function draw() {
     }
     ctx.strokeStyle = INK; ctx.lineWidth = 2.6;
     ctx.restore();
-    const it = ITEMS[c.item], oy = c.y - 34 + Math.sin(c.a * 2) * 5;
-    ctx.save(); ctx.translate(c.x, oy); ctx.rotate(c.a);
-    spoly(ctx, [[-8, -8], [8, -8], [8, 8], [-8, 8]], it.col);
-    ctx.restore();
+    const oy = c.y - 36 + Math.sin(c.a * 2) * 5;
+    drawItemIcon(ctx, c.item, c.x, oy, 1.05);
   }
 
   ctx.strokeStyle = INK; ctx.lineWidth = 2;
   for (const o of orbs) { if (!vis(o)) continue; scircle(ctx, o.x, o.y, 4.5, "#dfa128"); }
   for (const m of mines) {
-    ctx.lineWidth = 2.2; scircle(ctx, m.x, m.y, m.mini ? 6 : 10, m.arm > 0 ? "#e3cdbd" : (m.mini ? "#4e8f4a" : "#c8402c"));
-    if (m.arm <= 0) { ctx.fillStyle = INK; ctx.beginPath(); ctx.arc(m.x, m.y, 2.4 + Math.sin(t / 120) * 1.4, 0, 7); ctx.fill(); }
+    ctx.globalAlpha = m.arm > 0 ? .5 : 1;
+    if (m.mini) { ctx.lineWidth = 2; scircle(ctx, m.x, m.y, 6, "#4e8f4a");
+      ctx.fillStyle = "#ffe0b0"; ctx.beginPath(); ctx.arc(m.x, m.y, 2, 0, 7); ctx.fill(); }
+    else drawItemIcon(ctx, "mine", m.x, m.y, .95);
+    ctx.globalAlpha = 1;
+    if (m.arm <= 0 && !m.mini) { ctx.fillStyle = "#ffe0b0";
+      ctx.beginPath(); ctx.arc(m.x, m.y, 1.6 + Math.sin(t / 120) * 1.4, 0, 7); ctx.fill(); }
   }
-  for (const g of nades) scircle(ctx, g.x, g.y, 8, "#4e8f4a");
+  for (const g of nades) { ctx.save(); ctx.translate(g.x, g.y); ctx.rotate(t / 90); drawItemIcon(ctx, "nade", 0, 0, .85); ctx.restore(); }
   for (const p of puffs) {
     ctx.globalAlpha = Math.max(0, p.life); ctx.lineWidth = 1.8;
     scircle(ctx, p.x, p.y, p.r, "#e0d3bd"); ctx.globalAlpha = 1;
   }
+  for (const c of corpses) drawCorpse(ctx, c);
   for (const e of enemies) {
     if (!vis(e)) continue;
-    drawFoe(ctx, e.x, e.y + 13 * (e.r / 11), e.face, e.phase, e.r / 11, e.flash > 0 ? "#f0907c" : FOE);
+    drawFoe(ctx, e.x, e.y + 13 * (e.r / 11), e.face, e.phase, e.r / 11, e.flash > 0 ? "#f0907c" : FOE, e.kind, 0);
     if (e.kind === "elite" || e.kind === "tank") {
       const w = e.r * 2.2;
       ctx.fillStyle = "rgba(0,0,0,.12)"; ctx.fillRect(e.x - w / 2, e.y - e.r - 18, w, 4);
@@ -1151,11 +1784,30 @@ function draw() {
     ctx.globalAlpha = Math.max(0, b.life); ctx.strokeStyle = "#e08a2a"; ctx.lineWidth = 5;
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
   }
-  ctx.strokeStyle = INK; ctx.lineWidth = 3;
   for (const s of shots) {
-    ctx.beginPath(); ctx.moveTo(s.x, s.y);
-    ctx.lineTo(s.x - Math.cos(s.a) * 11, s.y - Math.sin(s.a) * 11); ctx.stroke();
+    if (s.kind === "sniper") {
+      ctx.strokeStyle = "#8a53c4"; ctx.lineWidth = 3.4;
+      ctx.beginPath(); ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.x - Math.cos(s.a) * 34, s.y - Math.sin(s.a) * 34); ctx.stroke();
+      ctx.globalAlpha = .3; ctx.lineWidth = 7;
+      ctx.beginPath(); ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.x - Math.cos(s.a) * 26, s.y - Math.sin(s.a) * 26); ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else if (s.kind === "pellet") {
+      ctx.fillStyle = "#7a5330";
+      ctx.beginPath(); ctx.arc(s.x, s.y, 2.4, 0, 7); ctx.fill();
+    } else if (s.kind === "mini") {
+      ctx.strokeStyle = "#e08a2a"; ctx.lineWidth = 2.6;
+      ctx.beginPath(); ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.x - Math.cos(s.a) * 8, s.y - Math.sin(s.a) * 8); ctx.stroke();
+    } else {
+      ctx.strokeStyle = INK; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(s.x, s.y);
+      ctx.lineTo(s.x - Math.cos(s.a) * 11, s.y - Math.sin(s.a) * 11); ctx.stroke();
+    }
   }
+  for (const eg of eggs) drawEgg(ctx, eg);
+  for (const ch of chicks) drawChick(ctx, ch);
   for (const tu of turrets) drawTurret(ctx, tu);
   if (running) {
     if (P.pet && P.pet.dead <= 0 && !(P.pet.hurt > 0 && Math.floor(t / 80) % 2 === 0)) {
@@ -1164,8 +1816,15 @@ function draw() {
       ctx.fillStyle = "rgba(43,38,32,.18)"; ctx.fillRect(P.pet.x - w / 2, P.pet.y - 40, w, 3.5);
       ctx.fillStyle = "#4e8f4a"; ctx.fillRect(P.pet.x - w / 2, P.pet.y - 40, w * (P.pet.hp / P.pet.hpMax), 3.5);
     }
+    if (P.invT > 0) {
+      ctx.globalAlpha = .45;
+      ctx.strokeStyle = "#4aa8cf"; ctx.lineWidth = 2.4; ctx.setLineDash([6, 6]);
+      ctx.beginPath(); ctx.arc(P.x, P.y - 8, 34, 0, 7); ctx.stroke();
+      ctx.setLineDash([]);
+    }
     if (!(P.hurt > 0 && Math.floor(t / 85) % 2 === 0))
-      drawHero(ctx, P.x, P.y + 14, P.face, P.phase, P.gear, 1.15, P.aim, P.muzzle);
+      drawHero(ctx, P.x, P.y + 17, P.face, P.phase, { ...P.gear, _w: P.wtype }, 1.02, P.aim, P.muzzle);
+    ctx.globalAlpha = 1;
   }
   ctx.font = "700 14px system-ui"; ctx.textAlign = "center";
   for (const p of pops) {
@@ -1191,7 +1850,19 @@ function hud() {
   ctx.fillStyle = INK; ctx.font = "700 13px system-ui"; ctx.textAlign = "right";
   ctx.fillText(`LV ${P.lvl}   ${score}   ${(t / 1000).toFixed(0)}s`, W - 16, 20);
   ctx.textAlign = "left";
-  if (xpBoost > 0) { ctx.fillStyle = "#b8811a"; ctx.font = "700 12px system-ui"; ctx.fillText(`ОПЫТ ×2  ${(xpBoost / 1000).toFixed(0)}`, 16, 62); }
+  let by = 58;
+  const buff = (act, max, col, label) => {
+    if (act <= 0) return;
+    ctx.fillStyle = "rgba(43,38,32,.13)"; ctx.fillRect(16, by, 96, 12);
+    ctx.fillStyle = col; ctx.fillRect(16, by, 96 * Math.min(1, act / max), 12);
+    ctx.strokeStyle = INK; ctx.lineWidth = 1.6; ctx.strokeRect(16, by, 96, 12);
+    ctx.fillStyle = INK; ctx.font = "800 9px system-ui";
+    ctx.fillText(label, 21, by + 9.2);
+    by += 16;
+  };
+  buff(xpBoost, 20000, "#f0c443", "ОПЫТ ×2");
+  buff(P.hasteT, 7000, "#f0a83a", "УСКОРЕНИЕ");
+  buff(P.invT, 6000, "#a9dcf0", "НЕУЯЗВИМОСТЬ");
   radar(); syncHUD();
 }
 function radar() {
@@ -1208,8 +1879,10 @@ function radar() {
   if (P.pet && P.pet.dead <= 0) { ctx.fillStyle = "#3d78bd"; ctx.fillRect(x + P.pet.x * s - 1, y + P.pet.y * s - 1, 3, 3); }
   ctx.fillStyle = "#dfa128";
   for (const c of chests) ctx.fillRect(x + c.x * s - 2, y + c.y * s - 2, 5, 5);
-  ctx.fillStyle = "#e0645a";
-  for (const h of hearts) ctx.fillRect(x + h.x * s - 2, y + h.y * s - 2, 4.5, 4.5);
+  for (const h of pickups) {
+    ctx.fillStyle = BOOSTS[h.kind].col;
+    ctx.fillRect(x + h.x * s - 2, y + h.y * s - 2, 4.5, 4.5);
+  }
   ctx.strokeStyle = "rgba(43,38,32,.4)"; ctx.lineWidth = 1;
   ctx.strokeRect(x + cam.x * s, y + cam.y * s, W * s, H * s);
   ctx.fillStyle = HERO;
@@ -1219,12 +1892,80 @@ function radar() {
 const useBtn = document.getElementById("useBtn");
 const useIco = document.getElementById("useIco");
 const useName = document.getElementById("useName");
-const petTimer = document.getElementById("petTimer");
-const petSec = document.getElementById("petSec");
+const petBadge = document.getElementById("petBadge");
+const petCtx = petBadge.getContext("2d");
+const REVIVE = 12000;
+
+function star(g, x, y, r) {
+  g.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * .45 : r;
+    g[i ? "lineTo" : "moveTo"](x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  }
+  g.closePath();
+  g.fillStyle = "#e0a52f"; g.fill();
+  g.lineWidth = 1.4; g.strokeStyle = INK; g.stroke();
+}
+
+function drawPetBadge() {
+  const p = P.pet;
+  petBadge.classList.toggle("hidden", !p || !running);
+  if (!p || !running) return;
+  const S2 = 176, g = petCtx, c = S2 / 2, R = c - 14;
+  g.setTransform(2, 0, 0, 2, 0, 0);
+  g.clearRect(0, 0, S2, S2);
+  const cc = c / 2, RR = R / 2;
+
+  // подложка
+  g.beginPath(); g.arc(cc, cc, RR, 0, 7);
+  g.fillStyle = "#fdf6e8"; g.fill();
+  g.lineWidth = 3; g.strokeStyle = INK; g.stroke();
+
+  // аватарка питомца
+  g.save();
+  g.beginPath(); g.arc(cc, cc, RR - 2, 0, 7); g.clip();
+  g.globalAlpha = p.dead > 0 ? .22 : 1;
+  g.translate(cc - 1, cc + 13); g.scale(.92, .92);
+  drawPet(g, 0, 0, p.type, p.lvl, 1, p.dead > 0 ? 0 : p.phase * .5,
+          { saw: p.saw, aim: -.35, state: "up", bite: 0 });
+  g.restore();
+
+  // кольцо воскрешения
+  if (p.dead > 0) {
+    const done = 1 - p.dead / p.reviveMs;
+    g.beginPath(); g.arc(cc, cc, RR + 1, 0, 7);
+    g.strokeStyle = "rgba(43,38,32,.14)"; g.lineWidth = 5; g.stroke();
+    g.beginPath(); g.arc(cc, cc, RR + 1, -Math.PI / 2, -Math.PI / 2 + done * 6.2832);
+    g.strokeStyle = HERO; g.lineWidth = 5; g.lineCap = "round"; g.stroke();
+    g.fillStyle = INK; g.font = "800 22px system-ui"; g.textAlign = "center";
+    g.fillText(Math.ceil(p.dead / 1000), cc, cc + 8);
+  } else {
+    // полоска здоровья по нижней дуге
+    g.beginPath(); g.arc(cc, cc, RR + 1, .35 * Math.PI, .65 * Math.PI);
+    g.strokeStyle = "rgba(43,38,32,.14)"; g.lineWidth = 5; g.stroke();
+    g.beginPath();
+    g.arc(cc, cc, RR + 1, .65 * Math.PI, .65 * Math.PI - (p.hp / p.hpMax) * .3 * Math.PI, true);
+    g.strokeStyle = "#4e8f4a"; g.lineWidth = 5; g.lineCap = "round"; g.stroke();
+  }
+
+  // уровень звёздами
+  const n = p.lvl, gap = 9.5, y0 = cc + RR - 3;
+  for (let i = 0; i < n; i++) star(g, cc + (i - (n - 1) / 2) * gap, y0, 4.4);
+}
 
 const pauseBtn = document.getElementById("pauseBtn");
 pauseBtn.addEventListener("pointerdown", e => { e.stopPropagation(); pointer.active = false; pauseGame(); });
 pauseBtn.addEventListener("pointerenter", () => { pointer.active = false; });
+// ── ВРЕМЕННО: мгновенный уровень для тестов. Удалить перед релизом ──
+const devLvl = document.getElementById("devLvl");
+devLvl.addEventListener("pointerenter", () => { pointer.active = false; });
+devLvl.addEventListener("pointerdown", e => {
+  e.stopPropagation(); pointer.active = false;
+  if (!running || paused) return;
+  P.xp = P.xpNext - 1;
+  gainXP();
+});
+
 document.getElementById("btnResume").onclick = resumeGame;
 document.getElementById("btnRestart").onclick = () => {
   userPaused = false;
@@ -1235,7 +1976,7 @@ document.getElementById("btnRestart").onclick = () => {
 
 useBtn.addEventListener("pointerdown", e => { e.stopPropagation(); pointer.active = false; useItem(); });
 // мышь заехала на кнопку — герой замирает, а не бежит к ней
-for (const el of [useBtn, petTimer])
+for (const el of [useBtn, petBadge])
   el.addEventListener("pointerenter", () => { pointer.active = false; });
 
 let lastItem = "x";
@@ -1243,13 +1984,14 @@ function syncHUD() {
   if (P.item !== lastItem) {
     lastItem = P.item;
     useBtn.disabled = !P.item;
-    useIco.style.background = P.item ? ITEMS[P.item].col : "#d8cbb4";
+    const ig = useIco.getContext("2d");
+    ig.setTransform(2, 0, 0, 2, 0, 0); ig.clearRect(0, 0, 36, 36);
+    if (P.item) drawItemIcon(ig, P.item, 18, 18, 1.35);
     useName.textContent = P.item ? ITEMS[P.item].name : "пусто";
   }
   pauseBtn.style.display = running ? "flex" : "none";
-  const d = P.pet && P.pet.dead > 0;
-  petTimer.classList.toggle("hidden", !d);
-  if (d) petSec.textContent = Math.ceil(P.pet.dead / 1000);
+  devLvl.style.display = running ? "block" : "none";
+  drawPetBadge();
 }
 
 function start() {
