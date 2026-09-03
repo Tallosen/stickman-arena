@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Stickman Arena v7 — Vacky Games</title>
+<title>Stickman Arena v10 — Vacky Games</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{height:100%;background:#f2e8d7;overflow:hidden;user-select:none;
@@ -18,7 +18,8 @@
   p{opacity:.68;font-size:13px;line-height:1.55;max-width:320px}
   .btn{background:#d2691e;color:#fff8ec;border:0;border-radius:11px;padding:13px 32px;
     font-size:16px;font-weight:700;letter-spacing:.04em;cursor:pointer}
-  .cards{display:flex;flex-direction:column;gap:9px;width:min(320px,90vw)}
+  .cards{display:flex;flex-direction:column;gap:8px;width:min(320px,90vw);
+    max-height:62vh;overflow-y:auto}
   .card{background:#fdf6e8;border:2.5px solid #2b2620;border-radius:12px;padding:10px 12px;
     cursor:pointer;display:flex;gap:11px;align-items:center;text-align:left;
     box-shadow:3px 3px 0 #2b2620}
@@ -35,6 +36,11 @@
   .hud-btn:not(:disabled):active{transform:translate(2px,2px);box-shadow:1px 1px 0 #2b2620}
   .hud-btn i{width:26px;height:26px;border:2.5px solid #2b2620;border-radius:5px;background:#d8cbb4}
   .hud-btn em{font-style:normal;font-size:10.5px;font-weight:700;letter-spacing:.02em}
+  .hud-pause{position:fixed;left:14px;top:56px;width:44px;height:44px;border-radius:12px;
+    border:3px solid #2b2620;background:#fdf6e8;box-shadow:3px 3px 0 #2b2620;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:5px;z-index:8;padding:0}
+  .hud-pause:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #2b2620}
+  .hud-pause b{display:block;width:5px;height:17px;background:#2b2620;border-radius:2px}
   .hud-circle{position:fixed;left:14px;bottom:22px;width:62px;height:62px;border-radius:50%;
     border:3px solid #2b2620;background:#fdf6e8;display:flex;align-items:center;
     justify-content:center;z-index:8;font-weight:800;font-size:19px;
@@ -43,6 +49,7 @@
 </head>
 <body>
 <canvas id="c"></canvas>
+<button id="pauseBtn" class="hud-pause" title="Пауза (P)"><b></b><b></b></button>
 <div id="petTimer" class="hud-circle hidden"><span id="petSec">0</span></div>
 <button id="useBtn" class="hud-btn" disabled>
   <i id="useIco"></i><em id="useName">пусто</em>
@@ -55,8 +62,15 @@
   <button class="btn" id="btnStart">ИГРАТЬ</button>
 </div>
 <div id="levelup" class="overlay hidden">
-  <h2>НОВЫЙ УРОВЕНЬ</h2><div class="cards" id="cards"></div>
+  <h2>НОВЫЙ УРОВЕНЬ</h2><div class="tag" id="queueTag"></div><div class="cards" id="cards"></div>
 </div>
+<div id="pause" class="overlay hidden">
+  <h2>ПАУЗА</h2>
+  <p id="pauseStats"></p>
+  <button class="btn" id="btnResume">ПРОДОЛЖИТЬ</button>
+  <button class="btn" id="btnRestart" style="background:#8d8178">ЗАНОВО</button>
+</div>
+
 <div id="over" class="overlay hidden">
   <h2>ЗАБЕГ ОКОНЧЕН</h2><p id="stats"></p>
   <div class="tag">ПОСТОЯННОЕ УЛУЧШЕНИЕ</div><div class="cards" id="perks"></div>
@@ -190,13 +204,13 @@ const PETS = {
   mole:   { name: "Крот",    desc: "Ныряет и ставит турели" },
 };
 const PET_MAX = 5;
-let turrets = [], pendingPet = null;
+let turrets = [], pendingPet = null, lastPetRoll = null, queuedLevels = 0;
 
 function petStats(p) {
   const l = p.lvl;
   return {
-    dogDmg:  1.2 + .9 * l,
-    dogCd:   420 - 30 * l,
+    dogDmg:  1.6 + 1.25 * l,
+    dogCd:   620 - 45 * l,
     catDmg:  .5 + .35 * l,
     catCd:   470 - 62 * l,
     mineCap: l <= 2 ? 3 : l <= 4 ? 5 : 7,
@@ -259,13 +273,31 @@ function updatePet(dt, k) {
   };
 
   if (p.type === "dog") {
-    const tg = nearest(p.x, p.y, 240);
-    if (tg) {
-      goto(tg.x, tg.y, 3.4);
-      if (p.cd <= 0 && Math.hypot(tg.x - p.x, tg.y - p.y) < tg.r + 16) {
+    // собака держится рядом с хозяином: дальше поводка не уходит
+    const LEASH = 165;
+    const homeX = P.x - P.face * 36, homeY = P.y + 20;
+    const fromOwner = Math.hypot(p.x - P.x, p.y - P.y);
+
+    let tg = null;
+    if (fromOwner < LEASH && p.cd <= 0) {
+      let bd = 130;
+      for (const e of enemies) {
+        if (Math.hypot(e.x - P.x, e.y - P.y) > LEASH) continue;   // цель тоже должна быть рядом
+        const d = Math.hypot(e.x - p.x, e.y - p.y);
+        if (d < bd) { bd = d; tg = e; }
+      }
+    }
+
+    if (fromOwner > LEASH) {
+      goto(P.x, P.y, 3.1);                                        // отбежала — возвращается
+    } else if (tg) {
+      goto(tg.x, tg.y, 2.9);
+      if (Math.hypot(tg.x - p.x, tg.y - p.y) < tg.r + 16) {
         hit(tg, S.dogDmg, p.x, p.y); p.cd = S.dogCd; p.bite = 220; SFX.bite();
       }
-    } else if (Math.hypot(P.x - p.x, P.y - p.y) > 70) goto(P.x, P.y, 3.0);
+    } else if (Math.hypot(homeX - p.x, homeY - p.y) > 28) {
+      goto(homeX, homeY, 2.5);                                    // трусит у ноги
+    }
 
   } else if (p.type === "cat") {
     const bx = P.x - P.face * 44, by = P.y + 16;
@@ -472,7 +504,7 @@ function reset() {
     aim: 0, muzzle: 0, hp: 5 + meta.hp, lvl: 1, xp: 0, xpNext: 5,
     gear: Object.fromEntries(GK.map(k => [k, 0])), item: null, pet: null,
   });
-  turrets = []; pendingPet = null;
+  turrets = []; pendingPet = null; lastPetRoll = null; queuedLevels = 0;
   enemies = []; shots = []; orbs = []; puffs = []; pops = [];
   chests = []; mines = []; nades = []; ices = []; booms = []; hearts = [];
   buildProps();
@@ -512,8 +544,29 @@ cv.addEventListener("pointermove", e => {
   if (e.pointerType === "mouse") pointer.active = true;
 });
 cv.addEventListener("pointerup", e => { if (e.pointerType !== "mouse") pointer.active = false; });
-addEventListener("keydown", e => { if (e.code === "Space" || e.code === "KeyE") { e.preventDefault(); useItem(); } });
-document.addEventListener("visibilitychange", () => { if (document.hidden) paused = true; });
+addEventListener("keydown", e => {
+  if (e.code === "Space" || e.code === "KeyE") { e.preventDefault(); useItem(); }
+  if (e.code === "Escape" || e.code === "KeyP") { e.preventDefault(); userPaused ? resumeGame() : pauseGame(); }
+});
+let userPaused = false;
+const levelOpen = () => !document.getElementById("levelup").classList.contains("hidden");
+
+function pauseGame() {
+  if (!running || levelOpen() || userPaused) return;
+  userPaused = true; paused = true;
+  document.getElementById("pauseStats").textContent =
+    `LV ${P.lvl} · ${(t / 1000).toFixed(0)} с · лопнул ${score}`;
+  document.getElementById("pause").classList.remove("hidden");
+}
+function resumeGame() {
+  if (!userPaused) return;
+  userPaused = false;
+  document.getElementById("pause").classList.add("hidden");
+  if (!levelOpen()) paused = false;
+  pointer.active = false;                 // чтобы герой не рванул к старой точке
+}
+// вкладку свернули — ставим паузу и показываем окно, иначе игра зависала навсегда
+document.addEventListener("visibilitychange", () => { if (document.hidden) pauseGame(); });
 
 /* ── враги ────────────────────────────────────────────────── */
 const KINDS = {
@@ -782,10 +835,16 @@ function update(dt) {
 }
 function gainXP() {
   P.xp += xpBoost > 0 ? 2 : 1;
-  if (P.xp >= P.xpNext) {
-    P.xp -= P.xpNext; P.lvl++; P.xpNext = Math.round(P.xpNext * 1.32 + 2);
-    SFX.level(); offerCards();
+  // за один кадр можно собрать несколько шариков и перескочить два уровня —
+  // копим их в очередь, окно выбора покажем по одному
+  while (P.xp >= P.xpNext) {
+    P.xp -= P.xpNext;
+    P.lvl++;
+    P.xpNext = Math.round(P.xpNext * 1.32 + 2);
+    queuedLevels++;
   }
+  if (P.xp < 0) P.xp = 0;                       // страховка от отрицательной полоски
+  if (queuedLevels > 0 && !paused) { SFX.level(); offerCards(); }
 }
 
 /* ── карточки ─────────────────────────────────────────────── */
@@ -798,18 +857,36 @@ function card(box, icon, title, sub, cb) {
 }
 const heroIcon = gear => g => drawHero(g, 20, 46, 1, 0, gear, .82, 0, 0);
 const petIcon = (type, lvl) => g => drawPet(g, 15, 42, type, lvl, 1, 0, { saw: .6, aim: -.3, state: "up", bite: 0 });
+function rollPet() {
+  const all = Object.keys(PETS).filter(x => x !== lastPetRoll);
+  const ty = all[Math.random() * all.length | 0];
+  lastPetRoll = ty;
+  return ty;
+}
+
 function offerCards() {
   paused = true;
   const pool = GK.filter(k => P.gear[k] < GEAR[k].max);
-  // питомец: пока не выбран — выпадает случайный; после выбора качается только он
-  if (!P.pet) { const t2 = Object.keys(PETS); pendingPet = t2[Math.random() * t2.length | 0]; pool.push("@pet"); }
-  else if (P.pet.lvl < PET_MAX) pool.push("@pet");
   const pick = [];
   while (pick.length < Math.min(3, pool.length)) {
     const c = pool[Math.random() * pool.length | 0];
     if (!pick.includes(c)) pick.push(c);
   }
-  const close = () => { document.getElementById("levelup").classList.add("hidden"); paused = false; };
+  // четвёртая строка всегда отдана питомцу
+  const petRow = !P.pet || P.pet.lvl < PET_MAX;
+  if (!P.pet) pendingPet = rollPet();
+  if (petRow) pick.push("@pet");
+  else {                                          // питомец на максимуме — добираем вещью
+    const rest = pool.filter(c => !pick.includes(c));
+    if (rest.length) pick.push(rest[Math.random() * rest.length | 0]);
+  }
+
+  const close = () => {
+    queuedLevels = Math.max(0, queuedLevels - 1);
+    document.getElementById("levelup").classList.add("hidden");
+    if (queuedLevels > 0) setTimeout(() => { SFX.level(); offerCards(); }, 120);
+    else paused = false;
+  };
   const box = document.getElementById("cards"); box.innerHTML = "";
   for (const key of pick) {
     if (key === "@pet") {
@@ -817,7 +894,8 @@ function offerCards() {
       const lv = P.pet ? P.pet.lvl + 1 : 1;
       card(box, petIcon(ty, lv), `${PETS[ty].name} ${"★".repeat(lv)}`,
         P.pet ? "Питомец становится сильнее" : PETS[ty].desc, () => {
-          if (P.pet) { P.pet.lvl++; P.pet.hpMax = 4 + P.pet.lvl; P.pet.hp = P.pet.hpMax; } else P.pet = makePet(ty);
+          if (P.pet) { P.pet.lvl++; P.pet.hpMax = 4 + P.pet.lvl; P.pet.hp = P.pet.hpMax; }
+          else P.pet = makePet(ty);
           close();
         });
       continue;
@@ -827,8 +905,11 @@ function offerCards() {
       P.gear[key]++; applyGear(); P.hp = Math.min(P.hpMax, P.hp + 1); close();
     });
   }
+  document.getElementById("queueTag").textContent =
+    queuedLevels > 1 ? `ещё уровней в очереди: ${queuedLevels - 1}` : "";
   document.getElementById("levelup").classList.remove("hidden");
 }
+
 function offerPerks() {
   const keys = Object.keys(PERKS), pick = [];
   while (pick.length < 3) { const c = keys[Math.random() * keys.length | 0]; if (!pick.includes(c)) pick.push(c); }
@@ -1141,6 +1222,17 @@ const useName = document.getElementById("useName");
 const petTimer = document.getElementById("petTimer");
 const petSec = document.getElementById("petSec");
 
+const pauseBtn = document.getElementById("pauseBtn");
+pauseBtn.addEventListener("pointerdown", e => { e.stopPropagation(); pointer.active = false; pauseGame(); });
+pauseBtn.addEventListener("pointerenter", () => { pointer.active = false; });
+document.getElementById("btnResume").onclick = resumeGame;
+document.getElementById("btnRestart").onclick = () => {
+  userPaused = false;
+  document.getElementById("pause").classList.add("hidden");
+  document.getElementById("levelup").classList.add("hidden");
+  start();
+};
+
 useBtn.addEventListener("pointerdown", e => { e.stopPropagation(); pointer.active = false; useItem(); });
 // мышь заехала на кнопку — герой замирает, а не бежит к ней
 for (const el of [useBtn, petTimer])
@@ -1154,6 +1246,7 @@ function syncHUD() {
     useIco.style.background = P.item ? ITEMS[P.item].col : "#d8cbb4";
     useName.textContent = P.item ? ITEMS[P.item].name : "пусто";
   }
+  pauseBtn.style.display = running ? "flex" : "none";
   const d = P.pet && P.pet.dead > 0;
   petTimer.classList.toggle("hidden", !d);
   if (d) petSec.textContent = Math.ceil(P.pet.dead / 1000);
