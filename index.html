@@ -3,38 +3,40 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Vacky Games — Stickman Arena (прототип)</title>
+<title>Stickman Arena v2 — Vacky Games</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{height:100%;background:#12100f;overflow:hidden;
-    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#fff9f0}
-  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
-  canvas{display:block;touch-action:none;background:#17130f}
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#fff9f0;
+    user-select:none}
+  canvas{display:block;touch-action:none}
   .overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;
-    justify-content:center;gap:18px;background:rgba(12,10,9,.82);backdrop-filter:blur(3px);
-    text-align:center;padding:24px;z-index:10}
+    justify-content:center;gap:16px;background:rgba(12,10,9,.86);text-align:center;
+    padding:22px;z-index:10}
   .hidden{display:none}
-  h1{font-size:30px;letter-spacing:.06em;color:#ff6b1a}
-  h2{font-size:22px;letter-spacing:.04em}
-  p{opacity:.75;font-size:14px;line-height:1.5;max-width:300px}
-  .btn{background:#ff6b1a;color:#17110d;border:0;border-radius:10px;padding:13px 30px;
+  h1{font-size:29px;letter-spacing:.06em;color:#ff6b1a}
+  h2{font-size:21px;letter-spacing:.04em}
+  p{opacity:.72;font-size:13.5px;line-height:1.55;max-width:310px}
+  .btn{background:#ff6b1a;color:#17110d;border:0;border-radius:10px;padding:13px 32px;
     font-size:16px;font-weight:700;letter-spacing:.04em;cursor:pointer}
-  .cards{display:flex;flex-direction:column;gap:11px;width:min(300px,86vw)}
-  .card{background:#221a15;border:2px solid #ff6b1a;border-radius:12px;padding:12px 14px;
+  .cards{display:flex;flex-direction:column;gap:10px;width:min(310px,88vw)}
+  .card{background:#221a15;border:2px solid #ff6b1a;border-radius:12px;padding:11px 13px;
     cursor:pointer;display:flex;gap:12px;align-items:center;text-align:left}
-  .card:active{background:#2e231b}
-  .card canvas{background:transparent;flex:0 0 42px}
-  .card b{display:block;font-size:15px;color:#ffb04a}
-  .card span{font-size:12px;opacity:.72}
+  .card:active{background:#2f241c}
+  .card canvas{background:transparent;flex:0 0 40px}
+  .card b{display:block;font-size:14.5px;color:#ffb04a}
+  .card span{font-size:11.5px;opacity:.7}
+  .tag{font-size:11px;letter-spacing:.12em;opacity:.55}
 </style>
 </head>
 <body>
-<div id="wrap"><canvas id="c"></canvas></div>
+<canvas id="c"></canvas>
 
 <div id="start" class="overlay">
   <h1>STICKMAN ARENA</h1>
-  <p>Веди пальцем или мышью — человечек бежит за тобой.<br>Атака автоматическая.<br>За уровни получаешь одежду.</p>
+  <p>Веди пальцем — человечек бежит следом.<br>Атака автоматическая.<br>За уровни выбираешь одежду.</p>
   <button class="btn" id="btnStart">ИГРАТЬ</button>
+  <div class="tag" id="metaLine"></div>
 </div>
 
 <div id="levelup" class="overlay hidden">
@@ -43,303 +45,401 @@
 </div>
 
 <div id="over" class="overlay hidden">
-  <h2>ИГРА ОКОНЧЕНА</h2>
+  <h2 id="overTitle">ЗАБЕГ ОКОНЧЕН</h2>
   <p id="stats"></p>
-  <button class="btn" id="btnAgain">ЕЩЁ РАЗ</button>
+  <div class="tag">ПОСТОЯННОЕ УЛУЧШЕНИЕ</div>
+  <div class="cards" id="perks"></div>
 </div>
 
 <script>
 "use strict";
-/* ─────────────────────────────────────────────────────────────
-   Прототип для Vacky Games. Чистый canvas, без библиотек.
-   Управление: указатель. Атака: авто. Прокачка: одежда.
-   ───────────────────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════
+   Stickman Arena v2
+   Чистый canvas, без библиотек, без внешних файлов.
+   Звук синтезируется через WebAudio — под Playables это важно,
+   потому что игра должна работать вообще без сети.
+   ══════════════════════════════════════════════════════════════ */
 
 const cv = document.getElementById("c");
 const ctx = cv.getContext("2d");
-let W = 0, H = 0, DPR = 1;
+let W, H, DPR;
 
 function resize() {
-  DPR = Math.min(window.devicePixelRatio || 1, 2);
-  W = window.innerWidth; H = window.innerHeight;
+  DPR = Math.min(devicePixelRatio || 1, 2);
+  W = innerWidth; H = innerHeight;
   cv.width = W * DPR; cv.height = H * DPR;
   cv.style.width = W + "px"; cv.style.height = H + "px";
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
-window.addEventListener("resize", resize);
-resize();
+addEventListener("resize", resize); resize();
 
-/* ── экипировка: и статы, и внешний вид ───────────────────── */
-const GEAR = {
-  cap:     { name: "Кепка",   desc: "Атака чаще",        max: 3 },
-  boots:   { name: "Ботинки", desc: "Бежишь быстрее",    max: 3 },
-  sword:   { name: "Меч",     desc: "Урон больше",       max: 3 },
-  cape:    { name: "Плащ",    desc: "Больше здоровья",   max: 3 },
-  glasses: { name: "Очки",    desc: "Дальность больше",  max: 3 },
-  shield:  { name: "Щит",     desc: "Ещё один снаряд",   max: 3 },
+/* ── звук ─────────────────────────────────────────────────────
+   Синтез на лету: ни одного мегабайта ассетов.               */
+let AC = null;
+function audio() {
+  if (!AC) { try { AC = new (window.AudioContext || webkitAudioContext)(); } catch (e) {} }
+  return AC;
+}
+function beep(freq, dur, type = "square", vol = .05, slide = 0) {
+  const a = audio(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, a.currentTime);
+  if (slide) o.frequency.exponentialRampToValueAtTime(
+    Math.max(40, freq + slide), a.currentTime + dur);
+  g.gain.setValueAtTime(vol, a.currentTime);
+  g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + dur);
+  o.connect(g); g.connect(a.destination);
+  o.start(); o.stop(a.currentTime + dur);
+}
+const SFX = {
+  shot:  () => beep(680, .05, "square", .022, -260),
+  pop:   () => beep(320, .12, "triangle", .05, -180),
+  hurt:  () => beep(150, .22, "sawtooth", .07, -80),
+  level: () => { beep(520, .1, "square", .05); setTimeout(() => beep(780, .16, "square", .05), 90); },
+  perk:  () => beep(440, .18, "triangle", .06, 260),
 };
 
-const P = {};            // игрок
-let enemies, shots, orbs, puffs;
-let pointer, running, paused, t, spawnT, shotT, score, best = 0;
+/* ── одежда: и статы, и внешность ────────────────────────── */
+const GEAR = {
+  cap:     { name: "Кепка",   desc: "Атака чаще",           max: 4 },
+  boots:   { name: "Ботинки", desc: "Бежишь быстрее",       max: 4 },
+  sword:   { name: "Меч",     desc: "Урон больше",          max: 4 },
+  cape:    { name: "Плащ",    desc: "Больше здоровья",      max: 3 },
+  glasses: { name: "Очки",    desc: "Дальность больше",     max: 3 },
+  shield:  { name: "Щит",     desc: "Ещё один снаряд",      max: 3 },
+  magnet:  { name: "Компас",  desc: "Опыт летит издалека",  max: 3 },
+  orb:     { name: "Мячик",   desc: "Шар кружит и бьёт",    max: 3 },
+};
+const GEAR_KEYS = Object.keys(GEAR);
+
+/* ── постоянные улучшения между забегами ─────────────────── */
+const PERKS = {
+  hp:    { name: "Закалка",  desc: "+1 сердце в начале" },
+  dmg:   { name: "Сила",     desc: "+15% урона навсегда" },
+  spd:   { name: "Резвость", desc: "+8% скорости навсегда" },
+  start: { name: "Фора",     desc: "Начинаешь со случайной вещью" },
+};
+const meta = { hp: 0, dmg: 0, spd: 0, start: 0, runs: 0, best: 0 };
+
+/* ── состояние ────────────────────────────────────────────── */
+const P = {};
+let enemies, shots, orbs, puffs, pops, running, paused;
+let t, spawnT, shotT, eliteT, score, shake, pointer, touchMode;
 
 function reset() {
   Object.assign(P, {
-    x: 0, y: 0, r: 11, speed: 2.05, hp: 5, hpMax: 5,
-    lvl: 1, xp: 0, xpNext: 5, phase: 0, face: 1, hurt: 0,
-    gear: { cap: 0, boots: 0, sword: 0, cape: 0, glasses: 0, shield: 0 },
-    fireRate: 620, damage: 1, range: 210, shots: 1,
+    x: W / 2, y: H / 2, r: 11, phase: 0, face: 1, hurt: 0,
+    hp: 5 + meta.hp, hpMax: 5 + meta.hp,
+    lvl: 1, xp: 0, xpNext: 5,
+    gear: Object.fromEntries(GEAR_KEYS.map(k => [k, 0])),
+    orbA: 0,
   });
-  enemies = []; shots = []; orbs = []; puffs = [];
-  pointer = { x: 0, y: 0, active: false };
-  t = 0; spawnT = 0; shotT = 0; score = 0; paused = false;
+  if (meta.start) {
+    for (let i = 0; i < meta.start; i++)
+      P.gear[GEAR_KEYS[Math.random() * GEAR_KEYS.length | 0]]++;
+  }
+  enemies = []; shots = []; orbs = []; puffs = []; pops = [];
+  t = 0; spawnT = 0; shotT = 0; eliteT = 45000; score = 0; shake = 0;
+  paused = false;
+  pointer = { x: W / 2, y: H / 2, active: false };
+  applyGear();
 }
 
 function applyGear() {
   const g = P.gear;
-  P.fireRate = 620 * Math.pow(0.80, g.cap);
-  P.speed    = 2.05 + 0.42 * g.boots;
-  P.damage   = 1 + g.sword;
-  P.hpMax    = 5 + 2 * g.cape;
+  P.fireRate = 620 * Math.pow(.82, g.cap);
+  P.speed    = (2.05 + .40 * g.boots) * (1 + .08 * meta.spd);
+  P.damage   = (1 + g.sword) * (1 + .15 * meta.dmg);
+  P.hpMax    = 5 + meta.hp + 2 * g.cape;
   P.range    = 210 + 55 * g.glasses;
-  P.shots    = 1 + g.shield;
+  P.nShots   = 1 + g.shield;
+  P.magnet   = 120 + 70 * g.magnet;
+  P.orbs     = g.orb;
 }
 
 /* ── ввод ─────────────────────────────────────────────────── */
-function toLocal(e) {
+// На телефоне персонаж бежит ВЫШЕ пальца, иначе палец его закрывает.
+const TOUCH_LIFT = 78;
+function local(e) {
   const r = cv.getBoundingClientRect();
-  return { x: e.clientX - r.left, y: e.clientY - r.top };
+  const lift = e.pointerType === "mouse" ? 0 : TOUCH_LIFT;
+  return { x: e.clientX - r.left, y: e.clientY - r.top - lift };
 }
 cv.addEventListener("pointerdown", e => {
-  pointer = { ...toLocal(e), active: true };
+  audio(); touchMode = e.pointerType !== "mouse";
+  Object.assign(pointer, local(e), { active: true });
   cv.setPointerCapture(e.pointerId);
 });
 cv.addEventListener("pointermove", e => {
-  const p = toLocal(e);
+  const p = local(e);
   pointer.x = p.x; pointer.y = p.y;
   if (e.pointerType === "mouse") pointer.active = true;
 });
-cv.addEventListener("pointerup", e => {
-  if (e.pointerType !== "mouse") pointer.active = false;
-});
+cv.addEventListener("pointerup", e => { if (e.pointerType !== "mouse") pointer.active = false; });
+document.addEventListener("visibilitychange", () => { if (document.hidden) paused = true; });
 
 /* ── враги ────────────────────────────────────────────────── */
-function spawnEnemy() {
-  const side = Math.random() * 4 | 0;
-  const m = 40;
+const KINDS = {
+  basic:  { r: 10, hp: 1, spd: .74, col: "#e4462d", xp: 1 },
+  runner: { r: 8,  hp: 1, spd: 1.5, col: "#ff8a6a", xp: 1 },
+  tank:   { r: 16, hp: 6, spd: .44, col: "#a32b18", xp: 3 },
+  elite:  { r: 24, hp: 26, spd: .52, col: "#7d1f10", xp: 10 },
+};
+
+function spawn(kind) {
+  const K = KINDS[kind], m = 46, s = Math.random() * 4 | 0;
   let x, y;
-  if (side === 0) { x = Math.random() * W; y = -m; }
-  else if (side === 1) { x = W + m; y = Math.random() * H; }
-  else if (side === 2) { x = Math.random() * W; y = H + m; }
+  if (s === 0) { x = Math.random() * W; y = -m; }
+  else if (s === 1) { x = W + m; y = Math.random() * H; }
+  else if (s === 2) { x = Math.random() * W; y = H + m; }
   else { x = -m; y = Math.random() * H; }
-  const tough = Math.min(3, 1 + Math.floor(t / 42000));
+  const grow = 1 + t / 90000;
   enemies.push({
-    x, y, r: 10, hp: tough, hpMax: tough,
-    speed: 0.72 + Math.random() * 0.30 + Math.min(0.5, t / 120000),
-    phase: Math.random() * 6, face: 1, flash: 0,
+    kind, x, y, r: K.r, col: K.col, xp: K.xp,
+    hp: Math.ceil(K.hp * grow), speed: K.speed = K.spd + Math.min(.45, t / 150000),
+    phase: Math.random() * 6, face: 1, flash: 0, kb: 0, kbx: 0, kby: 0, orbCd: 0,
   });
 }
 
-function popEnemy(e) {
-  for (let i = 0; i < 9; i++) {
-    const a = Math.random() * Math.PI * 2, s = 0.6 + Math.random() * 2.1;
+function pop(e) {
+  const n = e.kind === "elite" ? 26 : 9;
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * 6.28, s = .6 + Math.random() * 2.4;
     puffs.push({ x: e.x, y: e.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
                  life: 1, r: 2 + Math.random() * 3 });
   }
-  orbs.push({ x: e.x, y: e.y, vx: 0, vy: 0, r: 4 });
-  score++;
+  for (let i = 0; i < e.xp; i++)
+    orbs.push({ x: e.x + (Math.random() - .5) * 22, y: e.y + (Math.random() - .5) * 22,
+                vx: 0, vy: 0, r: 4 });
+  score++; shake = Math.max(shake, e.kind === "elite" ? 16 : 3);
+  SFX.pop();
 }
 
 /* ── цикл ─────────────────────────────────────────────────── */
 let last = 0;
-function loop(now) {
+requestAnimationFrame(function loop(now) {
   requestAnimationFrame(loop);
   const dt = Math.min(34, now - last); last = now;
-  if (!running || paused) { draw(); return; }
-  update(dt);
+  if (running && !paused) update(dt);
   draw();
-}
+});
 
 function update(dt) {
   t += dt;
-  const k = dt / 16.67;                       // нормировка к 60 fps
+  const k = dt / 16.67;
+  if (shake > 0) shake = Math.max(0, shake - dt * .045);
 
-  // движение к указателю
+  // движение
   if (pointer.active) {
-    const dx = pointer.x - P.x, dy = pointer.y - P.y;
-    const d = Math.hypot(dx, dy);
+    const dx = pointer.x - P.x, dy = pointer.y - P.y, d = Math.hypot(dx, dy);
     if (d > 4) {
       const v = Math.min(P.speed * k, d);
       P.x += dx / d * v; P.y += dy / d * v;
-      P.phase += 0.26 * k;
+      P.phase += .26 * k;
       if (Math.abs(dx) > 1) P.face = dx > 0 ? 1 : -1;
     }
   }
   P.x = Math.max(16, Math.min(W - 16, P.x));
-  P.y = Math.max(30, Math.min(H - 20, P.y));
+  P.y = Math.max(52, Math.min(H - 20, P.y));
   if (P.hurt > 0) P.hurt -= dt;
+  P.orbA += .055 * k;
 
-  // спавн
+  // спавн обычных
   spawnT -= dt;
-  if (spawnT <= 0 && enemies.length < 110) {
-    spawnT = Math.max(190, 900 - t / 90);
-    spawnEnemy();
+  if (spawnT <= 0 && enemies.length < 130) {
+    spawnT = Math.max(175, 880 - t / 85);
+    const roll = Math.random();
+    spawn(t > 25000 && roll < .28 ? "runner" : t > 55000 && roll > .90 ? "tank" : "basic");
   }
+  // элита раз в 45 секунд
+  eliteT -= dt;
+  if (eliteT <= 0) { eliteT = 45000; spawn("elite"); shake = 10; }
 
   // враги
   for (const e of enemies) {
-    const dx = P.x - e.x, dy = P.y - e.y, d = Math.hypot(dx, dy) || 1;
-    e.x += dx / d * e.speed * k; e.y += dy / d * e.speed * k;
-    e.phase += 0.22 * k; e.face = dx > 0 ? 1 : -1;
+    if (e.kb > 0) {
+      e.x += e.kbx * e.kb * k; e.y += e.kby * e.kb * k; e.kb *= .82;
+    } else {
+      const dx = P.x - e.x, dy = P.y - e.y, d = Math.hypot(dx, dy) || 1;
+      e.x += dx / d * e.speed * k; e.y += dy / d * e.speed * k;
+      e.face = dx > 0 ? 1 : -1;
+    }
+    e.phase += .22 * k;
     if (e.flash > 0) e.flash -= dt;
+    if (e.orbCd > 0) e.orbCd -= dt;
+
+    const d = Math.hypot(P.x - e.x, P.y - e.y);
     if (d < P.r + e.r && P.hurt <= 0) {
-      P.hp--; P.hurt = 900;
+      P.hp--; P.hurt = 950; shake = 12; SFX.hurt();
+      pops.push({ x: P.x, y: P.y - 30, txt: "-1", life: 1, col: "#ff5040" });
       if (P.hp <= 0) return gameOver();
     }
-  }
-
-  // авто-атака
-  shotT -= dt;
-  if (shotT <= 0) {
-    const targets = enemies
-      .map(e => ({ e, d: Math.hypot(e.x - P.x, e.y - P.y) }))
-      .filter(o => o.d < P.range)
-      .sort((a, b) => a.d - b.d)
-      .slice(0, P.shots);
-    if (targets.length) {
-      shotT = P.fireRate;
-      for (const { e } of targets) {
-        const a = Math.atan2(e.y - P.y, e.x - P.x);
-        shots.push({ x: P.x, y: P.y - 4, vx: Math.cos(a) * 6.4,
-                     vy: Math.sin(a) * 6.4, a, life: 900 });
+    // шары-спутники
+    for (let i = 0; i < P.orbs; i++) {
+      const a = P.orbA + i * 6.283 / P.orbs;
+      const ox = P.x + Math.cos(a) * 52, oy = P.y - 6 + Math.sin(a) * 52;
+      if (e.orbCd <= 0 && Math.hypot(ox - e.x, oy - e.y) < e.r + 8) {
+        hit(e, P.damage, ox, oy);
+        e.orbCd = 420;
       }
     }
   }
 
-  // снаряды
+  // стрельба
+  shotT -= dt;
+  if (shotT <= 0) {
+    const near = enemies
+      .map(e => ({ e, d: Math.hypot(e.x - P.x, e.y - P.y) }))
+      .filter(o => o.d < P.range).sort((a, b) => a.d - b.d).slice(0, P.nShots);
+    if (near.length) {
+      shotT = P.fireRate; SFX.shot();
+      for (const { e } of near) {
+        const a = Math.atan2(e.y - P.y, e.x - P.x);
+        shots.push({ x: P.x, y: P.y - 4, vx: Math.cos(a) * 6.6, vy: Math.sin(a) * 6.6,
+                     a, life: 950 });
+      }
+    }
+  }
   for (const s of shots) {
     s.x += s.vx * k; s.y += s.vy * k; s.life -= dt;
     for (const e of enemies) {
       if (e.hp > 0 && Math.hypot(e.x - s.x, e.y - s.y) < e.r + 4) {
-        e.hp -= P.damage; e.flash = 110; s.life = 0;
-        if (e.hp <= 0) popEnemy(e);
-        break;
+        hit(e, P.damage, s.x, s.y); s.life = 0; break;
       }
     }
   }
-  shots = shots.filter(s => s.life > 0 && s.x > -30 && s.x < W + 30 && s.y > -30 && s.y < H + 30);
+  shots = shots.filter(s => s.life > 0 && s.x > -40 && s.x < W + 40 && s.y > -40 && s.y < H + 40);
   enemies = enemies.filter(e => e.hp > 0);
 
   // опыт
   for (const o of orbs) {
     const dx = P.x - o.x, dy = P.y - o.y, d = Math.hypot(dx, dy) || 1;
-    if (d < 120) { o.vx += dx / d * 0.55 * k; o.vy += dy / d * 0.55 * k; }
-    o.x += o.vx * k; o.y += o.vy * k; o.vx *= 0.94; o.vy *= 0.94;
-    if (d < 16) { o.dead = true; gainXP(); }
+    if (d < P.magnet) { o.vx += dx / d * .6 * k; o.vy += dy / d * .6 * k; }
+    o.x += o.vx * k; o.y += o.vy * k; o.vx *= .94; o.vy *= .94;
+    if (d < 18) { o.dead = true; gainXP(); }
   }
   orbs = orbs.filter(o => !o.dead);
 
   for (const p of puffs) {
-    p.x += p.vx * k; p.y += p.vy * k; p.vx *= 0.92; p.vy *= 0.92; p.life -= dt / 420;
+    p.x += p.vx * k; p.y += p.vy * k; p.vx *= .92; p.vy *= .92; p.life -= dt / 430;
   }
   puffs = puffs.filter(p => p.life > 0);
+  for (const p of pops) { p.y -= .55 * k; p.life -= dt / 750; }
+  pops = pops.filter(p => p.life > 0);
+}
+
+function hit(e, dmg, hx, hy) {
+  e.hp -= dmg; e.flash = 110;
+  e.kb = 3.2; const a = Math.atan2(e.y - hy, e.x - hx);
+  e.kbx = Math.cos(a); e.kby = Math.sin(a);
+  pops.push({ x: e.x, y: e.y - e.r - 6, txt: Math.round(dmg), life: 1, col: "#fff3d8" });
+  if (e.hp <= 0) pop(e);
 }
 
 function gainXP() {
   P.xp++;
   if (P.xp >= P.xpNext) {
-    P.xp = 0; P.lvl++; P.xpNext = Math.round(P.xpNext * 1.35 + 2);
-    offerLevelUp();
+    P.xp = 0; P.lvl++; P.xpNext = Math.round(P.xpNext * 1.32 + 2);
+    SFX.level(); offerCards();
   }
 }
 
-/* ── экран прокачки ───────────────────────────────────────── */
-function offerLevelUp() {
+/* ── карточки ─────────────────────────────────────────────── */
+function makeCard(box, icoGear, title, sub, onPick) {
+  const el = document.createElement("div");
+  el.className = "card";
+  el.innerHTML = `<canvas width="40" height="50"></canvas>
+    <div><b>${title}</b><span>${sub}</span></div>`;
+  drawStick(el.querySelector("canvas").getContext("2d"), 20, 41, 1, 0, "#ff8a2c", icoGear, .92);
+  el.onclick = onPick;
+  box.appendChild(el);
+}
+
+function offerCards() {
   paused = true;
-  const pool = Object.keys(GEAR).filter(k => P.gear[k] < GEAR[k].max);
+  const pool = GEAR_KEYS.filter(k => P.gear[k] < GEAR[k].max);
   const pick = [];
   while (pick.length < Math.min(3, pool.length)) {
     const c = pool[Math.random() * pool.length | 0];
     if (!pick.includes(c)) pick.push(c);
   }
-  const box = document.getElementById("cards");
-  box.innerHTML = "";
+  const box = document.getElementById("cards"); box.innerHTML = "";
   for (const key of pick) {
-    const el = document.createElement("div");
-    el.className = "card";
-    el.innerHTML = `<canvas width="42" height="52"></canvas>
-      <div><b>${GEAR[key].name} ${"★".repeat(P.gear[key] + 1)}</b>
-      <span>${GEAR[key].desc}</span></div>`;
-    const g = { cap: 0, boots: 0, sword: 0, cape: 0, glasses: 0, shield: 0 };
+    const g = Object.fromEntries(GEAR_KEYS.map(x => [x, 0]));
     g[key] = P.gear[key] + 1;
-    drawStick(el.querySelector("canvas").getContext("2d"), 21, 42, 1, 0, "#ff8a2c", g, 1);
-    el.onclick = () => {
+    makeCard(box, g, `${GEAR[key].name} ${"★".repeat(P.gear[key] + 1)}`, GEAR[key].desc, () => {
       P.gear[key]++; applyGear();
       P.hp = Math.min(P.hpMax, P.hp + 1);
       document.getElementById("levelup").classList.add("hidden");
       paused = false;
-    };
-    box.appendChild(el);
+    });
   }
   document.getElementById("levelup").classList.remove("hidden");
 }
 
-/* ── рисование человечка ──────────────────────────────────── */
+function offerPerks() {
+  const keys = Object.keys(PERKS);
+  const pick = [];
+  while (pick.length < 3) {
+    const c = keys[Math.random() * keys.length | 0];
+    if (!pick.includes(c)) pick.push(c);
+  }
+  const box = document.getElementById("perks"); box.innerHTML = "";
+  const empty = Object.fromEntries(GEAR_KEYS.map(x => [x, 0]));
+  for (const key of pick) {
+    makeCard(box, empty, `${PERKS[key].name} ${"◆".repeat(meta[key] + 1)}`, PERKS[key].desc, () => {
+      meta[key]++; SFX.perk();
+      document.getElementById("over").classList.add("hidden");
+      start();
+    });
+  }
+}
+
+/* ── человечек ────────────────────────────────────────────── */
 function drawStick(g, x, y, face, phase, color, gear, scale) {
-  const s = scale, lw = 2.6 * s;
-  const swing = Math.sin(phase) * 0.55;
+  const s = scale, lw = 2.6 * s, sw = Math.sin(phase) * .55;
   g.save(); g.translate(x, y); g.scale(face * s, s);
   g.lineCap = "round"; g.lineJoin = "round";
   g.strokeStyle = color; g.lineWidth = lw / s;
 
-  // плащ
   if (gear.cape) {
     g.fillStyle = "#c23a1e";
-    g.beginPath();
-    g.moveTo(-1, -19); g.lineTo(-11 - gear.cape, 4); g.lineTo(3, 1);
+    g.beginPath(); g.moveTo(-1, -19); g.lineTo(-11 - gear.cape, 4); g.lineTo(3, 1);
     g.closePath(); g.fill();
   }
-  // ноги
   g.beginPath();
-  g.moveTo(0, -6); g.lineTo(swing * 8, 6);
-  g.moveTo(0, -6); g.lineTo(-swing * 8, 6);
-  g.stroke();
-  // ботинки
+  g.moveTo(0, -6); g.lineTo(sw * 8, 6);
+  g.moveTo(0, -6); g.lineTo(-sw * 8, 6); g.stroke();
   if (gear.boots) {
     g.strokeStyle = "#8a5a2b"; g.lineWidth = (lw + 1.8) / s;
     g.beginPath();
-    g.moveTo(swing * 8, 4); g.lineTo(swing * 8 + 2, 6.5);
-    g.moveTo(-swing * 8, 4); g.lineTo(-swing * 8 + 2, 6.5);
-    g.stroke();
+    g.moveTo(sw * 8, 4); g.lineTo(sw * 8 + 2, 6.5);
+    g.moveTo(-sw * 8, 4); g.lineTo(-sw * 8 + 2, 6.5); g.stroke();
     g.strokeStyle = color; g.lineWidth = lw / s;
   }
-  // корпус
   g.beginPath(); g.moveTo(0, -6); g.lineTo(0, -18); g.stroke();
-  // руки
   g.beginPath();
-  g.moveTo(0, -15); g.lineTo(-swing * 7, -9);
-  g.moveTo(0, -15); g.lineTo(7, -12);
-  g.stroke();
-  // меч
+  g.moveTo(0, -15); g.lineTo(-sw * 7, -9);
+  g.moveTo(0, -15); g.lineTo(7, -12); g.stroke();
   if (gear.sword) {
-    g.strokeStyle = "#d8dde3"; g.lineWidth = (1.6 + gear.sword * 0.6) / s;
+    g.strokeStyle = "#d8dde3"; g.lineWidth = (1.6 + gear.sword * .55) / s;
     g.beginPath(); g.moveTo(7, -12); g.lineTo(15 + gear.sword * 2, -17); g.stroke();
     g.strokeStyle = color; g.lineWidth = lw / s;
   }
-  // щит
   if (gear.shield) {
     g.fillStyle = "#3f6fb5";
-    g.beginPath(); g.arc(-swing * 7 - 2, -9, 3 + gear.shield, 0, 7); g.fill();
+    g.beginPath(); g.arc(-sw * 7 - 2, -9, 3 + gear.shield, 0, 7); g.fill();
   }
-  // голова
+  if (gear.magnet) {
+    g.fillStyle = "#5ec2a8";
+    g.beginPath(); g.arc(4, -6, 2.4 + gear.magnet * .5, 0, 7); g.fill();
+  }
   g.beginPath(); g.arc(0, -23, 5, 0, 7); g.stroke();
-  // очки
   if (gear.glasses) {
     g.strokeStyle = "#2a2a2a"; g.lineWidth = 1.4 / s;
     g.beginPath(); g.moveTo(-4, -24); g.lineTo(4, -24); g.stroke();
     g.strokeStyle = color; g.lineWidth = lw / s;
   }
-  // кепка
   if (gear.cap) {
     g.fillStyle = "#ff6b1a";
     g.beginPath(); g.arc(0, -25, 5.2, Math.PI, 0); g.fill();
@@ -348,11 +448,13 @@ function drawStick(g, x, y, face, phase, color, gear, scale) {
   g.restore();
 }
 
-/* ── отрисовка кадра ──────────────────────────────────────── */
+/* ── кадр ─────────────────────────────────────────────────── */
 function draw() {
-  ctx.fillStyle = "#17130f"; ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  if (shake > .2) ctx.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
 
-  ctx.strokeStyle = "rgba(255,107,26,.055)"; ctx.lineWidth = 1;
+  ctx.fillStyle = "#17130f"; ctx.fillRect(-30, -30, W + 60, H + 60);
+  ctx.strokeStyle = "rgba(255,107,26,.05)"; ctx.lineWidth = 1;
   for (let x = 0; x < W; x += 44) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
   for (let y = 0; y < H; y += 44) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
 
@@ -361,66 +463,78 @@ function draw() {
     ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, 7); ctx.fill();
   }
   for (const p of puffs) {
-    ctx.globalAlpha = Math.max(0, p.life);
-    ctx.fillStyle = "#b9a99a";
-    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = "#b9a99a";
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill(); ctx.globalAlpha = 1;
   }
   for (const e of enemies) {
-    drawStick(ctx, e.x, e.y + 12, e.face, e.phase,
-      e.flash > 0 ? "#ffd0c0" : "#e4462d", {}, 1);
+    const sc = e.r / 10;
+    drawStick(ctx, e.x, e.y + 12 * sc, e.face, e.phase,
+      e.flash > 0 ? "#ffe0d4" : e.col, {}, sc);
+    if (e.kind === "elite" || e.kind === "tank") {
+      const w = e.r * 2, hpk = e.hp / Math.ceil(KINDS[e.kind].hp * (1 + t / 90000));
+      ctx.fillStyle = "rgba(0,0,0,.5)"; ctx.fillRect(e.x - w / 2, e.y - e.r - 14, w, 4);
+      ctx.fillStyle = "#ff6b1a"; ctx.fillRect(e.x - w / 2, e.y - e.r - 14, w * Math.max(0, hpk), 4);
+    }
   }
   ctx.strokeStyle = "#fff9f0"; ctx.lineWidth = 3; ctx.lineCap = "round";
   for (const s of shots) {
-    ctx.beginPath();
-    ctx.moveTo(s.x, s.y);
-    ctx.lineTo(s.x - Math.cos(s.a) * 9, s.y - Math.sin(s.a) * 9);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(s.x, s.y);
+    ctx.lineTo(s.x - Math.cos(s.a) * 9, s.y - Math.sin(s.a) * 9); ctx.stroke();
   }
   if (running) {
-    const blink = P.hurt > 0 && (Math.floor(t / 90) % 2 === 0);
-    if (!blink) drawStick(ctx, P.x, P.y + 12, P.face, P.phase, "#ff8a2c", P.gear, 1.12);
+    for (let i = 0; i < P.orbs; i++) {
+      const a = P.orbA + i * 6.283 / P.orbs;
+      ctx.fillStyle = "#6fd0ff";
+      ctx.beginPath(); ctx.arc(P.x + Math.cos(a) * 52, P.y - 6 + Math.sin(a) * 52, 7, 0, 7); ctx.fill();
+    }
+    if (!(P.hurt > 0 && Math.floor(t / 85) % 2 === 0))
+      drawStick(ctx, P.x, P.y + 12, P.face, P.phase, "#ff8a2c", P.gear, 1.12);
   }
-  drawHUD();
+  ctx.font = "700 14px system-ui"; ctx.textAlign = "center";
+  for (const p of pops) {
+    ctx.globalAlpha = Math.min(1, p.life * 1.6); ctx.fillStyle = p.col;
+    ctx.fillText(p.txt, p.x, p.y); ctx.globalAlpha = 1;
+  }
+  ctx.textAlign = "left";
+  ctx.restore();
+  hud();
 }
 
-function drawHUD() {
-  ctx.fillStyle = "rgba(0,0,0,.32)"; ctx.fillRect(0, 0, W, 46);
-  // сердца
+function hud() {
+  ctx.fillStyle = "rgba(0,0,0,.34)"; ctx.fillRect(0, 0, W, 46);
   for (let i = 0; i < P.hpMax; i++) {
-    ctx.fillStyle = i < P.hp ? "#ff4d3d" : "rgba(255,255,255,.16)";
-    ctx.beginPath(); ctx.arc(16 + i * 15, 16, 5, 0, 7); ctx.fill();
+    ctx.fillStyle = i < P.hp ? "#ff4d3d" : "rgba(255,255,255,.15)";
+    ctx.beginPath(); ctx.arc(15 + i * 14, 16, 4.6, 0, 7); ctx.fill();
   }
-  // опыт
   const bw = W - 32;
-  ctx.fillStyle = "rgba(255,255,255,.14)"; ctx.fillRect(16, 30, bw, 5);
+  ctx.fillStyle = "rgba(255,255,255,.13)"; ctx.fillRect(16, 30, bw, 5);
   ctx.fillStyle = "#ff6b1a"; ctx.fillRect(16, 30, bw * (P.xp / P.xpNext), 5);
   ctx.fillStyle = "#fff9f0"; ctx.font = "600 13px system-ui"; ctx.textAlign = "right";
   ctx.fillText(`LV ${P.lvl}   ${score}   ${(t / 1000).toFixed(0)}s`, W - 16, 20);
   ctx.textAlign = "left";
+  if (paused && running) {
+    ctx.fillStyle = "rgba(0,0,0,.4)"; ctx.fillRect(0, 0, W, H);
+  }
 }
 
 /* ── состояния ────────────────────────────────────────────── */
 function start() {
-  reset(); applyGear();
-  P.x = W / 2; P.y = H / 2;
-  pointer = { x: P.x, y: P.y, active: false };
-  running = true;
+  reset(); running = true;
   document.getElementById("start").classList.add("hidden");
   document.getElementById("over").classList.add("hidden");
 }
 function gameOver() {
-  running = false;
-  best = Math.max(best, score);
+  running = false; meta.runs++;
+  meta.best = Math.max(meta.best, Math.round(t / 1000));
   document.getElementById("stats").textContent =
-    `Продержался ${(t / 1000).toFixed(0)} с · лопнул ${score} · уровень ${P.lvl} · рекорд ${best}`;
+    `${(t / 1000).toFixed(0)} с · лопнул ${score} · уровень ${P.lvl} · рекорд ${meta.best} с`;
+  offerPerks();
   document.getElementById("over").classList.remove("hidden");
 }
-document.getElementById("btnStart").onclick = start;
-document.getElementById("btnAgain").onclick = start;
+document.getElementById("btnStart").onclick = () => { audio(); start(); };
 
-reset();
-requestAnimationFrame(loop);
+reset(); running = false;
+document.getElementById("metaLine").textContent = "";
 </script>
 </body>
 </html>
