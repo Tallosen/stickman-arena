@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Vacky Games — Stickman Arena (прототип)</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;background:#12100f;overflow:hidden;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#fff9f0}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  canvas{display:block;touch-action:none;background:#17130f}
+  .overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:18px;background:rgba(12,10,9,.82);backdrop-filter:blur(3px);
+    text-align:center;padding:24px;z-index:10}
+  .hidden{display:none}
+  h1{font-size:30px;letter-spacing:.06em;color:#ff6b1a}
+  h2{font-size:22px;letter-spacing:.04em}
+  p{opacity:.75;font-size:14px;line-height:1.5;max-width:300px}
+  .btn{background:#ff6b1a;color:#17110d;border:0;border-radius:10px;padding:13px 30px;
+    font-size:16px;font-weight:700;letter-spacing:.04em;cursor:pointer}
+  .cards{display:flex;flex-direction:column;gap:11px;width:min(300px,86vw)}
+  .card{background:#221a15;border:2px solid #ff6b1a;border-radius:12px;padding:12px 14px;
+    cursor:pointer;display:flex;gap:12px;align-items:center;text-align:left}
+  .card:active{background:#2e231b}
+  .card canvas{background:transparent;flex:0 0 42px}
+  .card b{display:block;font-size:15px;color:#ffb04a}
+  .card span{font-size:12px;opacity:.72}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c"></canvas></div>
+
+<div id="start" class="overlay">
+  <h1>STICKMAN ARENA</h1>
+  <p>Веди пальцем или мышью — человечек бежит за тобой.<br>Атака автоматическая.<br>За уровни получаешь одежду.</p>
+  <button class="btn" id="btnStart">ИГРАТЬ</button>
+</div>
+
+<div id="levelup" class="overlay hidden">
+  <h2>НОВЫЙ УРОВЕНЬ</h2>
+  <div class="cards" id="cards"></div>
+</div>
+
+<div id="over" class="overlay hidden">
+  <h2>ИГРА ОКОНЧЕНА</h2>
+  <p id="stats"></p>
+  <button class="btn" id="btnAgain">ЕЩЁ РАЗ</button>
+</div>
+
+<script>
+"use strict";
+/* ─────────────────────────────────────────────────────────────
+   Прототип для Vacky Games. Чистый canvas, без библиотек.
+   Управление: указатель. Атака: авто. Прокачка: одежда.
+   ───────────────────────────────────────────────────────────── */
+
+const cv = document.getElementById("c");
+const ctx = cv.getContext("2d");
+let W = 0, H = 0, DPR = 1;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR;
+  cv.style.width = W + "px"; cv.style.height = H + "px";
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener("resize", resize);
+resize();
+
+/* ── экипировка: и статы, и внешний вид ───────────────────── */
+const GEAR = {
+  cap:     { name: "Кепка",   desc: "Атака чаще",        max: 3 },
+  boots:   { name: "Ботинки", desc: "Бежишь быстрее",    max: 3 },
+  sword:   { name: "Меч",     desc: "Урон больше",       max: 3 },
+  cape:    { name: "Плащ",    desc: "Больше здоровья",   max: 3 },
+  glasses: { name: "Очки",    desc: "Дальность больше",  max: 3 },
+  shield:  { name: "Щит",     desc: "Ещё один снаряд",   max: 3 },
+};
+
+const P = {};            // игрок
+let enemies, shots, orbs, puffs;
+let pointer, running, paused, t, spawnT, shotT, score, best = 0;
+
+function reset() {
+  Object.assign(P, {
+    x: 0, y: 0, r: 11, speed: 2.05, hp: 5, hpMax: 5,
+    lvl: 1, xp: 0, xpNext: 5, phase: 0, face: 1, hurt: 0,
+    gear: { cap: 0, boots: 0, sword: 0, cape: 0, glasses: 0, shield: 0 },
+    fireRate: 620, damage: 1, range: 210, shots: 1,
+  });
+  enemies = []; shots = []; orbs = []; puffs = [];
+  pointer = { x: 0, y: 0, active: false };
+  t = 0; spawnT = 0; shotT = 0; score = 0; paused = false;
+}
+
+function applyGear() {
+  const g = P.gear;
+  P.fireRate = 620 * Math.pow(0.80, g.cap);
+  P.speed    = 2.05 + 0.42 * g.boots;
+  P.damage   = 1 + g.sword;
+  P.hpMax    = 5 + 2 * g.cape;
+  P.range    = 210 + 55 * g.glasses;
+  P.shots    = 1 + g.shield;
+}
+
+/* ── ввод ─────────────────────────────────────────────────── */
+function toLocal(e) {
+  const r = cv.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+cv.addEventListener("pointerdown", e => {
+  pointer = { ...toLocal(e), active: true };
+  cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener("pointermove", e => {
+  const p = toLocal(e);
+  pointer.x = p.x; pointer.y = p.y;
+  if (e.pointerType === "mouse") pointer.active = true;
+});
+cv.addEventListener("pointerup", e => {
+  if (e.pointerType !== "mouse") pointer.active = false;
+});
+
+/* ── враги ────────────────────────────────────────────────── */
+function spawnEnemy() {
+  const side = Math.random() * 4 | 0;
+  const m = 40;
+  let x, y;
+  if (side === 0) { x = Math.random() * W; y = -m; }
+  else if (side === 1) { x = W + m; y = Math.random() * H; }
+  else if (side === 2) { x = Math.random() * W; y = H + m; }
+  else { x = -m; y = Math.random() * H; }
+  const tough = Math.min(3, 1 + Math.floor(t / 42000));
+  enemies.push({
+    x, y, r: 10, hp: tough, hpMax: tough,
+    speed: 0.72 + Math.random() * 0.30 + Math.min(0.5, t / 120000),
+    phase: Math.random() * 6, face: 1, flash: 0,
+  });
+}
+
+function popEnemy(e) {
+  for (let i = 0; i < 9; i++) {
+    const a = Math.random() * Math.PI * 2, s = 0.6 + Math.random() * 2.1;
+    puffs.push({ x: e.x, y: e.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+                 life: 1, r: 2 + Math.random() * 3 });
+  }
+  orbs.push({ x: e.x, y: e.y, vx: 0, vy: 0, r: 4 });
+  score++;
+}
+
+/* ── цикл ─────────────────────────────────────────────────── */
+let last = 0;
+function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(34, now - last); last = now;
+  if (!running || paused) { draw(); return; }
+  update(dt);
+  draw();
+}
+
+function update(dt) {
+  t += dt;
+  const k = dt / 16.67;                       // нормировка к 60 fps
+
+  // движение к указателю
+  if (pointer.active) {
+    const dx = pointer.x - P.x, dy = pointer.y - P.y;
+    const d = Math.hypot(dx, dy);
+    if (d > 4) {
+      const v = Math.min(P.speed * k, d);
+      P.x += dx / d * v; P.y += dy / d * v;
+      P.phase += 0.26 * k;
+      if (Math.abs(dx) > 1) P.face = dx > 0 ? 1 : -1;
+    }
+  }
+  P.x = Math.max(16, Math.min(W - 16, P.x));
+  P.y = Math.max(30, Math.min(H - 20, P.y));
+  if (P.hurt > 0) P.hurt -= dt;
+
+  // спавн
+  spawnT -= dt;
+  if (spawnT <= 0 && enemies.length < 110) {
+    spawnT = Math.max(190, 900 - t / 90);
+    spawnEnemy();
+  }
+
+  // враги
+  for (const e of enemies) {
+    const dx = P.x - e.x, dy = P.y - e.y, d = Math.hypot(dx, dy) || 1;
+    e.x += dx / d * e.speed * k; e.y += dy / d * e.speed * k;
+    e.phase += 0.22 * k; e.face = dx > 0 ? 1 : -1;
+    if (e.flash > 0) e.flash -= dt;
+    if (d < P.r + e.r && P.hurt <= 0) {
+      P.hp--; P.hurt = 900;
+      if (P.hp <= 0) return gameOver();
+    }
+  }
+
+  // авто-атака
+  shotT -= dt;
+  if (shotT <= 0) {
+    const targets = enemies
+      .map(e => ({ e, d: Math.hypot(e.x - P.x, e.y - P.y) }))
+      .filter(o => o.d < P.range)
+      .sort((a, b) => a.d - b.d)
+      .slice(0, P.shots);
+    if (targets.length) {
+      shotT = P.fireRate;
+      for (const { e } of targets) {
+        const a = Math.atan2(e.y - P.y, e.x - P.x);
+        shots.push({ x: P.x, y: P.y - 4, vx: Math.cos(a) * 6.4,
+                     vy: Math.sin(a) * 6.4, a, life: 900 });
+      }
+    }
+  }
+
+  // снаряды
+  for (const s of shots) {
+    s.x += s.vx * k; s.y += s.vy * k; s.life -= dt;
+    for (const e of enemies) {
+      if (e.hp > 0 && Math.hypot(e.x - s.x, e.y - s.y) < e.r + 4) {
+        e.hp -= P.damage; e.flash = 110; s.life = 0;
+        if (e.hp <= 0) popEnemy(e);
+        break;
+      }
+    }
+  }
+  shots = shots.filter(s => s.life > 0 && s.x > -30 && s.x < W + 30 && s.y > -30 && s.y < H + 30);
+  enemies = enemies.filter(e => e.hp > 0);
+
+  // опыт
+  for (const o of orbs) {
+    const dx = P.x - o.x, dy = P.y - o.y, d = Math.hypot(dx, dy) || 1;
+    if (d < 120) { o.vx += dx / d * 0.55 * k; o.vy += dy / d * 0.55 * k; }
+    o.x += o.vx * k; o.y += o.vy * k; o.vx *= 0.94; o.vy *= 0.94;
+    if (d < 16) { o.dead = true; gainXP(); }
+  }
+  orbs = orbs.filter(o => !o.dead);
+
+  for (const p of puffs) {
+    p.x += p.vx * k; p.y += p.vy * k; p.vx *= 0.92; p.vy *= 0.92; p.life -= dt / 420;
+  }
+  puffs = puffs.filter(p => p.life > 0);
+}
+
+function gainXP() {
+  P.xp++;
+  if (P.xp >= P.xpNext) {
+    P.xp = 0; P.lvl++; P.xpNext = Math.round(P.xpNext * 1.35 + 2);
+    offerLevelUp();
+  }
+}
+
+/* ── экран прокачки ───────────────────────────────────────── */
+function offerLevelUp() {
+  paused = true;
+  const pool = Object.keys(GEAR).filter(k => P.gear[k] < GEAR[k].max);
+  const pick = [];
+  while (pick.length < Math.min(3, pool.length)) {
+    const c = pool[Math.random() * pool.length | 0];
+    if (!pick.includes(c)) pick.push(c);
+  }
+  const box = document.getElementById("cards");
+  box.innerHTML = "";
+  for (const key of pick) {
+    const el = document.createElement("div");
+    el.className = "card";
+    el.innerHTML = `<canvas width="42" height="52"></canvas>
+      <div><b>${GEAR[key].name} ${"★".repeat(P.gear[key] + 1)}</b>
+      <span>${GEAR[key].desc}</span></div>`;
+    const g = { cap: 0, boots: 0, sword: 0, cape: 0, glasses: 0, shield: 0 };
+    g[key] = P.gear[key] + 1;
+    drawStick(el.querySelector("canvas").getContext("2d"), 21, 42, 1, 0, "#ff8a2c", g, 1);
+    el.onclick = () => {
+      P.gear[key]++; applyGear();
+      P.hp = Math.min(P.hpMax, P.hp + 1);
+      document.getElementById("levelup").classList.add("hidden");
+      paused = false;
+    };
+    box.appendChild(el);
+  }
+  document.getElementById("levelup").classList.remove("hidden");
+}
+
+/* ── рисование человечка ──────────────────────────────────── */
+function drawStick(g, x, y, face, phase, color, gear, scale) {
+  const s = scale, lw = 2.6 * s;
+  const swing = Math.sin(phase) * 0.55;
+  g.save(); g.translate(x, y); g.scale(face * s, s);
+  g.lineCap = "round"; g.lineJoin = "round";
+  g.strokeStyle = color; g.lineWidth = lw / s;
+
+  // плащ
+  if (gear.cape) {
+    g.fillStyle = "#c23a1e";
+    g.beginPath();
+    g.moveTo(-1, -19); g.lineTo(-11 - gear.cape, 4); g.lineTo(3, 1);
+    g.closePath(); g.fill();
+  }
+  // ноги
+  g.beginPath();
+  g.moveTo(0, -6); g.lineTo(swing * 8, 6);
+  g.moveTo(0, -6); g.lineTo(-swing * 8, 6);
+  g.stroke();
+  // ботинки
+  if (gear.boots) {
+    g.strokeStyle = "#8a5a2b"; g.lineWidth = (lw + 1.8) / s;
+    g.beginPath();
+    g.moveTo(swing * 8, 4); g.lineTo(swing * 8 + 2, 6.5);
+    g.moveTo(-swing * 8, 4); g.lineTo(-swing * 8 + 2, 6.5);
+    g.stroke();
+    g.strokeStyle = color; g.lineWidth = lw / s;
+  }
+  // корпус
+  g.beginPath(); g.moveTo(0, -6); g.lineTo(0, -18); g.stroke();
+  // руки
+  g.beginPath();
+  g.moveTo(0, -15); g.lineTo(-swing * 7, -9);
+  g.moveTo(0, -15); g.lineTo(7, -12);
+  g.stroke();
+  // меч
+  if (gear.sword) {
+    g.strokeStyle = "#d8dde3"; g.lineWidth = (1.6 + gear.sword * 0.6) / s;
+    g.beginPath(); g.moveTo(7, -12); g.lineTo(15 + gear.sword * 2, -17); g.stroke();
+    g.strokeStyle = color; g.lineWidth = lw / s;
+  }
+  // щит
+  if (gear.shield) {
+    g.fillStyle = "#3f6fb5";
+    g.beginPath(); g.arc(-swing * 7 - 2, -9, 3 + gear.shield, 0, 7); g.fill();
+  }
+  // голова
+  g.beginPath(); g.arc(0, -23, 5, 0, 7); g.stroke();
+  // очки
+  if (gear.glasses) {
+    g.strokeStyle = "#2a2a2a"; g.lineWidth = 1.4 / s;
+    g.beginPath(); g.moveTo(-4, -24); g.lineTo(4, -24); g.stroke();
+    g.strokeStyle = color; g.lineWidth = lw / s;
+  }
+  // кепка
+  if (gear.cap) {
+    g.fillStyle = "#ff6b1a";
+    g.beginPath(); g.arc(0, -25, 5.2, Math.PI, 0); g.fill();
+    g.fillRect(0, -26, 7 + gear.cap, 1.8);
+  }
+  g.restore();
+}
+
+/* ── отрисовка кадра ──────────────────────────────────────── */
+function draw() {
+  ctx.fillStyle = "#17130f"; ctx.fillRect(0, 0, W, H);
+
+  ctx.strokeStyle = "rgba(255,107,26,.055)"; ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 44) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 44) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+  for (const o of orbs) {
+    ctx.fillStyle = "#ffcd3c";
+    ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, 7); ctx.fill();
+  }
+  for (const p of puffs) {
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = "#b9a99a";
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  for (const e of enemies) {
+    drawStick(ctx, e.x, e.y + 12, e.face, e.phase,
+      e.flash > 0 ? "#ffd0c0" : "#e4462d", {}, 1);
+  }
+  ctx.strokeStyle = "#fff9f0"; ctx.lineWidth = 3; ctx.lineCap = "round";
+  for (const s of shots) {
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(s.x - Math.cos(s.a) * 9, s.y - Math.sin(s.a) * 9);
+    ctx.stroke();
+  }
+  if (running) {
+    const blink = P.hurt > 0 && (Math.floor(t / 90) % 2 === 0);
+    if (!blink) drawStick(ctx, P.x, P.y + 12, P.face, P.phase, "#ff8a2c", P.gear, 1.12);
+  }
+  drawHUD();
+}
+
+function drawHUD() {
+  ctx.fillStyle = "rgba(0,0,0,.32)"; ctx.fillRect(0, 0, W, 46);
+  // сердца
+  for (let i = 0; i < P.hpMax; i++) {
+    ctx.fillStyle = i < P.hp ? "#ff4d3d" : "rgba(255,255,255,.16)";
+    ctx.beginPath(); ctx.arc(16 + i * 15, 16, 5, 0, 7); ctx.fill();
+  }
+  // опыт
+  const bw = W - 32;
+  ctx.fillStyle = "rgba(255,255,255,.14)"; ctx.fillRect(16, 30, bw, 5);
+  ctx.fillStyle = "#ff6b1a"; ctx.fillRect(16, 30, bw * (P.xp / P.xpNext), 5);
+  ctx.fillStyle = "#fff9f0"; ctx.font = "600 13px system-ui"; ctx.textAlign = "right";
+  ctx.fillText(`LV ${P.lvl}   ${score}   ${(t / 1000).toFixed(0)}s`, W - 16, 20);
+  ctx.textAlign = "left";
+}
+
+/* ── состояния ────────────────────────────────────────────── */
+function start() {
+  reset(); applyGear();
+  P.x = W / 2; P.y = H / 2;
+  pointer = { x: P.x, y: P.y, active: false };
+  running = true;
+  document.getElementById("start").classList.add("hidden");
+  document.getElementById("over").classList.add("hidden");
+}
+function gameOver() {
+  running = false;
+  best = Math.max(best, score);
+  document.getElementById("stats").textContent =
+    `Продержался ${(t / 1000).toFixed(0)} с · лопнул ${score} · уровень ${P.lvl} · рекорд ${best}`;
+  document.getElementById("over").classList.remove("hidden");
+}
+document.getElementById("btnStart").onclick = start;
+document.getElementById("btnAgain").onclick = start;
+
+reset();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
