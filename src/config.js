@@ -49,9 +49,10 @@ const PETS = {
   parrot: { name: "Попугай", desc: "Летает и роняет мини-мины" },
   mole:   { name: "Крот",    desc: "Ныряет и ставит турели" },
   boar:   { name: "Кабан",   desc: "Взрывается на крупных врагах", revive: 19000 },
-  chicken:{ name: "Курица",  desc: "Несёт яйца, из них цыплята" },
+  chicken:{ name: "Курица",  desc: "Несёт яйца, из них цыплята", rare: 1 },
 };
 const PET_MAX = 5;
+const RARE_PET_CHANCE = .18;   // шанс, что в карточке предложат редкого питомца
 let turrets = [], eggs = [], chicks = [], pendingPet = null, pendingRare = null, lastPetRoll = null, queuedLevels = 0;
 
 function petStats(p) {

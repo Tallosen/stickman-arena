@@ -12,8 +12,12 @@ function card(box, icon, title, sub, cb, rare) {
 const heroIcon = gear => g => drawHero(g, 18, 50, 1, 0, gear, .62, -.2, 0);
 const petIcon = (type, lvl) => g => drawPet(g, 15, 42, type, lvl, 1, 0, { saw: .6, aim: -.3, state: "up", bite: 0 });
 function rollPet() {
-  const all = Object.keys(PETS).filter(x => x !== lastPetRoll);
-  const ty = all[Math.random() * all.length | 0];
+  const all = Object.keys(PETS);
+  const common = all.filter(x => !PETS[x].rare && x !== lastPetRoll);
+  const rares  = all.filter(x =>  PETS[x].rare && x !== lastPetRoll);
+  // редкий питомец выпадает нечасто, как и редкий ствол
+  const pool = (rares.length && Math.random() < RARE_PET_CHANCE) ? rares : common;
+  const ty = pool[Math.random() * pool.length | 0] || all[0];
   lastPetRoll = ty;
   return ty;
 }
@@ -63,12 +67,15 @@ function offerCards() {
     if (key === "@pet") {
       const ty = P.pet ? P.pet.type : pendingPet;
       const lv = P.pet ? P.pet.lvl + 1 : 1;
-      card(box, petIcon(ty, lv), `${PETS[ty].name} ${"★".repeat(lv)}`,
+      const isRare = !!PETS[ty].rare && !P.pet;
+      const title = `${PETS[ty].name} ${"★".repeat(lv)}` +
+                    (isRare ? ' <span class="rr">РЕДКИЙ</span>' : "");
+      card(box, petIcon(ty, lv), title,
         P.pet ? "Питомец становится сильнее" : PETS[ty].desc, () => {
           if (P.pet) { P.pet.lvl++; P.pet.hpMax = 4 + P.pet.lvl; P.pet.hp = P.pet.hpMax; }
-          else P.pet = makePet(ty);
+          else { P.pet = makePet(ty); if (isRare) { SFX.chest(); setTimeout(() => SFX.level(), 160); } }
           close();
-        });
+        }, isRare);
       continue;
     }
     const g = { ...P.gear, _w: P.wtype }; g[key]++;

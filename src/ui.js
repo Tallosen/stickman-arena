@@ -27,15 +27,18 @@ function hud() {
   ctx.fillStyle = INK; ctx.font = "700 13px system-ui"; ctx.textAlign = "right";
   ctx.fillText(`LV ${P.lvl}   ${score}   ${(t / 1000).toFixed(0)}s`, W - 16, 20);
   ctx.textAlign = "left";
-  let by = 58;
+  // шкалы эффектов живут под миникартой: слева их перекрывали пауза и +LV
+  const RS = Math.min(112, W * .28), rx = W - RS - 12;
+  let by = 56 + RS + 9;
   const buff = (act, max, col, label) => {
     if (act <= 0) return;
-    ctx.fillStyle = "rgba(43,38,32,.13)"; ctx.fillRect(16, by, 96, 12);
-    ctx.fillStyle = col; ctx.fillRect(16, by, 96 * Math.min(1, act / max), 12);
-    ctx.strokeStyle = INK; ctx.lineWidth = 1.6; ctx.strokeRect(16, by, 96, 12);
-    ctx.fillStyle = INK; ctx.font = "800 9px system-ui";
-    ctx.fillText(label, 21, by + 9.2);
-    by += 16;
+    ctx.fillStyle = "rgba(253,246,232,.92)"; ctx.fillRect(rx, by, RS, 14);
+    ctx.fillStyle = col; ctx.fillRect(rx, by, RS * Math.min(1, act / max), 14);
+    ctx.strokeStyle = INK; ctx.lineWidth = 1.8; ctx.strokeRect(rx, by, RS, 14);
+    ctx.fillStyle = INK; ctx.font = "800 9px system-ui"; ctx.textAlign = "center";
+    ctx.fillText(label + "  " + Math.ceil(act / 1000), rx + RS / 2, by + 10.4);
+    ctx.textAlign = "left";
+    by += 18;
   };
   buff(xpBoost, 20000, "#f0c443", "ОПЫТ ×2");
   buff(P.hasteT, 7000, "#f0a83a", "УСКОРЕНИЕ");

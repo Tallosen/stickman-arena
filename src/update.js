@@ -16,6 +16,8 @@ function update(dt) {
   if (xpBoost > 0) xpBoost -= dt;
   if (P.muzzle > 0) P.muzzle -= dt;
   if (P.hasteT > 0) P.hasteT -= dt;
+  P.spin = (P.spin || 0) + (P.spinV || 0) * k;
+  P.spinV = (P.spinV || 0) * .93;
   if (P.invT > 0) P.invT -= dt;
 
   if (pointer.active) {
@@ -81,22 +83,33 @@ function update(dt) {
 
       // если застрял — на секунду уходим вбок, пока не выберемся
       e.stuckT += dt;
-      if (e.stuckT > 420) {
+      if (e.stuckT > 380) {
         const moved = Math.hypot(e.x - e.lx, e.y - e.ly);
-        if (moved < 5 && e.wanderT <= 0) {
-          e.wanderT = 750;
-          e.wander = Math.atan2(dy, dx) + (Math.random() < .5 ? 1.5 : -1.5);
-        }
+        if (moved < 6) {
+          e.stuckMs = (e.stuckMs || 0) + e.stuckT;
+          if (e.wanderT <= 0) {                     // первая мера — обойти вбок
+            e.wanderT = 850;
+            e.wander = Math.atan2(dy, dx) + (Math.random() < .5 ? 1.6 : -1.6);
+          }
+        } else e.stuckMs = 0;
         e.lx = e.x; e.ly = e.y; e.stuckT = 0;
+      }
+      // не выбрался за две с половиной секунды — переносим к игроку заново
+      if ((e.stuckMs || 0) > 2500) {
+        const ang = Math.random() * 6.283, rr = Math.max(W, H) * .58 + 70;
+        e.x = Math.max(40, Math.min(WORLD - 40, P.x + Math.cos(ang) * rr));
+        e.y = Math.max(40, Math.min(WORLD - 40, P.y + Math.sin(ang) * rr));
+        e.stuckMs = 0; e.wanderT = 0; e.kb = 0;
       }
       if (e.wanderT > 0) {
         e.wanderT -= dt;
-        vx = Math.cos(e.wander); vy = Math.sin(e.wander);
+        vx = Math.cos(e.wander) + (P.x - e.x) / d * .25;
+        vy = Math.sin(e.wander) + (P.y - e.y) / d * .25;
       } else {
         // обход препятствий: смотрим дальше вперёд и отворачиваем сильнее
         for (const o of props) {
           const ox = o.x - e.x, oy = o.y - e.y, od = Math.hypot(ox, oy);
-          const reach = o.r * .78 + e.r + 44;
+          const reach = o.r * .72 + e.r + 46;
           if (od > reach || od < .01) continue;
           if (ox / od * vx + oy / od * vy < -.05) continue;
           const side = (ox * vy - oy * vx) > 0 ? -1 : 1;
@@ -187,7 +200,7 @@ function update(dt) {
       P.recoil = 1;
     } else if (P.wtype === "minigun") {
       mk(ang(near[0].e) + rnd(-P.spread, P.spread) / 2, P.damage, "mini");
-      P.spin = (P.spin || 0) + 1.1;
+      P.spinV = .42;
     } else if (P.wtype === "sniper") {
       for (const { e } of near) mk(ang(e), P.damage, "sniper");
       shake = Math.max(shake, 7); P.recoil = 1;

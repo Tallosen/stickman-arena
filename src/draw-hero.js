@@ -32,12 +32,22 @@ function drawRareGun(g, lv, muzzle, type) {
     const L = 26 + lv * 2;
     spoly(g, [[-2, -3], [10, -3], [9, 12], [-5, 9]], "#3f3a34");       // корпус
     spoly(g, [[8, 2], [19, 2], [19, 12], [8, 12]], "#5d666d");         // короб
-    g.save(); g.translate(12, -3); g.rotate((P.spin || 0));            // блок стволов
-    for (let i = 0; i < 3; i++) {
-      const a = i * 2.09, oy = Math.sin(a) * 3.4;
-      spoly(g, [[0, oy - 1.6], [L, oy - 1.6], [L, oy + 1.6], [0, oy + 1.6]], i ? "#7b848b" : "#98a1a8");
+    // блок стволов: сами стволы всегда горизонтальны, по кругу ходит
+    // только их смещение и «глубина» — иначе выглядит как крутящееся солнце
+    const sp = P.spin || 0, bars = [];
+    for (let i = 0; i < 4; i++) {
+      const a = sp + i * Math.PI / 2;
+      const depth = (Math.cos(a) + 1) / 2;                // 0 — дальний, 1 — ближний
+      bars.push({ oy: Math.sin(a) * 3.8, depth });
     }
-    g.restore();
+    bars.sort((a, b) => a.depth - b.depth);               // дальние рисуем первыми
+    for (const b of bars) {
+      const th = 1.15 + b.depth * 1.15;
+      const shade = b.depth > .55 ? "#a3acb3" : b.depth > .25 ? "#7b848b" : "#5f686e";
+      g.save(); g.translate(12, -3);
+      spoly(g, [[0, b.oy - th], [L, b.oy - th], [L, b.oy + th], [0, b.oy + th]], shade);
+      g.restore();
+    }
     scircle(g, 12, -3, 5.2, "#5d666d");
     tip = L + 12;
   }
