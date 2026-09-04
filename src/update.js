@@ -6,8 +6,14 @@ let last = 0;
 requestAnimationFrame(function loop(now) {
   requestAnimationFrame(loop);
   const dt = Math.min(34, now - last); last = now;
-  if (running && !paused) update(dt);
-  draw();
+  try {
+    if (running && !paused) update(dt);
+    draw();
+  } catch (err) {
+    running = false;
+    fatal("Сбой в кадре: " + err.message);
+    throw err;
+  }
 });
 
 function update(dt) {

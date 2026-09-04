@@ -238,6 +238,11 @@ function syncHUD() {
   drawPetBadge();
 }
 
+// если какой-то модуль не долетел, скажем об этом прямо
+for (const [name, ref] of [["ult.js", typeof ult], ["cards.js", typeof offerCards],
+                           ["pets.js", typeof updatePet], ["world.js", typeof spawn]])
+  if (ref === "undefined") fatal("Не загружен модуль src/" + name);
+
 document.title = "Stickman Arena v" + VERSION + " — Vacky Games";
 {
   const tag = document.getElementById("verTag");

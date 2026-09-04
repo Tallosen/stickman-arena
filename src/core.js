@@ -1,6 +1,25 @@
 "use strict";
 /* core.js — канвас, размеры, карандашные примитивы, звук */
 
+/* Ошибка в любом модуле раньше давала просто мёртвый экран.
+   Теперь она выводится поверх страницы — видно, какой файл не долетел. */
+function fatal(msg) {
+  let box = document.getElementById("errBox");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "errBox";
+    box.style.cssText = "position:fixed;left:0;right:0;top:0;z-index:99;padding:14px 16px;" +
+      "background:#c8402c;color:#fff;font:600 13px/1.5 system-ui;white-space:pre-wrap";
+    document.body.appendChild(box);
+  }
+  box.textContent += msg + "\n";
+}
+addEventListener("error", e => {
+  if (e.target && e.target.tagName === "SCRIPT")
+    fatal("Не загрузился файл: " + e.target.src.split("/").slice(-2).join("/"));
+  else fatal("Ошибка: " + (e.message || e) + "\n" + (e.filename || "").split("/").pop() + ":" + e.lineno);
+}, true);
+
 const cv = document.getElementById("c"), ctx = cv.getContext("2d");
 let W, H, DPR;
 function resize() {
