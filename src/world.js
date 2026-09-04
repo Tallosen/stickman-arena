@@ -45,6 +45,7 @@ function popEnemy(e) {
   }
   for (let i = 0; i < e.xp; i++) orbs.push({ x: e.x + rnd(-14, 14), y: e.y + rnd(-14, 14), vx: 0, vy: 0 });
   score++; shake = Math.max(shake, e.kind === "elite" ? 16 : 3); SFX.pop();
+  if (!ult.on) ult.charge = Math.min(ULT_FULL, ult.charge + ULT_PER_KILL);
 }
 function hit(e, dmg, hx, hy) {
   e.hp -= dmg; e.flash = 110;

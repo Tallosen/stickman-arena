@@ -6,8 +6,11 @@ function draw() {
   ctx.fillStyle = PAPER; ctx.fillRect(0, 0, W, H);
   ctx.save();
   if (shake > .2) ctx.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
-  ctx.translate(-cam.x, -cam.y);
-  const L = cam.x - 70, R = cam.x + W + 70, T = cam.y - 70, B = cam.y + H + 70;
+  // во время ульты камера наезжает на героя
+  const Z = ult.zoom, fx = ult.on ? P.x : cam.x + W / 2, fy = ult.on ? P.y : cam.y + H / 2;
+  ctx.translate(W / 2, H / 2); ctx.scale(Z, Z); ctx.translate(-fx, -fy);
+  const hw = W / 2 / Z + 70, hh = H / 2 / Z + 70;
+  const L = fx - hw, R = fx + hw, T = fy - hh, B = fy + hh;
   const vis = o => o.x > L && o.x < R && o.y > T && o.y < B;
 
   // тетрадная сетка
@@ -158,6 +161,13 @@ function draw() {
       ctx.setLineDash([]);
     }
     if (!(P.hurt > 0 && Math.floor(t / 85) % 2 === 0))
+      if (ult.on) {
+        ctx.save();
+        ctx.translate(P.x, P.y + 17 - (ult.lift || 0));
+        ctx.rotate(ult.rot || 0);
+        drawHero(ctx, 0, 0, P.face, P.phase + t / 60, { ...P.gear, _w: P.wtype }, 1.08, P.aim, P.muzzle);
+        ctx.restore();
+      } else
       drawHero(ctx, P.x, P.y + 17, P.face, P.phase, { ...P.gear, _w: P.wtype }, 1.02, P.aim, P.muzzle);
     ctx.globalAlpha = 1;
   }
@@ -166,6 +176,42 @@ function draw() {
     ctx.globalAlpha = Math.min(1, p.life * 1.6); ctx.fillStyle = p.col;
     ctx.fillText(p.txt, p.x, p.y); ctx.globalAlpha = 1;
   }
+  if (ult.on) {
+    if (ult.mode === "whirl" && ult.ring) {           // расходящийся вихрь
+      ctx.strokeStyle = "#8a53c4"; ctx.lineWidth = 6; ctx.globalAlpha = .8;
+      ctx.beginPath(); ctx.arc(P.x, P.y, ult.ring, 0, 7); ctx.stroke();
+      ctx.globalAlpha = .25; ctx.lineWidth = 22;
+      ctx.beginPath(); ctx.arc(P.x, P.y, ult.ring * .82, 0, 7); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    if (ult.tracer) {                                  // трассер расстрела
+      const tr = ult.tracer;
+      ctx.globalAlpha = Math.max(0, tr.life);
+      ctx.strokeStyle = "#8a53c4"; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(tr.x1, tr.y1); ctx.lineTo(tr.x2, tr.y2); ctx.stroke();
+      ctx.globalAlpha = Math.max(0, tr.life) * .3; ctx.lineWidth = 12;
+      ctx.beginPath(); ctx.moveTo(tr.x1, tr.y1); ctx.lineTo(tr.x2, tr.y2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    if (ult.lift > 4) {                                // тень внизу, пока в воздухе
+      ctx.globalAlpha = .10; ctx.fillStyle = INK;
+      ctx.beginPath(); ctx.ellipse(P.x, P.y + 18, 16, 4.5, 0, 0, 7); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    ctx.strokeStyle = "#8a53c4"; ctx.lineWidth = 3; ctx.globalAlpha = .5;
+    for (let i = 0; i < 10; i++) {                     // линии скорости
+      const a = i * .628 + t / 140, r0 = 60 + Math.sin(t / 90 + i) * 14;
+      sline(ctx, P.x + Math.cos(a) * r0, P.y + Math.sin(a) * r0,
+                 P.x + Math.cos(a) * (r0 + 26), P.y + Math.sin(a) * (r0 + 26));
+    }
+    ctx.globalAlpha = 1;
+  }
   ctx.textAlign = "left"; ctx.restore();
+
+  if (ult.on) {                                        // виньетка кадра
+    const p2 = ult.t / ult.dur, a2 = Math.min(.5, Math.min(p2, 1 - p2) * 3) * .55;
+    ctx.fillStyle = "rgba(43,38,32," + a2.toFixed(3) + ")";
+    ctx.fillRect(0, 0, W, 58); ctx.fillRect(0, H - 58, W, 58);
+  }
   hud();
 }

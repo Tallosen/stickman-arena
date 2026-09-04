@@ -11,6 +11,8 @@ requestAnimationFrame(function loop(now) {
 });
 
 function update(dt) {
+  updateUlt(dt);                       // ульта живёт в реальном времени
+  if (ult.on) dt *= .30;               // всё остальное — в замедлении
   t += dt; const k = dt / 16.67;
   if (shake > 0) shake = Math.max(0, shake - dt * .045);
   if (xpBoost > 0) xpBoost -= dt;
@@ -20,7 +22,7 @@ function update(dt) {
   P.spinV = (P.spinV || 0) * .93;
   if (P.invT > 0) P.invT -= dt;
 
-  if (pointer.active) {
+  if (pointer.active && !ult.on) {
     const dx = pointer.x - P.x, dy = pointer.y - P.y, d = Math.hypot(dx, dy);
     if (d > 5) {
       const hs = P.hasteT > 0 ? 1.6 : 1;
@@ -190,7 +192,8 @@ function update(dt) {
       const sp = kind === "sniper" ? 13 : kind === "pellet" ? 7.4 : 7.2;
       shots.push({ x: mx, y: my, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
                    a, life: kind === "sniper" ? 1400 : 850, dmg, kind,
-                   pierce: kind === "sniper", hit: [] });
+                   pierce: kind === "sniper", hit: [],
+                   crit: kind === "sniper" && Math.random() < .22 + .05 * P.gear.gun });
     };
     const ang = e => Math.atan2(e.y - (P.y - 11), e.x - P.x);
     if (P.wtype === "shotgun") {
@@ -214,7 +217,14 @@ function update(dt) {
       if (e.hp <= 0 || Math.hypot(e.x - s.x, e.y - s.y) > e.r + 4) continue;
       if (s.pierce) {
         if (s.hit.includes(e)) continue;
-        s.hit.push(e); hit(e, s.dmg || P.damage, s.x, s.y);
+        s.hit.push(e);
+        const big = e.kind === "tank" || e.kind === "elite";
+        if (s.crit && big) {                       // крит только по крупным
+          hit(e, (s.dmg || P.damage) * 3, s.x, s.y);
+          pops.push({ x: e.x, y: e.y - e.r - 26, txt: "КРИТ!", life: 1.4, col: "#8a53c4" });
+          shake = Math.max(shake, 15);
+          chain([1200, 900], "square", .05); noise(.16, .05, 3000, -2200);
+        } else hit(e, s.dmg || P.damage, s.x, s.y);
       } else { hit(e, s.dmg || P.damage, s.x, s.y); s.life = 0; break; }
     }
   }

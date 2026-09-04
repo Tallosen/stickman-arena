@@ -80,17 +80,21 @@ function toWorld(e) {
   return { sx, sy, x: sx + cam.x, y: sy - lift + cam.y };
 }
 cv.addEventListener("pointerdown", e => {
+  ultPointerDown(e);
   audio(); const p = toWorld(e);
   pointer.x = p.x; pointer.y = p.y; pointer.active = true;
   cv.setPointerCapture(e.pointerId);
 });
 cv.addEventListener("pointermove", e => {
+  ultPointerMove(e);
   const p = toWorld(e); pointer.x = p.x; pointer.y = p.y;
   if (e.pointerType === "mouse") pointer.active = true;
 });
-cv.addEventListener("pointerup", e => { if (e.pointerType !== "mouse") pointer.active = false; });
+cv.addEventListener("pointerup", e => { ultPointerUp(e); if (e.pointerType !== "mouse") pointer.active = false; });
+cv.addEventListener("pointercancel", ultPointerUp);
 addEventListener("keydown", e => {
   if (e.code === "Space" || e.code === "KeyE") { e.preventDefault(); useItem(); }
+  if (e.code === "KeyQ") { e.preventDefault(); startUlt(); }
   if (e.code === "Escape" || e.code === "KeyP") { e.preventDefault(); userPaused ? resumeGame() : pauseGame(); }
 });
 let userPaused = false;

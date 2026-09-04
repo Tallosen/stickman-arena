@@ -43,8 +43,39 @@ function hud() {
   buff(xpBoost, 20000, "#f0c443", "ОПЫТ ×2");
   buff(P.hasteT, 7000, "#f0a83a", "УСКОРЕНИЕ");
   buff(P.invT, 6000, "#a9dcf0", "НЕУЯЗВИМОСТЬ");
-  radar(); syncHUD();
+  radar(); ultGauge(); syncHUD();
 }
+function ultGauge() {
+  const cx = W / 2, cy = H - 46, R = 27;
+  const f = ult.charge / ULT_FULL, ready = f >= 1;
+  ctx.save();
+  if (ready && !ult.on) {                    // пульсирует, когда готова
+    ctx.globalAlpha = .35 + Math.abs(Math.sin(t / 220)) * .45;
+    ctx.beginPath(); ctx.arc(cx, cy, R + 7, 0, 7);
+    ctx.fillStyle = "#8a53c4"; ctx.fill(); ctx.globalAlpha = 1;
+  }
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7);
+  ctx.fillStyle = "#fdf6e8"; ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, R - 1, -Math.PI / 2, -Math.PI / 2 + Math.min(1, f) * 6.2832);
+  ctx.strokeStyle = ready ? "#8a53c4" : HERO; ctx.lineWidth = 5; ctx.lineCap = "round"; ctx.stroke();
+  // молния
+  ctx.fillStyle = ready ? "#8a53c4" : "rgba(43,38,32,.30)";
+  ctx.strokeStyle = INK; ctx.lineWidth = 1.8;
+  ctx.save(); ctx.translate(cx, cy);
+  ctx.beginPath();
+  ctx.moveTo(-3, -13); ctx.lineTo(6, -13); ctx.lineTo(1, -2);
+  ctx.lineTo(7, -2); ctx.lineTo(-5, 13); ctx.lineTo(-1, 0); ctx.lineTo(-6, 0);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.restore();
+  if (ready && !ult.on) {
+    ctx.fillStyle = "#7b3fb5"; ctx.font = "800 10px system-ui"; ctx.textAlign = "center";
+    ctx.fillText("РАЗВЕДИ ПАЛЬЦЫ", cx, cy + R + 15);
+    ctx.textAlign = "left";
+  }
+  ctx.restore();
+}
+
 function radar() {
   const S = Math.min(112, W * .28), x = W - S - 12, y = 56, s = S / WORLD;
   ctx.fillStyle = "rgba(253,246,232,.92)"; ctx.strokeStyle = INK; ctx.lineWidth = 2.4;
@@ -141,7 +172,14 @@ function drawPetBadge() {
 }
 
 const pauseBtn = document.getElementById("pauseBtn");
-pauseBtn.addEventListener("pointerdown", e => { e.stopPropagation(); pointer.active = false; pauseGame(); });
+pacv.addEventListener("pointerdown", e => {
+  const r = cv.getBoundingClientRect();
+  if (Math.hypot(e.clientX - r.left - W / 2, e.clientY - r.top - (H - 46)) < 34 && ultReady()) {
+    pointer.active = false; startUlt();
+  }
+});
+
+useBtn.addEventListener("pointerdown", e => { e.stopPropagation(); pointer.active = false; pauseGame(); });
 pauseBtn.addEventListener("pointerenter", () => { pointer.active = false; });
 // ── ВРЕМЕННО: мгновенный уровень для тестов. Удалить перед релизом ──
 const devLvl = document.getElementById("devLvl");
@@ -160,6 +198,13 @@ document.getElementById("btnRestart").onclick = () => {
   document.getElementById("levelup").classList.add("hidden");
   start();
 };
+
+cv.addEventListener("pointerdown", e => {
+  const r = cv.getBoundingClientRect();
+  if (Math.hypot(e.clientX - r.left - W / 2, e.clientY - r.top - (H - 46)) < 34 && ultReady()) {
+    pointer.active = false; startUlt();
+  }
+});
 
 useBtn.addEventListener("pointerdown", e => { e.stopPropagation(); pointer.active = false; useItem(); });
 // мышь заехала на кнопку — герой замирает, а не бежит к ней
