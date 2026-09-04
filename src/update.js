@@ -7,6 +7,7 @@ requestAnimationFrame(function loop(now) {
   requestAnimationFrame(loop);
   const dt = Math.min(34, now - last); last = now;
   try {
+    if (hitStop > 0) { hitStop -= dt; draw(); return; }
     if (running && !paused) update(dt);
     draw();
   } catch (err) {
@@ -20,6 +21,7 @@ function update(dt) {
   updateUlt(dt);                       // ульта живёт в реальном времени
   if (ult.on) dt *= .30;               // всё остальное — в замедлении
   t += dt; const k = dt / 16.67;
+  updateAbilities(dt, k);
   if (shake > 0) shake = Math.max(0, shake - dt * .045);
   if (xpBoost > 0) xpBoost -= dt;
   if (P.muzzle > 0) P.muzzle -= dt;
@@ -34,9 +36,29 @@ function update(dt) {
       const hs = P.hasteT > 0 ? 1.6 : 1;
       const v = Math.min(P.speed * hs * k, d);
       P.x += dx / d * v; P.y += dy / d * v; P.phase += .27 * hs * k;
+      P.run += (1 - P.run) * .06 * k;          // плавно набирает
+      P.stepT = (P.stepT || 0) - dt;
+      if (P.stepT <= 0) {                         // пыль из-под ног при беге
+        P.stepT = 190 / hs;
+        puffs.push({ x: P.x + rnd(-7, 7), y: P.y + 15, vx: rnd(-.5, .5),
+                     vy: rnd(-.5, -.1), life: .55, r: rnd(2, 4) });
+      }
+      if (P.hasteT > 0) {                         // след при ускорении
+        P.ghostT = (P.ghostT || 0) - dt;
+        if (P.ghostT <= 0) {
+          P.ghostT = 58;
+          P.ghosts = P.ghosts || [];
+          P.ghosts.push({ x: P.x, y: P.y, ph: P.phase, face: P.face, life: 1 });
+          if (P.ghosts.length > 4) P.ghosts.shift();
+        }
+      }
       if (Math.abs(dx) > 1) P.face = dx > 0 ? 1 : -1;
     }
   }
+  else P.run += (0 - P.run) * .05 * k;       // и плавно гаснет
+  if (P.ghosts) { for (const g2 of P.ghosts) g2.life -= dt / 210;
+                  P.ghosts = P.ghosts.filter(g2 => g2.life > 0); }
+  if (P.recoilT > 0) P.recoilT -= dt;
   pushOut(P);
   if (P.hurt > 0) P.hurt -= dt;
   P.orbA += .055 * k;
@@ -135,6 +157,8 @@ function update(dt) {
     e.phase += (anim * slow + (e.slip > 0 ? .3 : 0)) * k;
     if (e.slip > 0) e.slip -= dt / 500;
     if (e.flash > 0) e.flash -= dt;
+    if (e.poison > 0) e.poison -= dt;
+    if (e.flinch > 0) e.flinch -= dt / 170;
     if (e.orbCd > 0) e.orbCd -= dt;
     pushOut(e);
     if (dist(e, P) < P.r + e.r && P.hurt <= 0 && P.invT <= 0) {
@@ -192,7 +216,12 @@ function update(dt) {
   }
   shotT -= dt;
   if (shotT <= 0 && near.length) {
-    shotT = P.fireRate * (P.hasteT > 0 ? .55 : 1); SFX.shot(); P.muzzle = P.wtype === "minigun" ? 60 : 100;
+    shotT = P.fireRate * (P.hasteT > 0 ? .55 : 1); SFX.shot();
+    P.muzzle = P.wtype === "minigun" ? 60 : 100;
+    P.recoilT = P.wtype === "sniper" ? 170 : P.wtype === "shotgun" ? 140 : 80;
+    puffs.push({ x: P.x + Math.cos(P.aim) * 34, y: P.y - 11 + Math.sin(P.aim) * 34,
+                 vx: Math.cos(P.aim) * 1.2, vy: Math.sin(P.aim) * 1.2 - .3,
+                 life: .5, r: rnd(2, 4) });
     const mk = (a, dmg, kind) => {
       const mx = P.x + Math.cos(a) * 34, my = P.y - 11 + Math.sin(a) * 34;
       const sp = kind === "sniper" ? 13 : kind === "pellet" ? 7.4 : 7.2;
@@ -239,19 +268,71 @@ function update(dt) {
 
   for (const c of chests) {
     c.a += .04 * k;
-    if (dist(c, P) < 42) { c.dead = true; P.item = c.item; SFX.chest();
-      pops.push({ x: P.x, y: P.y - 48, txt: ITEMS[c.item].name, life: 1.4, col: ITEMS[c.item].col }); }
+    if (dist(c, P) < 42) {
+      c.dead = true; SFX.chest();
+      if (c.rare) grantRandomAbility(c.x, c.y);
+      else {
+        P.item = c.item;
+        pops.push({ x: P.x, y: P.y - 48, txt: ITEMS[c.item].name, life: 1.4, col: ITEMS[c.item].col });
+      }
+    }
   }
   chests = chests.filter(c => !c.dead);
 
+  let tankXP = 0;
   for (const o of orbs) {
+    if (allyTanks.length) {
+      o.dead = true; tankXP++;
+      // Сохраняем только часть следов, чтобы сотни сфер не превращали кадр в кашу.
+      if (tankXpTrails.length < 48) {
+        let q=allyTanks[0], bd=1e9;
+        for(const tank of allyTanks){const d=Math.hypot(tank.x-o.x,tank.y-o.y);if(d<bd){bd=d;q=tank;}}
+        tankXpTrails.push({ x:o.x, y:o.y, life:1, target:q });
+      }
+      continue;
+    }
     const dx = P.x - o.x, dy = P.y - o.y, d = Math.hypot(dx, dy) || 1;
-    if (d < P.magnet) { o.vx += dx / d * .62 * k; o.vy += dy / d * .62 * k; }
+    if (o.superPull) {
+      // Не телепорт: каждая сфера эффектно пролетает через карту к герою.
+      const pull = Math.min(.24, .105 * k);
+      o.x += dx * pull; o.y += dy * pull;
+      o.vx *= .55; o.vy *= .55;
+    } else if (d < P.magnet) { o.vx += dx / d * .62 * k; o.vy += dy / d * .62 * k; }
     o.x += o.vx * k; o.y += o.vy * k; o.vx *= .94; o.vy *= .94;
     if (d < 20) { o.dead = true; gainXP(); }
   }
   orbs = orbs.filter(o => !o.dead);
+  if (tankXP > 0) {
+    gainXP(tankXP);
+    const q=allyTanks[0] || P;
+    pops.push({ x:q.x, y:q.y-46, txt:"XP +"+tankXP, life:1.1, col:"#dfa128" });
+  }
   for (const c of corpses) {
+    if (c.mode === "launch") {                            // бросок с дугой
+      c.t += dt;
+      c.x += c.vx * k; c.y += c.vy * k;
+      c.z += c.vz * k; c.vz -= .40 * k;
+      c.tilt += c.spin * k;
+      if (c.style === "camera") {
+        c.vz *= .995;                                     // летит на зрителя, не падает
+      } else if (c.z <= 0 && c.vz < 0) {
+        c.z = 0;
+        if (c.landed < 2) {                               // отскок от земли
+          c.landed++;
+          c.vz = -c.vz * (c.landed === 1 ? .34 : .12);
+          c.vx *= .45; c.vy *= .45; c.spin *= .3;
+          for (let i = 0; i < 7; i++) {
+            const an = Math.random() * 6.28, sp2 = rnd(.6, 2.2);
+            puffs.push({ x: c.x, y: c.y, vx: Math.cos(an) * sp2, vy: Math.sin(an) * sp2,
+                         life: .8, r: rnd(2, 4) });
+          }
+        } else { c.vz = 0; c.vx *= .80; c.vy *= .80; }    // скользит и замирает
+      }
+      c.trail.push({ x: c.x, y: c.y, z: c.z, tilt: c.tilt });
+      if (c.trail.length > 5) c.trail.shift();
+      c.life -= dt / 1000;
+      continue;
+    }
     c.life -= dt / 1000;
     c.x += c.vx * k; c.y += c.vy * k;
     c.vx *= .90; c.vy *= .90;
@@ -267,9 +348,12 @@ function update(dt) {
   pops = pops.filter(p => p.life > 0);
   for (const b of booms) { b.r += (b.max - b.r) * .22 * k; b.life -= dt / 380; }
   booms = booms.filter(b => b.life > 0);
+  for (const f of flashes) { f.r += (f.max - f.r) * .34 * k; f.life -= dt / 320; }
+  flashes = flashes.filter(f => f.life > 0);
 }
-function gainXP() {
-  P.xp += xpBoost > 0 ? 2 : 1;
+function gainXP(amount) {
+  amount = Math.max(1, Math.floor(amount || 1));
+  P.xp += amount * (xpBoost > 0 ? 2 : 1);
   // за один кадр можно собрать несколько шариков и перескочить два уровня —
   // копим их в очередь, окно выбора покажем по одному
   while (P.xp >= P.xpNext) {

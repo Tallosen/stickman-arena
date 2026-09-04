@@ -1,7 +1,7 @@
 "use strict";
 /* Версия проекта. Меняется здесь и только здесь — дальше сама
    расходится в заголовок вкладки, на стартовый экран и в имя сборки. */
-const VERSION = "0.23";
+const VERSION = "0.47";
 
 /* config.js — все константы: одежда, оружие, питомцы, предметы */
 
@@ -44,6 +44,28 @@ const ITEMS = {
   ice:  { name: "Лёд",     col: "#4aa8cf" },
   xp:   { name: "Опыт ×2", col: "#dfa128" },
 };
+
+/* Эксклюзивные расходуемые способности из редкого сундука.
+   Инвентарь хранится отдельно от забега и переживает смерть/перезагрузку. */
+const ABILITIES = {
+  vacuum: { name: "МАГНИТ ОПЫТА", short: "XP",   col: "#dfa128", desc: "Собирает весь опыт с карты" },
+  gas:    { name: "ТОКСИЧНЫЙ ТУМАН", short: "ГАЗ", col: "#4e8f4a", desc: "Химкостюм и смертельный дым" },
+  tank:   { name: "БОЕВОЙ ТАНК", short: "ТАНК", col: "#3d78bd", desc: "Союзник стреляет и собирает опыт" },
+};
+const ABILITY_KEYS = Object.keys(ABILITIES);
+const INVENTORY_KEY = "vacky_stickman_inventory_v1";
+const inventory = { vacuum: 0, gas: 0, tank: 0 };
+function loadInventory() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(INVENTORY_KEY) || "{}");
+    for (const key of ABILITY_KEYS)
+      inventory[key] = Math.max(0, Math.min(999, Math.floor(Number(saved[key]) || 0)));
+  } catch (_) { /* закрытый storage не должен ломать игру */ }
+}
+function saveInventory() {
+  try { localStorage.setItem(INVENTORY_KEY, JSON.stringify(inventory)); } catch (_) {}
+}
+loadInventory();
 
 
 /* ── питомцы ──────────────────────────────────────────────── */

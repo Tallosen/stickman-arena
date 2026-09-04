@@ -1,11 +1,48 @@
 "use strict";
+/* Вспышка в момент кинематографичной гибели: кольцо и лучи */
+function drawStar(g, f) {
+  const a = Math.max(0, f.life), R = f.r;
+  g.save(); g.translate(f.x, f.y); g.rotate(f.rot);
+  g.globalAlpha = a;
+  g.fillStyle = "#fff8e8";
+  for (let i = 0; i < 12; i++) {                    // длинные лучи разной длины
+    const an = i * .5236, L = R * (i % 2 ? .55 : 1.35) * (.8 + (i % 3) * .18);
+    g.beginPath();
+    g.moveTo(Math.cos(an) * L, Math.sin(an) * L);
+    g.lineTo(Math.cos(an + .16) * R * .22, Math.sin(an + .16) * R * .22);
+    g.lineTo(Math.cos(an - .16) * R * .22, Math.sin(an - .16) * R * .22);
+    g.closePath(); g.fill();
+  }
+  g.globalAlpha = a * .95;
+  g.beginPath(); g.arc(0, 0, R * .34, 0, 7); g.fill();
+  g.restore(); g.globalAlpha = 1;
+}
+
+function drawFlash(g, f) {
+  if (f.style === "star") return drawStar(g, f);
+  const a = Math.max(0, f.life);
+  g.save();
+  g.globalAlpha = a * .9;
+  g.strokeStyle = "#fff3d8"; g.lineWidth = 3.2;
+  g.beginPath(); g.arc(f.x, f.y, f.r, 0, 7); g.stroke();
+  g.globalAlpha = a * .55;
+  g.strokeStyle = "#e0a52f"; g.lineWidth = 2.2;
+  for (let i = 0; i < 10; i++) {                   // лучи начинаются от кольца
+    const an = f.rot + i * .628, L = f.r * (i % 2 ? .18 : .32);
+    sline(g, f.x + Math.cos(an) * f.r, f.y + Math.sin(an) * f.r,
+             f.x + Math.cos(an) * (f.r + L), f.y + Math.sin(an) * (f.r + L));
+  }
+  g.restore(); g.globalAlpha = 1;
+}
+
 /* draw-foe.js — враги и анимации смерти */
 
-function drawFoe(g, x, y, face, phase, sc, col, kind, rot) {
+function drawFoe(g, x, y, face, phase, sc, col, kind, rot, flinch) {
   const sw = Math.sin(phase) * .6;
   g.save(); g.translate(x, y);
   if (rot) g.rotate(rot);
-  g.scale(sc, sc);
+  const f = Math.max(0, flinch || 0);                // сжимается от попадания
+  g.scale(sc * (1 + f * .22), sc * (1 - f * .16));
   g.strokeStyle = col; g.lineWidth = 2.4; g.lineCap = "round"; g.lineJoin = "round";
 
   if (kind === "runner") {
@@ -70,8 +107,57 @@ function drawFoe(g, x, y, face, phase, sc, col, kind, rot) {
   g.restore();
 }
 
+/* Тряпичная кукла: тело вытянуто по вектору полёта,
+   руки и ноги волочатся следом и покачиваются — как в кино,
+   а не как равномерно крутящийся спрайт.                        */
+function drawRagdoll(g, c, alpha, tone) {
+  const sp = Math.hypot(c.vx, c.vy);
+  const ang = Math.atan2(c.vy, c.vx);
+  const limp = Math.min(1, sp / 7);                 // насколько сильно тянет конечности
+  const w = c.t / 90;
+  const S2 = c.sc * (1 + c.z / 90) * (c.style === "camera" ? 1 + c.t / 420 : 1);
+
+  g.save();
+  g.translate(c.x, c.y - c.z * 1.5);
+  g.rotate(ang + Math.PI / 2 + c.tilt);             // «лежит» поперёк движения
+  g.scale(S2, S2);
+  g.globalAlpha = alpha;
+  g.strokeStyle = tone; g.lineWidth = (c.bold || 4.4); g.lineCap = "round"; g.lineJoin = "round";
+
+  const drag = (base, amp, ph) => [base[0] + Math.sin(w + ph) * amp * limp,
+                                   base[1] + 6 * limp + Math.cos(w + ph) * amp * .6 * limp];
+  const hip = [0, 8], neck = [0, -12];
+  sline(g, hip[0], hip[1], neck[0], neck[1]);       // корпус
+  const lf = drag([-9, 24], 6, 0), lb = drag([9, 24], 6, 2.1);
+  sline(g, hip[0], hip[1], lf[0], lf[1]);           // ноги волочатся
+  sline(g, hip[0], hip[1], lb[0], lb[1]);
+  const af = drag([-14, 2], 7, 1.1), ab = drag([14, 2], 7, 3.4);
+  sline(g, neck[0], neck[1] + 2, af[0], af[1]);     // руки болтаются
+  sline(g, neck[0], neck[1] + 2, ab[0], ab[1]);
+  g.fillStyle = tone;
+  g.beginPath(); g.arc(0, -19, 5.6, 0, 7); g.fill();
+  g.restore();
+  g.globalAlpha = 1;
+}
+
 function drawCorpse(g, c) {
   const a = Math.max(0, Math.min(1, c.life / c.max));
+  if (c.mode === "launch") {
+    const a2 = c.style === "camera" ? Math.min(1, c.life / .45) : Math.min(1, c.life / .5);
+    if (c.z > 2) {                                  // тень на земле, пока в воздухе
+      g.globalAlpha = a2 * .12; g.fillStyle = INK;
+      g.beginPath(); g.ellipse(c.x, c.y, 11 * c.sc, 3.4 * c.sc, 0, 0, 7); g.fill();
+      g.globalAlpha = 1;
+    }
+    for (let i = 0; i < c.trail.length; i++) {      // смазанный след
+      const tr = c.trail[i];
+      drawRagdoll(g, { ...c, x: tr.x, y: tr.y, z: tr.z, tilt: tr.tilt },
+                  a2 * (.035 + i * .022), "#a8331f");
+    }
+    // первый миг — силуэт вспышки
+    drawRagdoll(g, c, a2, c.t < 100 ? "#ffd9c8" : "#a8331f");
+    return;
+  }
   g.globalAlpha = a;
   if (c.mode === "pop") {                      // лопается облачком
     const k = 1 - a;

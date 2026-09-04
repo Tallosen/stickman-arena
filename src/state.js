@@ -36,8 +36,19 @@ function reset() {
   enemies = []; shots = []; orbs = []; puffs = []; pops = [];
   chests = []; mines = []; nades = []; ices = []; booms = []; pickups = []; corpses = [];
   buildProps();
-  t = 0; spawnT = 0; shotT = 0; eliteT = 45000; chestT = 6000; healT = 14000;
+  flashes = []; hitStop = 0;
+  t = 0; spawnT = 0; shotT = 0; eliteT = 45000; chestT = 6000; healT = 9000;
   score = 0; shake = 0; xpBoost = 0; paused = false;
+  // временные эффекты и состояние ульты — иначе тянутся из прошлого забега
+  P.hasteT = 0; P.invT = 0; P.seen = { x: P.x, y: P.y };
+  P.run = 0; P.recoilT = 0; P.stepT = 0; P.ghostT = 0; P.ghosts = [];
+  ult.charge = 0; ult.on = false; ult.zoom = 1; ult.rot = 0; ult.lift = 0;
+  ult.trail = []; ult.shards = []; ult.blinks = []; ult.marks = []; ult.swoosh = null;
+  ult.impacts = []; ult.flash = 0; ult.punch = 0;
+  ult.bag = []; ult.focus = null; ult.orbit = []; ult.stageX = 0; ult.stageY = 0;
+  // Активная техника и эффекты заканчиваются вместе с забегом,
+  // но накопленные заряды inventory намеренно не сбрасываются.
+  resetAbilities();
   pointer = { x: P.x, y: P.y, active: false };
   applyGear();
 }
@@ -72,6 +83,7 @@ function applyGear() {
 }
 
 /* ── ввод ─────────────────────────────────────────────────── */
+let touchMode = false;
 const LIFT = 78;
 function toWorld(e) {
   const r = cv.getBoundingClientRect();
@@ -81,7 +93,9 @@ function toWorld(e) {
 }
 cv.addEventListener("pointerdown", e => {
   ultPointerDown(e);
+  if (ultDblClick(e)) { pointer.active = false; return; }
   audio(); const p = toWorld(e);
+  touchMode = e.pointerType !== "mouse";
   pointer.x = p.x; pointer.y = p.y; pointer.active = true;
   cv.setPointerCapture(e.pointerId);
 });
@@ -94,7 +108,6 @@ cv.addEventListener("pointerup", e => { ultPointerUp(e); if (e.pointerType !== "
 cv.addEventListener("pointercancel", ultPointerUp);
 addEventListener("keydown", e => {
   if (e.code === "Space" || e.code === "KeyE") { e.preventDefault(); useItem(); }
-  if (e.code === "KeyQ") { e.preventDefault(); startUlt(); }
   if (e.code === "Escape" || e.code === "KeyP") { e.preventDefault(); userPaused ? resumeGame() : pauseGame(); }
 });
 let userPaused = false;

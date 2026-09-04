@@ -31,7 +31,7 @@ function hud() {
   const RS = Math.min(112, W * .28), rx = W - RS - 12;
   let by = 56 + RS + 9;
   const buff = (act, max, col, label) => {
-    if (act <= 0) return;
+    if (!(act > 0)) return;
     ctx.fillStyle = "rgba(253,246,232,.92)"; ctx.fillRect(rx, by, RS, 14);
     ctx.fillStyle = col; ctx.fillRect(rx, by, RS * Math.min(1, act / max), 14);
     ctx.strokeStyle = INK; ctx.lineWidth = 1.8; ctx.strokeRect(rx, by, RS, 14);
@@ -43,6 +43,8 @@ function hud() {
   buff(xpBoost, 20000, "#f0c443", "ОПЫТ ×2");
   buff(P.hasteT, 7000, "#f0a83a", "УСКОРЕНИЕ");
   buff(P.invT, 6000, "#a9dcf0", "НЕУЯЗВИМОСТЬ");
+  const tankLife=allyTanks.length ? Math.max(...allyTanks.map(q=>q.life)) : 0;
+  buff(tankLife, 120000, "#6b97c7", "ТАНК ×"+allyTanks.length);
   radar(); ultGauge(); syncHUD();
 }
 function ultGauge() {
@@ -70,7 +72,7 @@ function ultGauge() {
   ctx.restore();
   if (ready && !ult.on) {
     ctx.fillStyle = "#7b3fb5"; ctx.font = "800 10px system-ui"; ctx.textAlign = "center";
-    ctx.fillText("РАЗВЕДИ ПАЛЬЦЫ", cx, cy + R + 15);
+    ctx.fillText(touchMode ? "РАЗВЕДИ ПАЛЬЦЫ" : "ДВОЙНОЙ КЛИК", cx, cy + R + 15);
     ctx.textAlign = "left";
   }
   ctx.restore();
@@ -87,9 +89,15 @@ function radar() {
   for (const e of enemies) ctx.fillRect(x + e.x * s - 1, y + e.y * s - 1, 2, 2);
   ctx.fillStyle = "#4e8f4a";
   for (const tu of turrets) ctx.fillRect(x + tu.x * s - 1, y + tu.y * s - 1, 3, 3);
+  ctx.fillStyle = "#3d78bd";
+  for (const q of allyTanks) ctx.fillRect(x + q.x * s - 2, y + q.y * s - 2, 4, 4);
   if (P.pet && P.pet.dead <= 0) { ctx.fillStyle = "#3d78bd"; ctx.fillRect(x + P.pet.x * s - 1, y + P.pet.y * s - 1, 3, 3); }
-  ctx.fillStyle = "#dfa128";
-  for (const c of chests) ctx.fillRect(x + c.x * s - 2, y + c.y * s - 2, 5, 5);
+  for (const c of chests) {
+    const px=x+c.x*s, py=y+c.y*s;
+    ctx.fillStyle = c.rare ? "#8a53c4" : "#dfa128";
+    if (c.rare) { ctx.save(); ctx.translate(px,py); ctx.rotate(Math.PI/4); ctx.fillRect(-3.5,-3.5,7,7); ctx.restore(); }
+    else ctx.fillRect(px-2,py-2,5,5);
+  }
   for (const h of pickups) {
     ctx.fillStyle = BOOSTS[h.kind].col;
     ctx.fillRect(x + h.x * s - 2, y + h.y * s - 2, 4.5, 4.5);
@@ -103,6 +111,8 @@ function radar() {
 const useBtn = document.getElementById("useBtn");
 const useIco = document.getElementById("useIco");
 const useName = document.getElementById("useName");
+const abilityDock = document.getElementById("abilityDock");
+const abilitySlots = [...document.querySelectorAll(".ability-slot")];
 const petBadge = document.getElementById("petBadge");
 const petCtx = petBadge.getContext("2d");
 const REVIVE = 12000;
@@ -185,6 +195,24 @@ cv.addEventListener("pointerdown", e => {
 // ── ВРЕМЕННО: мгновенный уровень для тестов. Удалить перед релизом ──
 const devLvl = document.getElementById("devLvl");
 devLvl.addEventListener("pointerenter", () => { pointer.active = false; });
+// ── ВРЕМЕННО: мгновенная зарядка ульты. Удалить перед релизом ──
+const devUlt = document.getElementById("devUlt");
+devUlt.addEventListener("pointerenter", () => { pointer.active = false; });
+devUlt.addEventListener("pointerdown", e => {
+  e.stopPropagation(); pointer.active = false;
+  if (!running || paused) return;
+  if (ult.on) { ult.on = false; ult.zoom = 1; ult.rot = 0; ult.lift = 0; ult.charge = ULT_FULL; }
+  else if (ult.charge >= ULT_FULL) ult.charge = 0;   // повторное нажатие сбрасывает
+  else ult.charge = ULT_FULL;
+});
+
+// ── ВРЕМЕННО: принудительно поставить редкий сундук для проверки ──
+const devRare = document.getElementById("devRare");
+devRare.addEventListener("pointerenter", () => { pointer.active = false; });
+devRare.addEventListener("pointerdown", e => {
+  e.stopPropagation(); pointer.active = false; spawnRareChestNearPlayer();
+});
+
 devLvl.addEventListener("pointerdown", e => {
   e.stopPropagation(); pointer.active = false;
   if (!running || paused) return;
@@ -208,6 +236,17 @@ cv.addEventListener("pointerdown", e => {
 });
 
 useBtn.addEventListener("pointerdown", e => { e.stopPropagation(); pointer.active = false; useItem(); });
+for (const slot of abilitySlots) {
+  const kind = slot.dataset.ability, ico = slot.querySelector("canvas").getContext("2d");
+  ico.setTransform(2,0,0,2,0,0); ico.clearRect(0,0,44,44); drawAbilityIcon(ico,kind,22,22,1.35);
+  slot.addEventListener("pointerdown", e => { e.stopPropagation(); pointer.active=false; useAbility(kind); });
+  slot.addEventListener("pointerenter", () => { pointer.active=false; });
+}
+addEventListener("keydown", e => {
+  if (e.code === "Digit1") useAbility("vacuum");
+  if (e.code === "Digit2") useAbility("gas");
+  if (e.code === "Digit3") useAbility("tank");
+});
 // мышь заехала на кнопку — герой замирает, а не бежит к ней
 for (const el of [useBtn, petBadge])
   el.addEventListener("pointerenter", () => { pointer.active = false; });
@@ -223,7 +262,7 @@ petBadge.addEventListener("pointerdown", e => {
   chain([760, 1010], "square", .045);
 });
 
-let lastItem = "x";
+let lastItem = "x", lastInventory = "";
 function syncHUD() {
   if (P.item !== lastItem) {
     lastItem = P.item;
@@ -235,6 +274,18 @@ function syncHUD() {
   }
   pauseBtn.style.display = running ? "flex" : "none";
   devLvl.style.display = running ? "block" : "none";
+  devUlt.style.display = running ? "block" : "none";
+  devRare.style.display = running ? "block" : "none";
+  abilityDock.classList.toggle("hidden", !running);
+  const invKey = ABILITY_KEYS.map(k => inventory[k]).join(",") + ":" + running + ":" + paused;
+  if (invKey !== lastInventory) {
+    lastInventory = invKey;
+    for (const slot of abilitySlots) {
+      const kind=slot.dataset.ability, n=inventory[kind];
+      slot.disabled = !running || paused || n <= 0;
+      slot.querySelector("b").textContent = n > 99 ? "99+" : n;
+    }
+  }
   drawPetBadge();
 }
 

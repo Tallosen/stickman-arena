@@ -100,183 +100,260 @@ function drawBasicGun(g, lv, muzzle) {
   }
 }
 
+/* Рисует предмет в системе координат конечности: локальный верх направлен
+   от кисти/ступни к плечу/бедру. Благодаря этому экипировка не съезжает в
+   сложных позах и действительно ощущается надетой на персонажа. */
+function onLimb(g, end, root, draw) {
+  const a = Math.atan2(root[1] - end[1], root[0] - end[0]) + Math.PI / 2;
+  g.save(); g.translate(end[0], end[1]); g.rotate(a); draw(); g.restore();
+}
+
+function drawHeroBoot(g, foot, hip, face, level, color, line, detail) {
+  onLimb(g, foot, hip, () => {
+    g.save(); g.scale(face, 1); g.strokeStyle = INK; g.lineWidth = line;
+    const h = [0, 7, 10, 13, 16][level];
+    const w = 4.2 + level * .55;
+    spoly(g, [[-w, -h], [w, -h + 1], [w + 1, -1], [w + 5 + level, 1],
+              [-w - 1, 1]], color);
+    g.lineWidth = detail;
+    if (level >= 2) { g.strokeStyle = "#efe6d2"; sline(g, -w + 1, -h + 4, w - 1, -h + 4); }
+    if (level >= 3) {
+      g.strokeStyle = INK; sline(g, -w, -4, w + 2, -3);
+      spoly(g, [[-w - 1, -h], [0, -h - 4], [w + 1, -h + 1], [0, -h + 4]], "#efe6d2");
+    }
+    if (level >= 4) {
+      g.fillStyle = "#f2c45e"; g.strokeStyle = INK;
+      spoly(g, [[-w, -9], [-w - 7, -12], [-w - 3, -6]], "#f2c45e");
+      g.fillStyle = "#fff4c2"; g.beginPath(); g.arc(w + 2, -6, 1.7, 0, 7); g.fill();
+    }
+    g.restore();
+  });
+}
+
+function drawHeroGlove(g, hand, shoulder, level, color, line, detail) {
+  onLimb(g, hand, shoulder, () => {
+    g.strokeStyle = INK; g.lineWidth = line;
+    const w = 3.8 + level * .65, h = 5 + level * 1.25;
+    spoly(g, [[-w, -h], [w, -h], [w + 1.5, 2], [1.5, 4], [-w - 1, 2]], color);
+    if (level >= 2) {
+      g.lineWidth = detail; g.strokeStyle = "#efe6d2";
+      sline(g, -w + 1, -h + 3, w - 1, -h + 3);
+    }
+    if (level >= 3) {
+      g.strokeStyle = INK; g.lineWidth = detail;
+      for (let i = -1; i <= 1; i++) sline(g, i * 2.2, -1, i * 2.5, 2.5);
+    }
+    if (level >= 4) {
+      g.fillStyle = "#fff4c2"; g.beginPath(); g.arc(0, -h + 3.2, 2, 0, 7); g.fill();
+      g.strokeStyle = "#e08a2a"; g.lineWidth = detail; g.stroke();
+    }
+  });
+}
+
 /* ── человечек: линии + одежда + ружьё ────────────────────── */
 /* Пропорции героя (локальные единицы, ступни на y = 0):
    бедро -18 · плечи -40 · шея -44 · голова -52, r 8.5
    Толщина линий задаёт иерархию: скелет 3.0, одежда 2.2, мелочи 1.4 —
    иначе всё сливается в кашу.                                        */
-function drawHero(g, x, y, face, phase, gear, sc, aim, muzzle) {
+/* pose — необязательный набор точек, которым можно полностью
+   переопределить позу. Нужен для ульты: там свои ключевые кадры. */
+function drawHero(g, x, y, face, phase, gear, sc, aim, muzzle, pose, bold) {
   const sw = Math.sin(phase) * .6;
-  g.save(); g.translate(x, y); g.scale(sc, sc);
+  const D = {
+    lf: [sw * 11, -2], lb: [-sw * 11, -2],      // ступни
+    af: [11, -27], ab: [-10, -26 + sw * 4],     // кисти
+    hip: -18, neck: -40, head: [0, -52],
+    gunAt: [2, -27], lean: 0, squash: 1,
+  };
+  const Q = pose ? Object.assign({}, D, pose) : D;
+  g.save();
+  g.translate(x, y);
+  g.scale(sc, sc);
+  if (Q.lean || Q.squash !== 1) {
+    // Вращаем и сжимаем уже в локальных координатах героя, вокруг ступней.
+    // Если сделать это до translate(x, y), наклон поворачивает координаты всего
+    // мира и визуально уносит персонажа от его настоящей позиции.
+    g.rotate(Q.lean); g.scale(1, Q.squash);
+  }
   g.lineCap = "round"; g.lineJoin = "round";
   const C = l => TIER[Math.min(4, l)];
-  const SK = 3.0, CL = 2.2, DT = 1.4;
+  const B = bold || 1;
+  const SK = 3.0 * B, CL = 2.2 * Math.min(B, 1.7), DT = 1.4 * Math.min(B, 1.4);
 
-  // тень под ногами — привязывает фигуру к земле
-  g.globalAlpha = .13; g.fillStyle = INK;
-  g.beginPath(); g.ellipse(0, 1, 13, 3.6, 0, 0, 7); g.fill();
-  g.globalAlpha = 1;
+  // Тень под ногами — привязывает фигуру к земле.
+  if (!gear._noShadow) {
+    g.globalAlpha = .13; g.fillStyle = INK;
+    g.beginPath(); g.ellipse(0, 1, 13, 3.6, 0, 0, 7); g.fill(); g.globalAlpha = 1;
+  }
 
-  /* ── ПЛАЩ ── */
+  /* ── ПЛАЩ / ШАРФ: крепится к плечам и реагирует на движение ── */
   if (gear.cape) {
-    const L = gear.cape;
+    const L = gear.cape, top = Q.neck + 1, bottom = Q.hip + 7 + L * 4;
+    const wind = Math.sin(phase * .55) * 2.4 - (Q.lean || 0) * 14;
     g.save(); g.scale(face, 1); g.strokeStyle = INK; g.lineWidth = CL;
-    if (L === 1) spoly(g, [[-3, -42], [-17, -12], [4, -15]], C(L));
-    else if (L === 2) {
-      spoly(g, [[-3, -43], [-22, -3], [5, -12]], C(L));
-      g.lineWidth = DT; sline(g, -9, -30, -14, -10);
+    if (L === 1) {
+      g.beginPath(); g.moveTo(-3, top); g.quadraticCurveTo(-13, top + 1 + wind, -22, top + 8 + wind);
+      g.lineTo(-17, top + 12 + wind); g.quadraticCurveTo(-9, top + 8, 3, top + 4);
+      g.closePath(); g.fillStyle = C(L); g.fill(); g.stroke();
     } else {
-      spoly(g, [[-3, -44], [-26, 3], [-18, -2], [-22, 4], [-12, -4], [-15, 3], [5, -12]], C(L));
-      g.lineWidth = DT; sline(g, -9, -32, -16, -8); sline(g, -15, -26, -21, -4);
+      g.beginPath(); g.moveTo(-6, top); g.quadraticCurveTo(-18 - L * 2, top + 8 + wind, -22 - L * 3, bottom + wind);
+      if (L >= 3) { g.lineTo(-14, bottom - 6 + wind); g.lineTo(-9, bottom + 2 + wind); }
+      g.quadraticCurveTo(-1, bottom - 3, 6, Q.hip - 1); g.lineTo(5, top + 4); g.closePath();
+      g.fillStyle = C(L); g.fill(); g.stroke();
+      g.lineWidth = DT; g.strokeStyle = L >= 3 ? "#f2c45e" : "#efe6d2";
+      g.beginPath(); g.moveTo(-5, top + 4); g.quadraticCurveTo(-13, top + 12 + wind, -17 - L * 2, bottom - 3 + wind); g.stroke();
+      if (L >= 3) { g.beginPath(); g.moveTo(-1, top + 2); g.lineTo(5, top + 7); g.stroke(); }
     }
     g.restore();
   }
 
-  /* ── НОГИ ── */
-  g.strokeStyle = INK; g.lineWidth = SK;
-  sline(g, 0, -18, sw * 11, -2); sline(g, 0, -18, -sw * 11, -2);
-
-  /* ── ОБУВЬ ── */
+  /* ── НОГИ и сапоги, привязанные к каждой ступне ── */
+  g.strokeStyle = INK; g.lineWidth = gear._chem ? 8 : SK;
+  sline(g, 0, Q.hip, Q.lb[0], Q.lb[1]); sline(g, 0, Q.hip, Q.lf[0], Q.lf[1]);
+  if (gear._chem) {
+    g.strokeStyle = "#c7d86c"; g.lineWidth = 4.8;
+    sline(g, 0, Q.hip, Q.lb[0], Q.lb[1]); sline(g, 0, Q.hip, Q.lf[0], Q.lf[1]);
+  }
   if (gear.boots) {
-    const L = gear.boots;
-    g.save(); g.scale(face, 1); g.lineWidth = CL;
-    for (const d of [1, -1]) {
-      g.save(); g.translate(d * sw * 11, -2);
-      if (L === 1) spoly(g, [[-4, -5], [4, -5], [5.5, 1], [-4, 1]], C(L));
-      else if (L === 2) {
-        spoly(g, [[-4, -12], [4, -12], [5.5, 1], [-4, 1]], C(L));
-        g.lineWidth = DT; sline(g, -4, -8, 4, -8); g.lineWidth = CL;
-      } else if (L === 3) {
-        spoly(g, [[-4.5, -15], [5, -15], [6, 1], [-4.5, 1]], C(L));
-        g.lineWidth = DT; sline(g, -4.5, -11, 5, -11); sline(g, -4.5, -6, 5.5, -6); g.lineWidth = CL;
-      } else {
-        spoly(g, [[-5, -18], [5.5, -18], [6.5, 1], [-5, 1]], C(L));
-        g.lineWidth = DT; sline(g, -5, -13, 5.5, -13); sline(g, -5, -7, 6, -7); g.lineWidth = CL;
-        spoly(g, [[6.5, -3], [11, -1], [6.5, 1]], C(L));
-      }
-      g.restore();
-    }
-    g.restore();
+    drawHeroBoot(g, Q.lb, [0, Q.hip], face, gear.boots, C(gear.boots), CL, DT);
+    drawHeroBoot(g, Q.lf, [0, Q.hip], face, gear.boots, C(gear.boots), CL, DT);
   }
 
-  /* ── ТОРС ── */
-  g.strokeStyle = INK; g.lineWidth = SK;
-  sline(g, 0, -18, 0, -40);
-
-  /* ── КУРТКА ── */
+  /* ── ТОРС и новая посадка куртки ── */
+  g.strokeStyle = INK; g.lineWidth = SK; sline(g, 0, Q.hip, 0, Q.neck);
   if (gear.jacket) {
-    const L = gear.jacket;
-    g.save(); g.scale(face, 1); g.lineWidth = CL;
-    if (L === 1) {
-      spoly(g, [[-8, -39], [8, -39], [7, -19], [-7, -19]], C(L));
-      spoly(g, [[-4, -39], [0, -31], [4, -39]], PAPER);
-    } else if (L === 2) {
-      spoly(g, [[-9, -39], [9, -39], [7.5, -18], [-7.5, -18]], C(L));
-      spoly(g, [[-9, -39], [-2.5, -39], [-5, -31]], "#efe6d2");
-      spoly(g, [[9, -39], [2.5, -39], [5, -31]], "#efe6d2");
-      g.fillStyle = "#efe6d2";
-      for (let i = 0; i < 2; i++) { g.beginPath(); g.arc(0, -30 + i * 6, 1.5, 0, 7); g.fill(); }
-    } else {
-      spoly(g, [[-9.5, -39], [9.5, -39], [8, -18], [-8, -18]], C(L));
-      g.lineWidth = DT; sline(g, -8, -30, 8, -30); sline(g, 0, -39, 0, -18); g.lineWidth = CL;
-      scircle(g, -11, -37, 5.4, C(L)); scircle(g, 11, -37, 5.4, C(L));
-    }
-    g.restore();
-  }
-
-  /* ── ПОЯС ── */
-  if (gear.clip) {
-    const L = gear.clip;
-    g.save(); g.scale(face, 1);
-    g.strokeStyle = "#6b4a2a"; g.lineWidth = 3; sline(g, -8, -19, 8, -19);
-    g.strokeStyle = INK; g.lineWidth = CL;
-    for (let i = 0; i < L; i++)
-      spoly(g, [[-8 + i * 6, -18.5], [-3.4 + i * 6, -18.5], [-3.4 + i * 6, -11.5], [-8 + i * 6, -11.5]], C(L));
-    g.restore();
-  }
-
-  /* ── ЗАДНЯЯ РУКА ── */
-  g.save(); g.scale(face, 1);
-  g.strokeStyle = INK; g.lineWidth = SK;
-  sline(g, 0, -38, -10, -26 + sw * 4);
-  if (gear.gloves) {
-    g.lineWidth = gear.gloves >= 3 ? 7 : 5.6; g.strokeStyle = C(gear.gloves);
-    sline(g, -8, -28 + sw * 4, -10.5, -25.5 + sw * 4);
-  }
-  g.restore();
-
-  /* ── РУЖЬЁ ── */
-  g.save(); g.translate(2, -27); g.rotate(face > 0 ? aim : Math.PI - aim);
-  g.scale(face * 1.3, 1.3);
-  drawGunModel(g, gear.gun || 0, muzzle, gear._w);
-  g.restore();
-
-  /* ── ПЕРЕДНЯЯ РУКА ── */
-  g.save(); g.scale(face, 1);
-  g.strokeStyle = INK; g.lineWidth = SK;
-  sline(g, 0, -38, 11, -27);
-  if (gear.gloves) {
-    const L = gear.gloves;
-    g.lineWidth = L >= 3 ? 7 : 5.6; g.strokeStyle = C(L);
-    sline(g, 8.5, -29, 12, -26.5);
-    if (L >= 3) {
-      g.lineWidth = DT; g.strokeStyle = INK;
-      sline(g, 7, -31.5, 9.5, -34); sline(g, 9.5, -34, 12, -31.5);
-    }
-    if (L >= 4) { g.fillStyle = "#efe6d2"; g.beginPath(); g.arc(11, -29, 1.5, 0, 7); g.fill(); }
-  }
-  g.restore();
-
-  /* ── ШЕЯ и ГОЛОВА ── */
-  g.strokeStyle = INK; g.lineWidth = SK;
-  sline(g, 0, -40, 0, -44);
-  g.fillStyle = PAPER; scircle(g, 0, -52, 8.5, PAPER);
-  g.fillStyle = INK;
-  g.beginPath(); g.arc(face * 3, -53.5, 1.25, 0, 7); g.fill();
-
-  const fullHelm = gear.helm >= 3;
-
-  /* ── ОЧКИ ── */
-  if (gear.scope && !fullHelm) {
-    const L = gear.scope;
-    g.save(); g.scale(face, 1); g.strokeStyle = INK;
-    if (L === 1) {
-      g.lineWidth = DT + .3;
-      scircle(g, -3.6, -53.5, 3.2, "#dfeaf0"); scircle(g, 4.2, -53.5, 3.2, "#dfeaf0");
-      sline(g, -.4, -54, 1, -54); sline(g, 7.4, -54.4, 10, -55.6);
-    } else {
-      g.lineWidth = CL;
-      spoly(g, [[-9, -56.5], [9, -55.5], [8.4, -50], [-8.4, -51]], C(L));
-      g.lineWidth = DT; g.strokeStyle = "#efe6d2"; sline(g, -6, -54.6, 2, -53.6); g.strokeStyle = INK;
-      if (L >= 3) { sline(g, -9, -54, -13, -53.4); sline(g, 9, -53, 13, -52.4); }
-    }
-    g.restore();
-  }
-
-  /* ── ГОЛОВНОЙ УБОР ── */
-  if (gear.helm) {
-    const L = gear.helm;
+    const L = gear.jacket, top = Q.neck + 2, bottom = Q.hip + 1;
     g.save(); g.scale(face, 1); g.strokeStyle = INK; g.lineWidth = CL;
-    if (L === 1) {
-      g.beginPath(); g.arc(0, -56, 8.7, Math.PI, 0); g.fillStyle = C(L); g.fill(); g.stroke();
-      spoly(g, [[1, -57], [15, -55], [1, -53]], C(L));
-    } else if (L === 2) {
-      g.beginPath(); g.arc(0, -56, 9.4, Math.PI, 0); g.fillStyle = C(L); g.fill(); g.stroke();
-      spoly(g, [[-11.5, -56], [11.5, -56], [10.6, -52.4], [-10.6, -52.4]], C(L));
-    } else {
-      g.beginPath(); g.arc(0, -55.5, 9.8, Math.PI, .18); g.fillStyle = C(L); g.fill(); g.stroke();
-      spoly(g, [[-12, -55.5], [12, -55.5], [11, -51.6], [-11, -51.6]], C(L));
-      spoly(g, [[2, -55], [6, -55], [5.4, -44], [2.6, -44]], C(L));      // наносник
+    if (L === 1) {                                      // приталенный жилет
+      spoly(g, [[-7.5, top], [7.5, top], [6, bottom], [-6, bottom]], C(L));
+      spoly(g, [[-4.5, top], [0, top + 7], [4.5, top]], PAPER);
+      g.lineWidth = DT; sline(g, 0, top + 7, 0, bottom - 1);
+    } else if (L === 2) {                               // длинная куртка с лацканами
+      spoly(g, [[-9, top], [9, top], [7.2, bottom + 8], [1, bottom + 4],
+                [0, bottom + 9], [-7.2, bottom + 8]], C(L));
+      spoly(g, [[-8, top + 1], [-2, top], [-5, top + 9], [0, top + 6]], "#efe6d2");
+      spoly(g, [[8, top + 1], [2, top], [5, top + 9], [0, top + 6]], "#efe6d2");
+      g.fillStyle = "#efe6d2"; g.beginPath(); g.arc(0, top + 12, 1.4, 0, 7); g.fill();
+    } else {                                            // цельная бронекуртка
+      spoly(g, [[-10, top + 2], [-6, top - 2], [6, top - 2], [10, top + 2],
+                [7.5, bottom], [0, bottom + 3], [-7.5, bottom]], C(L));
+      spoly(g, [[-5.5, top + 2], [0, top + 6], [5.5, top + 2], [4, bottom - 2],
+                [0, bottom + 1], [-4, bottom - 2]], "#6f5aa3");
+      g.lineWidth = DT; g.strokeStyle = "#efe6d2";
+      sline(g, -5, top + 10, 5, top + 10); sline(g, 0, top + 6, 0, bottom);
+      g.strokeStyle = INK; g.lineWidth = CL;
+      scircle(g, -10, top + 3, 4.8, C(L)); scircle(g, 10, top + 3, 4.8, C(L));
+    }
+    g.restore();
+  }
+  if (gear._chem) {                                    // герметичный комбинезон поверх одежды
+    g.save(); g.scale(face, 1); g.strokeStyle = INK; g.lineWidth = CL;
+    spoly(g, [[-10,Q.neck+1],[10,Q.neck+1],[8,Q.hip+3],[0,Q.hip+6],[-8,Q.hip+3]], "#c7d86c");
+    g.strokeStyle = "#eef4ae"; g.lineWidth = DT; sline(g, 0, Q.neck+4, 0, Q.hip+2);
+    spoly(g, [[3,Q.neck+7],[8,Q.neck+8],[7,Q.neck+15],[3,Q.neck+14]], "#728d50");
+    g.restore();
+  }
+
+  /* ── РЕМЕНЬ И ПОДСУМКИ ── */
+  if (gear.clip) {
+    const L = gear.clip, by = Q.hip - 1;
+    g.save(); g.scale(face, 1); g.strokeStyle = "#6b4a2a"; g.lineWidth = 3.2;
+    sline(g, -8, by, 8, by); g.strokeStyle = INK; g.lineWidth = CL;
+    const slots = L === 1 ? [-5] : L === 2 ? [-6, 2] : [-8, 0, 8];
+    for (const px of slots) {
+      spoly(g, [[px - 3.2, by - 1], [px + 3.2, by - 1], [px + 2.7, by + 7], [px - 2.7, by + 7]], C(L));
+      g.lineWidth = DT; g.strokeStyle = "#efe6d2"; sline(g, px - 2, by + 1.5, px + 2, by + 1.5);
+      g.lineWidth = CL; g.strokeStyle = INK;
+    }
+    if (L >= 3) scircle(g, 0, by, 2.4, "#f2c45e");
+    g.restore();
+  }
+
+  /* ── ЗАДНЯЯ РУКА И ПЕРЧАТКА ── */
+  g.save(); g.scale(face, 1); g.strokeStyle = INK; g.lineWidth = gear._chem ? 8 : SK;
+  sline(g, 0, Q.neck + 2, Q.ab[0], Q.ab[1]);
+  if (gear._chem) { g.strokeStyle = "#c7d86c"; g.lineWidth = 4.8; sline(g, 0, Q.neck + 2, Q.ab[0], Q.ab[1]); }
+  if (gear.gloves) drawHeroGlove(g, Q.ab, [0, Q.neck + 2], gear.gloves, C(gear.gloves), CL, DT);
+  g.restore();
+
+  /* ── ОРУЖИЕ ── */
+  // Точка крепления зеркалится вместе с телом, затем оружие чуть выносится
+  // по направлению прицела. При взгляде влево зеркалим модель после поворота
+  // на aim + PI: ствол смотрит в цель, но рукоять не переворачивается вверх.
+  const gunPush = gear.jacket ? 6.5 : 3.5;
+  const gunX = Q.gunAt[0] * face + Math.cos(aim) * gunPush;
+  const gunY = Q.gunAt[1] + Math.sin(aim) * gunPush;
+  g.save(); g.translate(gunX, gunY); g.rotate(face > 0 ? aim : aim + Math.PI);
+  g.scale(face * 1.3, 1.3); drawGunModel(g, gear.gun || 0, muzzle, gear._w); g.restore();
+
+  /* ── ПЕРЕДНЯЯ РУКА И ПЕРЧАТКА ── */
+  g.save(); g.scale(face, 1); g.strokeStyle = INK; g.lineWidth = gear._chem ? 8 : SK;
+  sline(g, 0, Q.neck + 2, Q.af[0], Q.af[1]);
+  if (gear._chem) { g.strokeStyle = "#c7d86c"; g.lineWidth = 4.8; sline(g, 0, Q.neck + 2, Q.af[0], Q.af[1]); }
+  if (gear.gloves) drawHeroGlove(g, Q.af, [0, Q.neck + 2], gear.gloves, C(gear.gloves), CL, DT);
+  g.restore();
+
+  /* ── ГОЛОВА, ОПТИКА И ШЛЕМ ── */
+  g.strokeStyle = INK; g.lineWidth = SK; sline(g, 0, Q.neck, 0, Q.neck - 4);
+  scircle(g, Q.head[0], Q.head[1], 8.5, PAPER);
+  if (gear.helm < 3) {
+    g.fillStyle = INK; g.beginPath(); g.arc(Q.head[0] + face * 3, Q.head[1] - 1.5, 1.25, 0, 7); g.fill();
+  }
+  g.save(); g.translate(Q.head[0], Q.head[1]); g.scale(face, 1);
+
+  if (gear.scope && gear.helm < 3) {
+    const L = gear.scope; g.strokeStyle = INK; g.lineWidth = CL;
+    if (L === 1) {                                      // лёгкие очки
+      scircle(g, -3.5, -1.2, 3.1, "#d9eef5"); scircle(g, 3.8, -1.2, 3.1, "#d9eef5");
+      g.lineWidth = DT; sline(g, -.4, -1.5, .8, -1.5); sline(g, 6.8, -1.4, 10, -2.5);
+    } else if (L === 2) {                               // цельный тактический визор
+      spoly(g, [[-9, -4], [9.5, -3], [8, 2.3], [-8.5, 1.5]], "#76b8d5");
+      g.lineWidth = DT; g.strokeStyle = "#e9f8ff"; sline(g, -6, -2.5, 3, -1.8);
+    } else {                                            // энергетическая оптика
+      spoly(g, [[-10, -4.5], [10.5, -3], [8.5, 2.8], [-9, 1.8]], C(L));
+      g.lineWidth = DT; g.strokeStyle = "#f2d9ff"; sline(g, -7, -2.5, 4, -1.5);
+      g.strokeStyle = INK; scircle(g, 10, -1, 2.5, "#9fd6e8");
+    }
+  }
+
+  if (gear.helm) {
+    const L = gear.helm; g.strokeStyle = INK; g.lineWidth = CL;
+    if (L === 1) {                                      // лёгкий открытый шлем
+      g.beginPath(); g.moveTo(-8.4, -1);
+      g.quadraticCurveTo(-7, -8.5, 0, -9.4);
+      g.quadraticCurveTo(7.2, -8.4, 8.8, -1);
+      g.lineTo(6.3, .8); g.lineTo(-7, .8); g.closePath();
+      g.fillStyle = C(L); g.fill(); g.stroke();
+      spoly(g, [[1, -1.3], [12.5, -.4], [7.5, 1.8], [1, 1]], "#6fa66a");
+      spoly(g, [[-8, -.5], [-5.7, .2], [-5.5, 5.4], [-8.5, 3.8]], C(L));
+      g.lineWidth = DT; g.strokeStyle = "#dcebd7"; sline(g, -5.5, -5.8, 3.5, -7.1);
+      g.fillStyle = "#e8c66a"; scircle(g, -6.7, -.8, 1.5, "#e8c66a");
+    } else if (L === 2) {                               // рейнджерский шлем
+      g.beginPath(); g.arc(0, 0, 9.8, Math.PI, .08); g.lineTo(8.5, 4); g.lineTo(-8.5, 4); g.closePath();
+      g.fillStyle = C(L); g.fill(); g.stroke();
+      spoly(g, [[-10, -1], [11, -1], [9, 2], [-9, 2]], "#5f91c9");
+      g.lineWidth = DT; g.strokeStyle = "#dfeaf0"; sline(g, -5, -6.5, 4, -6.5);
+    } else {                                            // закрытый рыцарский шлем
+      g.beginPath(); g.arc(0, 0, 10.2, Math.PI, .12); g.lineTo(8.5, 7); g.lineTo(2.5, 5);
+      g.lineTo(0, 8); g.lineTo(-8.5, 6); g.closePath(); g.fillStyle = C(L); g.fill(); g.stroke();
+      spoly(g, [[-8.5, -2], [9.5, -2], [8, 2.5], [-8, 2]], "#342f38");
+      g.strokeStyle = "#efe6d2"; g.lineWidth = DT; sline(g, -5.5, -.8, 4, -.8);
+      spoly(g, [[1, 1], [5, 1], [4.5, 8], [1.5, 8]], C(L));
       if (L >= 4) {
-        g.fillStyle = "#c8402c";                                          // плюмаж
-        g.beginPath(); g.moveTo(-1, -65);
-        g.bezierCurveTo(-13, -70, -17, -56, -11, -51);
-        g.bezierCurveTo(-11, -60, -6, -63, -1, -65);
-        g.closePath(); g.fill(); g.stroke();
-        g.fillStyle = "#efe6d2"; scircle(g, 0, -64, 2.6, "#efe6d2");
+        g.strokeStyle = INK; g.lineWidth = CL;
+        spoly(g, [[-2, -10], [0, -17], [3, -10], [8, -15], [6, -7], [-5, -7]], "#e08a2a");
+        g.fillStyle = "#fff4c2"; g.beginPath(); g.arc(0, -9, 2, 0, 7); g.fill();
       }
     }
-    g.restore();
   }
+  if (gear._chem) {                                    // капюшон и стекло противогаза
+    g.strokeStyle = INK; g.lineWidth = CL;
+    scircle(g, 0, 0, 11.5, "#c7d86c");
+    spoly(g, [[-7,-5],[8,-4],[8,2],[-7,2]], "#577879");
+    g.strokeStyle = "#dff4e9"; g.lineWidth = DT; sline(g, -5, -3.5, 4, -2.8);
+    scircle(g, 7, 5, 4.2, "#59784b");
+    g.strokeStyle = "#e8ef9d"; g.lineWidth = 1.2; sline(g, 5, 4, 9, 6); sline(g, 9, 4, 5, 6);
+  }
+  g.restore();
   g.restore();
 }
