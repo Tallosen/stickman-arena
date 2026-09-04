@@ -1,7 +1,7 @@
 "use strict";
 /* Версия проекта. Меняется здесь и только здесь — дальше сама
    расходится в заголовок вкладки, на стартовый экран и в имя сборки. */
-const VERSION = "0.47";
+const VERSION = "0.52";
 
 /* config.js — все константы: одежда, оружие, питомцы, предметы */
 
@@ -21,13 +21,14 @@ const GK = Object.keys(GEAR);
 /* Редкие стволы. Базовый есть всегда, редкие выпадают нечасто
    и полностью меняют способ стрельбы.                          */
 const WEAPONS = {
-  basic:   { name: "Ружьё",     rare: 0, desc: "Надёжный ствол" },
-  shotgun: { name: "Дробовик",  rare: 1, desc: "Веер дроби, но близко" },
-  sniper:  { name: "Снайперка", rare: 1, desc: "Прошивает всех насквозь" },
-  minigun: { name: "Миниган",   rare: 1, desc: "Шквал огня в упор" },
+  basic:   { name: "Ружьё",     rare: 0, rarity: "common", desc: "Надёжный ствол" },
+  shotgun: { name: "Дробовик",  rare: 1, rarity: "rare", desc: "Веер дроби, но близко" },
+  sniper:  { name: "Снайперка", rare: 1, rarity: "gold", desc: "Золотая дальнобойная. Имеет две особые ульты" },
+  minigun: { name: "Миниган",   rare: 1, rarity: "rare", desc: "Шквал огня в упор" },
 };
 const RARE_KEYS = Object.keys(WEAPONS).filter(k => WEAPONS[k].rare);
 const RARE_CHANCE = .24;
+const GOLD_WEAPON_CHANCE = .025;
 const TIER = ["#8a8178", "#4e8f4a", "#3d78bd", "#8a53c4", "#dfa128"];
 
 const PERKS = {

@@ -213,6 +213,20 @@ devRare.addEventListener("pointerdown", e => {
   e.stopPropagation(); pointer.active = false; spawnRareChestNearPlayer();
 });
 
+// ── ВРЕМЕННО: экипировать золото и по очереди проверить все снайперские ульты ──
+const devSniper = document.getElementById("devSniper");
+let devSniperIndex = 0;
+devSniper.addEventListener("pointerenter", () => { pointer.active = false; });
+devSniper.addEventListener("pointerdown", e => {
+  e.stopPropagation(); pointer.active=false;
+  if(!running || paused)return;
+  P.wtype="sniper"; applyGear();
+  const mode=SNIPER_ULT_MODES[devSniperIndex++ % SNIPER_ULT_MODES.length];
+  ult.forceMode=mode; ult.weaponBag="sniper"; ult.charge=ULT_FULL;
+  pops=pops.filter(p=>!String(p.txt||"").startsWith("GOLD · "));
+  pops.push({x:P.x,y:P.y-58,txt:"GOLD · "+mode.toUpperCase(),life:1.4,col:"#c79018"});
+});
+
 devLvl.addEventListener("pointerdown", e => {
   e.stopPropagation(); pointer.active = false;
   if (!running || paused) return;
@@ -276,6 +290,7 @@ function syncHUD() {
   devLvl.style.display = running ? "block" : "none";
   devUlt.style.display = running ? "block" : "none";
   devRare.style.display = running ? "block" : "none";
+  devSniper.style.display = running ? "block" : "none";
   abilityDock.classList.toggle("hidden", !running);
   const invKey = ABILITY_KEYS.map(k => inventory[k]).join(",") + ":" + running + ":" + paused;
   if (invKey !== lastInventory) {

@@ -29,6 +29,10 @@
   .card.rare:active{box-shadow:1px 1px 0 #8a53c4}
   .card.rare b{color:#7b3fb5}
   .card.rare .rr{font-size:10px;letter-spacing:.14em;color:#8a53c4;font-weight:800}
+  .card.gold{border-color:#c79018;background:linear-gradient(135deg,#fff9dc,#f8df83);
+    box-shadow:3px 3px 0 #8f6510,0 0 22px rgba(223,161,40,.48)}
+  .card.gold:active{box-shadow:1px 1px 0 #8f6510}
+  .card.gold b{color:#72500b}.card.gold .rr{font-size:10px;letter-spacing:.14em;color:#b27908;font-weight:900}
   .card canvas{background:transparent;flex:0 0 40px}
   .card b{display:block;font-size:14px}
   .card span{font-size:11.5px;opacity:.65}
@@ -66,6 +70,9 @@
   .ability-slot[data-ability="gas"]{--ability:#4e8f4a}
   .ability-slot[data-ability="tank"]{--ability:#3d78bd}
   .ability-slot:not(:disabled){box-shadow:3px 3px 0 #2b2620,0 0 15px color-mix(in srgb,var(--ability) 48%,transparent)}
+  body.sniper-cinematic .hud-btn,body.sniper-cinematic .hud-pause,
+  body.sniper-cinematic .hud-dev,body.sniper-cinematic .hud-badge,
+  body.sniper-cinematic .ability-dock{opacity:0!important;pointer-events:none!important;transition:opacity .12s ease}
   @media(max-width:420px){.ability-dock{bottom:80px;gap:5px}.ability-slot{width:51px;height:51px}.ability-slot canvas{width:40px;height:40px}}
 </style>
 </head>
@@ -75,6 +82,7 @@
 <button id="devLvl" class="hud-dev" title="Тестовая кнопка: +1 уровень">+LV</button>
 <button id="devUlt" class="hud-dev" style="top:150px" title="Тестовая кнопка: зарядить ульту">+ULT</button>
 <button id="devRare" class="hud-dev" style="top:192px" title="Тестовая кнопка: редкий сундук">+RARE</button>
+<button id="devSniper" class="hud-dev" style="top:234px" title="Тест: золотая снайперка и следующая особая ульта">+SNP</button>
 <canvas id="petBadge" class="hud-badge hidden" width="176" height="176"></canvas>
 <div id="abilityDock" class="ability-dock hidden">
   <button class="ability-slot" data-ability="vacuum" title="Собрать весь опыт"><canvas width="88" height="88"></canvas><b>0</b></button>

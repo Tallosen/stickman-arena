@@ -184,11 +184,65 @@ function drawUltMotionFX(g) {
       g.lineTo(P.x + (ult.stageX || 0) + Math.cos(an) * (54 + pulse * 35), hy - 18 + Math.sin(an) * (42 + pulse * 18)); g.stroke();
     }
   }
+  if(ult.mode==="ricochet"){
+    const toss=Math.min(1,p/.24),cx=P.x+P.face*(20+Math.sin(toss*Math.PI)*16),cy=P.y-42-Math.sin(toss*Math.PI)*50;
+    g.globalAlpha=.24;g.fillStyle="#e3b52f";g.beginPath();g.arc(cx,cy,15,0,7);g.fill();
+    g.globalAlpha=1;g.fillStyle="#f0c94d";g.strokeStyle=INK;g.lineWidth=2.2;g.beginPath();g.ellipse(cx,cy,7,10*Math.abs(Math.cos(ult.coinSpin||0))+.8,ult.coinSpin||0,0,7);g.fill();g.stroke();
+    g.strokeStyle="#fff4b0";g.lineWidth=2;g.beginPath();g.moveTo(cx-2,cy-4);g.lineTo(cx+2,cy+4);g.stroke();
+  }
+  if(ult.mode==="quickdraw"){
+    for(const e of (ult.queue||[]).slice(ult.step||0)){
+      g.globalAlpha=.32;g.strokeStyle="#d7aa32";g.lineWidth=2;g.setLineDash([5,7]);g.beginPath();g.arc(e.x,e.y-12,e.r+12,0,7);g.stroke();g.setLineDash([]);
+    }
+    g.globalAlpha=.28;g.strokeStyle="#fff4b0";g.lineWidth=3;
+    for(let i=-2;i<=2;i++){g.beginPath();g.moveTo(P.x+P.face*20,P.y-28+i*12);g.lineTo(P.x-P.face*(64+Math.abs(i)*12),P.y-28+i*15);g.stroke();}
+  }
+  if(ult.mode==="dive"){
+    g.globalAlpha=.30;g.strokeStyle="#e3b52f";g.lineWidth=3;
+    for(let i=0;i<3;i++){const yy=hy-34+i*24;g.beginPath();g.moveTo(P.x-P.face*(42+i*9),yy);g.lineTo(P.x-P.face*(112+i*14),yy+P.face*i*2);g.stroke();}
+  }
   if (ult.mode === "cross") {
     const pulse = .5 + .5 * Math.sin(ult.t / 48);
     g.globalAlpha = .10 + pulse * .10; g.strokeStyle = ult.mode === "cross" ? "#c8402c" : "#8a53c4";
     g.lineWidth = 10; g.beginPath(); g.arc(P.x, hy - 18, 30 + pulse * 18, 0, 7); g.stroke();
   }
+  g.restore();
+}
+
+/* Оптика поверх настоящего игрового мира и настоящих drawFoe-моделей. */
+function drawWorldScope(g, p, mode, bar) {
+  const raw=Math.max(0,Math.min(1,(p-.18)/.075));
+  const enter=raw*raw*(3-2*raw), fade=p>.91?Math.max(0,(1-p)/.09):1;
+  const aa=enter*fade, kick=ult.fpKick||0, cx=W/2, cy=H/2+kick*12;
+  const r=Math.min(W,H)*(mode==="scope"?.342:.382);
+  g.save();
+  // Тёмный корпус прицела закрывает только края: внутри остаётся реальная карта.
+  g.globalAlpha=.94*aa;g.fillStyle="#17150f";
+  g.beginPath();g.rect(0,0,W,H);g.moveTo(cx+r,cy);g.arc(cx,cy,r,0,Math.PI*2,true);g.fill("evenodd");
+  g.globalAlpha=aa;g.strokeStyle="#26221b";g.lineWidth=10;g.beginPath();g.arc(cx,cy,r+3,0,7);g.stroke();
+  g.strokeStyle="#d7aa32";g.lineWidth=2.5;g.beginPath();g.arc(cx,cy,r-2,0,7);g.stroke();
+  // Тонкая сетка с делениями, как у настоящей оптики.
+  g.strokeStyle="#26221b";g.lineWidth=2;
+  g.beginPath();g.moveTo(cx-r,cy);g.lineTo(cx+r,cy);g.moveTo(cx,cy-r);g.lineTo(cx,cy+r);g.stroke();
+  for(let i=-4;i<=4;i++)if(i){
+    const d=i*r*.115;g.lineWidth=Math.abs(i)%2?1.4:2;
+    g.beginPath();g.moveTo(cx+d,cy-6);g.lineTo(cx+d,cy+6);g.moveTo(cx-6,cy+d);g.lineTo(cx+6,cy+d);g.stroke();
+  }
+  const lock=mode==="scope"?(ult.scopeLock||0):Math.min(1,(ult.next||0)<260?1:.72);
+  g.strokeStyle=lock>.92?"#c8402c":"#d7aa32";g.lineWidth=2.8;
+  g.beginPath();g.arc(cx,cy,17+(1-lock)*42,0,7);g.stroke();
+  g.fillStyle="#c8402c";g.beginPath();g.arc(cx,cy,3.3,0,7);g.fill();
+  // Короткая вспышка остаётся строго внутри линзы.
+  if(kick>.48){g.globalAlpha=aa*(kick-.48)/.52*.32;g.fillStyle="#fff5b0";g.beginPath();g.arc(cx,cy,r-5,0,7);g.fill();}
+  g.globalAlpha=aa*.84;g.fillStyle="#17150f";g.fillRect(cx-148,cy-r-31,296,24);
+  g.globalAlpha=aa;g.fillStyle="#e3bd4b";g.font="900 11px system-ui";g.textAlign="center";
+  if(mode==="scope") g.fillText(ult.fired?"TARGET DOWN · CONFIRMED":"GOLD SCOPE · HOLD BREATH",cx,cy-r-15);
+  else {
+    const total=Math.max(1,(ult.queue||[]).length), shown=Math.min(total,(ult.step||0)+1);
+    g.fillText(ult.current?"CHAIN SCOPE · TARGET "+shown+"/"+total:"CHAIN SCOPE · CLEAR",cx,cy-r-15);
+  }
+  g.globalAlpha=aa*.78;g.fillStyle="#17150f";g.fillRect(cx-45,cy+r-18,90,27);
+  g.globalAlpha=aa;g.fillStyle="#e3bd4b";g.font="800 10px system-ui";g.fillText(mode==="scope"?"× 8.0":"× 6.0",cx,cy+r);
   g.restore();
 }
 
@@ -227,6 +281,15 @@ function drawUltScreenFX(g) {
   g.globalAlpha = a * .58; g.fillStyle = edge;
   g.fillRect(0, bar - 2, W, 2); g.fillRect(0, H - bar, W, 2);
   g.globalAlpha = 1;
+
+  if (ult.mode === "scope" || ult.mode === "deadeye") drawWorldScope(g,p,ult.mode,bar);
+  else if(SNIPER_STANDARD_ULT_MODES.includes(ult.mode)){
+    const names={ricochet:"GOLDEN RICOCHET",quickdraw:"QUICKDRAW · TRIPLE TAP",dive:"AIRBORNE · BULLET TIME"};
+    const sub={ricochet:"FLIP THE COIN  //  BREAK THE LINE",quickdraw:"STEP BACK  //  THREE TARGETS",dive:"DIVE  //  AIM  //  FIRE"};
+    const aa=Math.min(1,p*7,(1-p)*7);g.save();g.globalAlpha=aa*.78;g.fillStyle="#211d16";g.fillRect(W/2-165,bar+5,330,42);
+    g.globalAlpha=aa;g.fillStyle="#f0c94d";g.textAlign="center";g.font="900 12px system-ui";g.fillText(names[ult.mode],W/2,bar+21);
+    g.globalAlpha=aa*.75;g.font="700 9px system-ui";g.fillText(sub[ult.mode],W/2,bar+36);g.restore();
+  }
 }
 
 /* Эксклюзивный сундук: фиолетовый корпус, золото, кристалл и редкий замок. */
@@ -258,11 +321,17 @@ function draw() {
   ctx.fillStyle = PAPER; ctx.fillRect(0, 0, W, H);
   ctx.save();
   if (shake > .2) ctx.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
-  // во время ульты камера наезжает на героя
+  const sniperPOV = ult.on && SNIPER_SCOPE_MODES.includes(ult.mode);
+  const sniperP = sniperPOV ? Math.max(0,Math.min(1,ult.t/ult.dur)) : 0;
+  const flyRaw = sniperPOV ? Math.max(0,Math.min(1,sniperP/.20)) : 0;
+  const fly = flyRaw*flyRaw*(3-2*flyRaw);
+  // Камера стартует на реальном герое и физически пролетает к реальному врагу.
   const Z = ult.zoom, focus = ult.on && ult.focus ? ult.focus : null;
   const fm = focus ? .30 : 0;
-  const fx = ult.on ? (focus ? P.x + (focus.x - P.x) * fm : P.x) : cam.x + W / 2;
-  const fy = ult.on ? (focus ? P.y + (focus.y - P.y) * fm : P.y) : cam.y + H / 2;
+  const scopeX = ult.mode === "deadeye" ? ult.camX : focus ? focus.x : P.x;
+  const scopeY = ult.mode === "deadeye" ? ult.camY : focus ? focus.y-12 : P.y;
+  const fx = ult.on ? (sniperPOV ? P.x+(scopeX-P.x)*fly : focus ? P.x+(focus.x-P.x)*fm : P.x) : cam.x+W/2;
+  const fy = ult.on ? (sniperPOV ? P.y+(scopeY-P.y)*fly : focus ? P.y+(focus.y-P.y)*fm : P.y) : cam.y+H/2;
   const up = ult.on ? Math.max(0, Math.min(1, ult.t / ult.dur)) : 0;
   const cant = !ult.on ? 0 : (ult.mode === "dash" || ult.mode === "combo")
     ? Math.sin((ult.step || 0) * 2.4) * .012
@@ -441,14 +510,14 @@ function draw() {
       ctx.beginPath(); ctx.arc(P.x, P.y - 8, 34, 0, 7); ctx.stroke();
       ctx.setLineDash([]);
     }
-    if (!(P.hurt > 0 && Math.floor(t / 85) % 2 === 0))
+    if (!(sniperPOV && sniperP>.13) && !(P.hurt > 0 && Math.floor(t / 85) % 2 === 0))
       if (ult.on) {
         const gear2 = { ...P.gear, _w: P.wtype, _noShadow: true, _chem: P.chemT > 0 };
         const SCU = 1.42, BOLD = 1.55;                 // выше и стройнее, как на референсе
         const pz = ultPose();
         for (let i = 0; i < (ult.trail || []).length; i++) {
           const tr = ult.trail[i];
-          ctx.globalAlpha = .05 + i * .022;
+          ctx.globalAlpha = ult.mode === "dive" ? .022 + i * .014 : .05 + i * .022;
           ctx.save(); ctx.translate(tr.x, tr.y + 17); ctx.rotate(tr.rot);
           drawHero(ctx, 0, 0, P.face, 0, gear2, SCU, P.aim, 0, tr.pose, BOLD);
           ctx.restore();
@@ -541,11 +610,17 @@ function draw() {
     if (ult.tracer) {                                  // трассер расстрела
       const tr = ult.tracer;
       ctx.globalAlpha = Math.max(0, tr.life);
-      ctx.strokeStyle = "#8a53c4"; ctx.lineWidth = 4;
+      ctx.strokeStyle = tr.gold ? "#f0c94d" : "#8a53c4"; ctx.lineWidth = tr.gold ? 5.5 : 4;
       ctx.beginPath(); ctx.moveTo(tr.x1, tr.y1); ctx.lineTo(tr.x2, tr.y2); ctx.stroke();
-      ctx.globalAlpha = Math.max(0, tr.life) * .3; ctx.lineWidth = 12;
+      ctx.globalAlpha = Math.max(0, tr.life) * .3; ctx.lineWidth = tr.gold ? 18 : 12;
       ctx.beginPath(); ctx.moveTo(tr.x1, tr.y1); ctx.lineTo(tr.x2, tr.y2); ctx.stroke();
       ctx.globalAlpha = 1;
+    }
+    for(const s of ult.goldSegments||[]){              // цепочка золотого рикошета
+      const a3=Math.max(0,s.life);ctx.globalAlpha=a3*.22;ctx.strokeStyle="#e3b52f";ctx.lineWidth=16;
+      ctx.beginPath();ctx.moveTo(s.x1,s.y1);ctx.lineTo(s.x2,s.y2);ctx.stroke();
+      ctx.globalAlpha=a3;ctx.strokeStyle="#fff4ae";ctx.lineWidth=3.6;
+      ctx.beginPath();ctx.moveTo(s.x1,s.y1);ctx.lineTo(s.x2,s.y2);ctx.stroke();ctx.globalAlpha=1;
     }
     if (ult.lift > 4) {                                // тень внизу, пока в воздухе
       ctx.globalAlpha = .10; ctx.fillStyle = INK;
@@ -560,5 +635,5 @@ function draw() {
 
   if (ult.on) drawUltScreenFX(ctx);                    // лучи, вспышка и кино-полосы
   drawAbilityScreenFX(ctx);
-  hud();
+  if (!sniperPOV) hud();
 }

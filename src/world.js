@@ -25,15 +25,15 @@ function popEnemy(e) {
     const a = Math.atan2(e.y - P.y, e.x - P.x) + rnd(-.28, .28);
     const pow = 7 + Math.random() * 5;
     // каждый десятый летит «в камеру» — эффектный крупный план
-    const toCam = Math.random() < .12;
+    const scopeFall = !!e.scopeFall, toCam = !scopeFall && Math.random() < .12;
     corpses.push({
       kind: e.kind, x: e.x, y: e.y, sc: e.r / 11, mode: "launch",
-      style: toCam ? "camera" : "throw",
-      vx: e.launchUp ? Math.cos(a) * 2 : Math.cos(a) * pow,
-      vy: e.launchUp ? Math.sin(a) * 2 : Math.sin(a) * pow,
-      ang: a, spin: e.launchUp ? rnd(-.12, .12) : rnd(-.05, .05), tilt: 0,
-      bold: 5.2, z: 0, vz: e.launchUp ? 15 : (toCam ? 9 : rnd(3.4, 6.2)),
-      t: 0, life: toCam ? 1.0 : 2.1, max: toCam ? 1.0 : 2.1,
+      style: scopeFall ? "scopefall" : toCam ? "camera" : "throw",
+      vx: scopeFall ? Math.cos(a) * .18 : e.launchUp ? Math.cos(a) * 2 : Math.cos(a) * pow,
+      vy: scopeFall ? Math.sin(a) * .12 : e.launchUp ? Math.sin(a) * 2 : Math.sin(a) * pow,
+      ang: a, spin: scopeFall ? P.face * .004 : e.launchUp ? rnd(-.12, .12) : rnd(-.05, .05), tilt: 0,
+      bold: 5.2, z: scopeFall ? 10 : 0, vz: scopeFall ? 0 : e.launchUp ? 15 : (toCam ? 9 : rnd(3.4, 6.2)),
+      t: 0, life: scopeFall ? 3.2 : toCam ? 1.0 : 2.1, max: scopeFall ? 3.2 : toCam ? 1.0 : 2.1,
       landed: 0, trail: [],
     });
     flashes.push({ x: e.x, y: e.y - 14 * (e.r / 11), r: 8, max: 52 + e.r * 2.2,

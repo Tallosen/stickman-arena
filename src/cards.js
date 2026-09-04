@@ -2,9 +2,9 @@
 /* cards.js — карточки уровня и постоянных улучшений */
 
 /* ── карточки ─────────────────────────────────────────────── */
-function card(box, icon, title, sub, cb, rare) {
+function card(box, icon, title, sub, cb, rarity) {
   const el = document.createElement("div");
-  el.className = rare ? "card rare" : "card";
+  el.className = rarity === "gold" ? "card gold" : rarity ? "card rare" : "card";
   el.innerHTML = `<canvas width="40" height="52"></canvas><div><b>${title}</b><span>${sub}</span></div>`;
   icon(el.querySelector("canvas").getContext("2d"));
   el.onclick = cb; box.appendChild(el);
@@ -30,10 +30,15 @@ function offerCards() {
     const c = pool[Math.random() * pool.length | 0];
     if (!pick.includes(c)) pick.push(c);
   }
-  // редкий ствол: небольшой шанс подменить одну из трёх вещей
+  // Золотая снайперка роллится отдельно и значительно реже фиолетовых стволов.
   const notOwned = RARE_KEYS.filter(w => w !== P.wtype);
-  if (notOwned.length && Math.random() < RARE_CHANCE) {
-    pendingRare = notOwned[Math.random() * notOwned.length | 0];
+  const goldWeapons = notOwned.filter(w => WEAPONS[w].rarity === "gold");
+  const rareWeapons = notOwned.filter(w => WEAPONS[w].rarity !== "gold");
+  if (goldWeapons.length && Math.random() < GOLD_WEAPON_CHANCE) {
+    pendingRare = goldWeapons[Math.random() * goldWeapons.length | 0];
+    pick[Math.random() * pick.length | 0] = "@rare";
+  } else if (rareWeapons.length && Math.random() < RARE_CHANCE) {
+    pendingRare = rareWeapons[Math.random() * rareWeapons.length | 0];
     pick[Math.random() * pick.length | 0] = "@rare";
   }
 
@@ -56,12 +61,14 @@ function offerCards() {
   for (const key of pick) {
     if (key === "@rare") {
       const w = pendingRare, W2 = WEAPONS[w];
+      const isGold = W2.rarity === "gold";
       card(box, heroIcon({ ...P.gear, _w: w }),
-        `${W2.name} <span class="rr">РЕДКОЕ</span>`, W2.desc, () => {
+        `${W2.name} <span class="rr">${isGold ? "ЗОЛОТОЕ" : "РЕДКОЕ"}</span>`, W2.desc, () => {
           P.wtype = w; applyGear();
+          ult.bag = []; // новый тип оружия сразу получает правильный набор ульт
           SFX.chest(); setTimeout(() => SFX.level(), 160);
           close();
-        }, true);
+        }, isGold ? "gold" : true);
       continue;
     }
     if (key === "@pet") {

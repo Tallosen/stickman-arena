@@ -45,7 +45,11 @@ function reset() {
   ult.charge = 0; ult.on = false; ult.zoom = 1; ult.rot = 0; ult.lift = 0;
   ult.trail = []; ult.shards = []; ult.blinks = []; ult.marks = []; ult.swoosh = null;
   ult.impacts = []; ult.flash = 0; ult.punch = 0;
+  ult.scopeLock = 0; ult.fpKick = 0; ult.bolt = 0; ult.screenFall = 0; ult.pendingNext = 0; ult.weaponBag = null;
+  ult.goldSegments = []; ult.coinSpin = 0; ult.forceMode = null;
+  ult.camX = P.x; ult.camY = P.y; ult.current = null; ult.queue = []; ult.step = 0;
   ult.bag = []; ult.focus = null; ult.orbit = []; ult.stageX = 0; ult.stageY = 0;
+  if (typeof document !== "undefined" && document.body) document.body.classList.remove("sniper-cinematic");
   // Активная техника и эффекты заканчиваются вместе с забегом,
   // но накопленные заряды inventory намеренно не сбрасываются.
   resetAbilities();
@@ -61,7 +65,7 @@ function applyGear() {
     P.range = 168 + 34 * g.scope; P.pellets = 5 + L + g.clip;
     P.spread = .52; P.pierce = 0; P.nShots = 1;
   } else if (w === "sniper") {
-    P.rate = 1550 - 140 * L; P.damage = (3.2 + 2.3 * L) * dm;
+    P.rate = 1420 - 125 * L; P.damage = (3.2 + 2.3 * L) * dm;
     P.range = 520 + 110 * g.scope; P.pellets = 1;
     P.spread = 0; P.pierce = 1; P.nShots = 1 + g.clip;
   } else if (w === "minigun") {

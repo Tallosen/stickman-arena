@@ -310,6 +310,14 @@ function update(dt) {
   for (const c of corpses) {
     if (c.mode === "launch") {                            // бросок с дугой
       c.t += dt;
+      if (c.style === "scopefall") {                      // замедленное падение внутри оптики
+        c.x += c.vx * k; c.y += (.16 + c.vy) * k;
+        c.z = Math.max(0, 10 - c.t / 210); c.tilt += c.spin * k;
+        c.life -= dt / 1000;
+        c.trail.push({ x:c.x, y:c.y, z:c.z, tilt:c.tilt });
+        if(c.trail.length>7)c.trail.shift();
+        continue;
+      }
       c.x += c.vx * k; c.y += c.vy * k;
       c.z += c.vz * k; c.vz -= .40 * k;
       c.tilt += c.spin * k;

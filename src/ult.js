@@ -6,6 +6,10 @@ const ULT_PER_KILL = 420;      // сколько добавляет один у�
 // Только самые читаемые постановки. Слабые и визуально шумные варианты
 // оставлены в коде для экспериментов, но больше не попадают в игровой пул.
 const ULT_MODES = ["kick", "upper", "dash", "rain", "meteor", "cross", "dance", "spiral"];
+const SNIPER_STANDARD_ULT_MODES = ["ricochet", "quickdraw", "dive"];
+const SNIPER_SCOPE_MODES = ["scope", "deadeye"];
+const SNIPER_ULT_MODES = SNIPER_STANDARD_ULT_MODES.concat(SNIPER_SCOPE_MODES);
+const RARE_SCOPE_CHANCE = .07;
 
 const ult = { charge: 0, on: false, mode: "flip", t: 0, dur: 0, zoom: 1, done: [],
               impacts: [], flash: 0, punch: 0, bag: [], focus: null, orbit: [] };
@@ -15,9 +19,11 @@ function ultReady() { return ult.charge >= ULT_FULL && !ult.on; }
 function startUlt() {
   if (!ultReady() || !running || paused) return;
   ult.charge = 0; ult.on = true; ult.t = 0; ult.done = [];
+  // Снайперка имеет собственный набор; оптика выпадает отдельно и очень редко.
+  const modePool = P.wtype === "sniper" ? SNIPER_STANDARD_ULT_MODES : ULT_MODES;
   // Мешок приёмов гарантирует, что игрок увидит все варианты до повторов.
-  if (!ult.bag || !ult.bag.length) {
-    ult.bag = ULT_MODES.slice();
+  if (!ult.bag || !ult.bag.length || ult.weaponBag !== P.wtype || ult.bag.some(m => !modePool.includes(m))) {
+    ult.bag = modePool.slice(); ult.weaponBag = P.wtype;
     for (let i = ult.bag.length - 1; i > 0; i--) {
       const j = Math.random() * (i + 1) | 0;
       [ult.bag[i], ult.bag[j]] = [ult.bag[j], ult.bag[i]];
@@ -25,16 +31,26 @@ function startUlt() {
     if (ult.lastMode && ult.bag.length > 1 && ult.bag[ult.bag.length - 1] === ult.lastMode)
       [ult.bag[0], ult.bag[ult.bag.length - 1]] = [ult.bag[ult.bag.length - 1], ult.bag[0]];
   }
-  ult.mode = ult.bag.pop();
+  const forcedMode = ult.forceMode;
+  ult.forceMode = null;
+  ult.mode = forcedMode || (P.wtype === "sniper" && Math.random() < RARE_SCOPE_CHANCE
+    ? SNIPER_SCOPE_MODES[Math.random()*SNIPER_SCOPE_MODES.length|0]
+    : ult.bag.pop());
   ult.lastMode = ult.mode;
   ult.dur = { dash: 2000, rain: 2400, kick: 1500, upper: 1600, dance: 2700,
-              meteor: 1950, spiral: 2300, cross: 1750 }[ult.mode] || 1700;
+              meteor: 1950, spiral: 2300, cross: 1750, scope: 3200, deadeye: 4400,
+              ricochet: 2700, quickdraw: 2350, dive: 2850 }[ult.mode] || 1700;
   ult.marks = []; ult.blinks = []; ult.hop = 0; ult.spinAim = 0;
   ult.swoosh = null; ult.shards = []; ult.trail = [];
   ult.impacts = []; ult.flash = .32; ult.punch = .5; ult.focus = null; ult.orbit = [];
   ult.stageX = 0; ult.stageY = 0; ult.beat = -1;
   ult.fired = 0; ult.landed = 0; ult.rot = 0; ult.lift = 0;
-  if (ult.mode === "kick" || ult.mode === "upper" || ult.mode === "cross") {
+  ult.scopeLock = 0; ult.fpKick = 0; ult.bolt = 0; ult.screenFall = 0; ult.pendingNext = 0;
+  ult.goldSegments = []; ult.coinSpin = 0;
+  ult.camX = P.x; ult.camY = P.y; ult.current = null;
+  if (typeof document !== "undefined" && document.body)
+    document.body.classList.toggle("sniper-cinematic", SNIPER_SCOPE_MODES.includes(ult.mode));
+  if (ult.mode === "kick" || ult.mode === "upper" || ult.mode === "cross" || ult.mode === "scope") {
     let b2 = null, bd = 1e9;
     for (const e of enemies) { const d = Math.hypot(e.x - P.x, e.y - P.y); if (d < bd) { bd = d; b2 = e; } }
     ult.victim = b2; ult.focus = b2;
@@ -44,6 +60,28 @@ function startUlt() {
     ult.queue = enemies.map(e => ({ e, d: Math.hypot(e.x - P.x, e.y - P.y) }))
       .filter(o => o.d < 520).sort((a2, b3) => a2.d - b3.d).slice(0, 7).map(o => o.e);
     ult.step = 0; ult.next = 0; ult.home = { x: P.x, y: P.y };
+  }
+  if (ult.mode === "deadeye") {
+    // Сначала крупные и опасные цели, затем ближайшие — максимум четыре ясных кадра.
+    ult.queue = enemies.map(e => ({ e, d: Math.hypot(e.x - P.x, e.y - P.y) }))
+      .filter(o => o.d < 900)
+      .sort((a2, b2) => ((b2.e.elite ? 1 : 0) - (a2.e.elite ? 1 : 0)) * 10000 + a2.d - b2.d)
+      .slice(0, 4).map(o => o.e);
+    ult.step = 0; ult.next = 980; ult.current = ult.queue[0] || null; ult.focus = ult.current;
+    if (ult.current) {
+      // Пролёт начинается от реального героя, а не мгновенно телепортирует камеру к цели.
+      ult.camX = P.x; ult.camY = P.y;
+      P.aim = Math.atan2(ult.current.y - P.y, ult.current.x - P.x);
+      P.face = Math.cos(P.aim) > 0 ? 1 : -1;
+    }
+  }
+  if (SNIPER_STANDARD_ULT_MODES.includes(ult.mode)) {
+    const count = ult.mode === "ricochet" ? 6 : ult.mode === "dive" ? 4 : 3;
+    ult.queue = enemies.map(e => ({ e, d: Math.hypot(e.x-P.x,e.y-P.y) }))
+      .filter(o => o.d < 850).sort((a2,b2) => a2.d-b2.d).slice(0,count).map(o => o.e);
+    ult.step=0;ult.next=ult.mode==="ricochet"?520:ult.mode==="dive"?470:380;
+    ult.home={x:P.x,y:P.y};ult.current=ult.queue[0]||null;ult.focus=ult.current;
+    if(ult.current){P.aim=Math.atan2(ult.current.y-P.y,ult.current.x-P.x);P.face=Math.cos(P.aim)>0?1:-1;}
   }
   if (ult.mode === "combo") {
     ult.queue = enemies.map(e => ({ e, d: Math.hypot(e.x - P.x, e.y - P.y) }))
@@ -77,15 +115,17 @@ function updateUltLegacy(dt) {
     }
   }
   ult.trail = ult.trail || [];
-  if (ult.mode === "meteor") {
+  if (ult.mode === "meteor" || ult.mode === "dive") {
     ult.trail.push({ x: P.x, y: P.y - (ult.lift || 0), rot: ult.rot || 0, pose: ultPose() });
-    if (ult.trail.length > 4) ult.trail.shift();
+    if (ult.trail.length > (ult.mode === "dive" ? 3 : 4)) ult.trail.shift();
   }
 
   // У каждой постановки свой масштаб. Вход и выход плавные, импакт даёт
   // лишь короткий дополнительный толчок — без постоянной тряски кадра.
   const peak = ({ kick: 1.62, upper: 1.58, dash: 1.44, rain: 1.34,
-                  meteor: 1.48, cross: 1.60, dance: 1.42, spiral: 1.38 })[ult.mode] || 1.42;
+                  meteor: 1.48, cross: 1.60, dance: 1.42, spiral: 1.38,
+                  scope: 1.82, deadeye: 1.68, ricochet: 1.48,
+                  quickdraw: 1.58, dive: 1.44 })[ult.mode] || 1.42;
   const enter = Math.min(1, p / .12), leave = p > .82 ? Math.max(0, (1 - p) / .18) : 1;
   const target = 1 + (peak - 1) * enter * leave + (ult.punch || 0) * .10;
   ult.zoom += (target - ult.zoom) * (p < .82 ? .12 : .08);
@@ -299,6 +339,93 @@ function updateUltLegacy(dt) {
       boom(320, DMG * 1.15, 21); hitStop = Math.max(hitStop, 85); SFX.boom();
     }
 
+  } else if (ult.mode === "ricochet") {               // монета и цепочка рикошетов по настоящим ботам
+    ult.rot=0;ult.lift=Math.sin(Math.min(1,p/.26)*Math.PI)*18;ult.coinSpin+=dt*.018;
+    const v=ult.queue[ult.step];
+    if(v){
+      ult.focus=v;P.aim=Math.atan2(v.y-P.y,v.x-P.x);P.face=Math.cos(P.aim)>0?1:-1;
+      if(p>.16){ult.next-=dt;if(ult.next<=0){
+        const prev=ult.step?ult.queue[ult.step-1]:null;
+        const x1=prev?prev.x:P.x+P.face*24,y1=prev?prev.y-12:P.y-58;
+        ult.goldSegments.push({x1,y1,x2:v.x,y2:v.y-12,life:1});
+        v.launchUp=1;ult.done.push(v);addUltImpact(v.x,v.y-12,P.aim,1.15,"shot");
+        spawnShards(v.x,v.y-12,P.aim,9);hit(v,Math.max(DMG*3.2,v.hp+1),x1,y1);
+        P.muzzle=150;ult.flash=.48;hitStop=Math.max(hitStop,48);shake=Math.max(shake,10);SFX.shot();
+        ult.step++;ult.current=ult.queue[ult.step]||null;ult.focus=ult.current||v;ult.next=145;
+      }}
+    }
+
+  } else if (ult.mode === "quickdraw") {              // три быстрых выстрела с резким отходом назад
+    ult.rot=0;ult.lift=Math.sin(p*Math.PI)*10;ult.stageX=-P.face*Math.sin(p*Math.PI)*72;
+    const v=ult.queue[ult.step];
+    if(v){
+      const sx=P.x+ult.stageX,sy=P.y-20-ult.lift;
+      ult.focus=v;P.aim=Math.atan2(v.y-sy,v.x-sx);P.face=Math.cos(P.aim)>0?1:-1;
+      if(p>.13){ult.next-=dt;if(ult.next<=0){
+        ult.tracer={x1:sx,y1:sy,x2:v.x,y2:v.y-12,life:1,gold:1};
+        v.launchUp=1;ult.done.push(v);addUltImpact(v.x,v.y-12,P.aim,1.28,"shot");
+        spawnShards(v.x,v.y-12,P.aim,12);hit(v,Math.max(DMG*3.8,v.hp+1),sx,sy);
+        P.muzzle=180;ult.kick=1;ult.flash=.58;hitStop=Math.max(hitStop,58);shake=Math.max(shake,13);SFX.shot();
+        ult.step++;ult.current=ult.queue[ult.step]||null;ult.focus=ult.current||v;ult.next=255;
+      }}
+    }
+
+  } else if (ult.mode === "dive") {                   // боковой прыжок и выстрелы в замедлении
+    const arc=Math.sin(p*Math.PI);ult.stageX=P.face*arc*118;ult.lift=arc*72;ult.rot=-P.face*arc*.52;
+    const v=ult.queue[ult.step];
+    if(v){
+      const sx=P.x+ult.stageX,sy=P.y-20-ult.lift;
+      ult.focus=v;P.aim=Math.atan2(v.y-sy,v.x-sx);
+      if(p>.15){ult.next-=dt;if(ult.next<=0){
+        ult.tracer={x1:sx,y1:sy,x2:v.x,y2:v.y-12,life:1,gold:1};
+        v.launchUp=1;ult.done.push(v);addUltImpact(v.x,v.y-12,P.aim,1.20,"shot");
+        hit(v,Math.max(DMG*3.4,v.hp+1),sx,sy);P.muzzle=160;ult.kick=1;ult.flash=.42;
+        hitStop=Math.max(hitStop,42);shake=Math.max(shake,9);SFX.shot();
+        ult.step++;ult.current=ult.queue[ult.step]||null;ult.focus=ult.current||v;ult.next=310;
+      }}
+    }
+
+  } else if (ult.mode === "scope") {                  // редкий золотой выстрел через оптический прицел
+    ult.rot=0; ult.lift=0;
+    const v=ult.victim;
+    if(v && v.hp>0){P.aim=Math.atan2(v.y-P.y,v.x-P.x);P.face=Math.cos(P.aim)>0?1:-1;}
+    ult.scopeLock=Math.min(1,Math.max(0,(p-.10)/.24));
+    if(p>.42 && !ult.fired){
+      ult.fired=1; ult.fpKick=1; ult.bolt=1; ult.screenFall=.001; P.muzzle=180; ult.flash=.75; hitStop=Math.max(hitStop,135); shake=Math.max(shake,18);
+      if(v && v.hp>0){
+        v.scopeFall=1; ult.done.push(v);
+        ult.tracer={x1:P.x,y1:P.y-24,x2:v.x,y2:v.y-12,life:1,gold:1};
+        addUltImpact(v.x,v.y-13,P.aim,1.75,"shot"); spawnShards(v.x,v.y-12,P.aim,18);
+        hit(v,Math.max(DMG*5,v.hp+1),P.x,P.y);
+      }
+      SFX.shot(); chain([130,92,65],"square",.085);
+    }
+
+  } else if (ult.mode === "deadeye") {                // серия выстрелов от первого лица
+    ult.rot=0; ult.lift=0;
+    let v=ult.current;
+    if(v){
+      ult.camX += (v.x-ult.camX)*Math.min(.25,dt/115);
+      ult.camY += (v.y-12-ult.camY)*Math.min(.25,dt/115);
+      P.aim=Math.atan2(v.y-P.y,v.x-P.x);P.face=Math.cos(P.aim)>0?1:-1;
+    }
+    if(ult.pendingNext>0){
+      ult.pendingNext-=dt;
+      if(ult.pendingNext<=0){
+        ult.current=ult.queue[ult.step]||null;ult.focus=ult.current||v;ult.next=470;ult.screenFall=0;
+      }
+    } else if(p>.18 && p<.92 && v && v.hp>0){
+      ult.next-=dt;
+      if(ult.next<=0){
+        ult.fpKick=1;ult.bolt=1;ult.flash=.62;ult.screenFall=.001;P.muzzle=190;
+        hitStop=Math.max(hitStop,72);shake=Math.max(shake,12);
+        v.scopeFall=1;ult.done.push(v);addUltImpact(v.x,v.y-12,P.aim,1.25,"shot");
+        spawnShards(v.x,v.y-12,P.aim,11);hit(v,Math.max(DMG*4,v.hp+1),P.x,P.y);
+        SFX.shot();chain([112,78,56],"square",.075);
+        ult.step++;ult.pendingNext=480;
+      }
+    }
+
   } else if (ult.mode === "cross") {                  // два росчерка складываются в крест
     ult.rot = 0; ult.lift = Math.sin(p * Math.PI) * 12;
     const v = ult.victim, a = P.aim;
@@ -374,10 +501,19 @@ function updateUltLegacy(dt) {
   ult.impacts = ult.impacts.filter(f => f.life > 0);
   ult.flash = Math.max(0, (ult.flash || 0) - dt / 145);
   ult.punch = Math.max(0, (ult.punch || 0) - dt / 240);
+  ult.fpKick = Math.max(0, (ult.fpKick || 0) - dt / 190);
+  ult.bolt = Math.max(0, (ult.bolt || 0) - dt / 430);
+  if ((ult.screenFall || 0) > 0)
+    ult.screenFall = Math.min(1, ult.screenFall + dt / (ult.mode === "scope" ? 1450 : 470));
+  for(const s of ult.goldSegments||[])s.life-=dt/420;
+  ult.goldSegments=(ult.goldSegments||[]).filter(s=>s.life>0);
   if (ult.tracer) { ult.tracer.life -= dt / 260; if (ult.tracer.life <= 0) ult.tracer = null; }
   if (ult.t >= ult.dur) {
     ult.on = false; ult.trail = []; ult.fired = 0; ult.landed = 0;
     ult.rot = 0; ult.lift = 0; ult.stageX = 0; ult.stageY = 0; ult.focus = null;
+    ult.scopeLock = 0; ult.fpKick = 0; ult.bolt = 0; ult.screenFall = 0; ult.pendingNext = 0; ult.current = null;
+    ult.goldSegments=[];ult.coinSpin=0;
+    if (typeof document !== "undefined" && document.body) document.body.classList.remove("sniper-cinematic");
   }
 }
 
@@ -431,6 +567,35 @@ const POSES = {
     [.12, K({ lf: [17, -2], lb: [-15, -2], af: [17, -29], ab: [-6, -32], hip: -15, neck: -37, head: [-2, -49], lean: -.10, squash: .93 })],
     [.90, K({ lf: [18, -2], lb: [-16, -2], af: [18, -29], ab: [-5, -33], hip: -15, neck: -37, head: [-2, -49], lean: -.12, squash: .93 })],
     [1,   K({ lf: [10, -2], lb: [-10, -2], af: [13, -28], ab: [-9, -26], lean: 0 })],
+  ],
+  // эксклюзив снайперки: колено на земле, корпус и приклад жёстко зафиксированы
+  scope: [
+    [0,   K({ lf:[13,-2],lb:[-12,-2],af:[17,-29],ab:[-8,-31],lean:-.05 })],
+    [.18, K({ lf:[20,-2],lb:[-4,-12],af:[24,-31],ab:[-9,-34],hip:-13,neck:-36,head:[3,-48],gunAt:[7,-29],lean:-.15,squash:.91 })],
+    [.78, K({ lf:[20,-2],lb:[-4,-12],af:[25,-31],ab:[-10,-34],hip:-13,neck:-36,head:[3,-48],gunAt:[7,-29],lean:-.16,squash:.91 })],
+    [1,   K({ lf:[13,-2],lb:[-12,-2],af:[17,-29],ab:[-8,-31],lean:-.05 })],
+  ],
+  // подброс монеты: свободная рука вверх, затем резкое наведение винтовки
+  ricochet: [
+    [0,   K({lf:[12,-2],lb:[-12,-2],af:[12,-28],ab:[-10,-27],lean:0})],
+    [.16, K({lf:[17,-2],lb:[-15,-2],af:[6,-58],ab:[-8,-31],hip:-17,neck:-40,head:[-2,-52],gunAt:[5,-29],lean:-.10})],
+    [.30, K({lf:[20,-2],lb:[-18,-2],af:[25,-31],ab:[-12,-35],hip:-16,neck:-39,head:[3,-51],gunAt:[8,-29],lean:-.20})],
+    [.86, K({lf:[20,-2],lb:[-18,-2],af:[26,-31],ab:[-12,-35],hip:-16,neck:-39,head:[3,-51],gunAt:[8,-29],lean:-.18})],
+    [1,   K({lf:[12,-2],lb:[-12,-2],af:[13,-28],ab:[-10,-27],lean:0})],
+  ],
+  // быстрый отход назад с низкой устойчивой стойкой
+  quickdraw: [
+    [0,   K({lf:[10,-2],lb:[-10,-2],af:[12,-27],ab:[-10,-27],lean:0})],
+    [.20, K({lf:[25,-2],lb:[-21,-2],af:[28,-29],ab:[-14,-34],hip:-13,neck:-35,head:[4,-47],gunAt:[9,-27],lean:-.26,squash:.88})],
+    [.82, K({lf:[26,-2],lb:[-22,-2],af:[29,-29],ab:[-15,-34],hip:-13,neck:-35,head:[4,-47],gunAt:[9,-27],lean:-.24,squash:.88})],
+    [1,   K({lf:[12,-2],lb:[-12,-2],af:[14,-28],ab:[-10,-28],lean:-.04})],
+  ],
+  // боковой прыжок: ноги подобраны, винтовка удерживается вдоль взгляда
+  dive: [
+    [0,   K({lf:[11,-2],lb:[-11,-2],af:[13,-28],ab:[-10,-28],lean:0})],
+    [.22, K({lf:[18,-13],lb:[-11,-18],af:[25,-32],ab:[-12,-36],hip:-22,neck:-43,head:[4,-55],gunAt:[8,-30],lean:-.22,squash:1.06})],
+    [.68, K({lf:[20,-16],lb:[-13,-20],af:[27,-33],ab:[-13,-37],hip:-23,neck:-44,head:[5,-56],gunAt:[9,-31],lean:-.25,squash:1.07})],
+    [1,   K({lf:[14,-2],lb:[-14,-2],af:[15,-28],ab:[-11,-29],lean:-.06})],
   ],
   // прыжок с ударом: замах вверх → падение → удар кулаком в землю
   // вертушка: опорная нога согнута, бьющая вытянута в линию с корпусом
