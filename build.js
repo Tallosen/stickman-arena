@@ -12,5 +12,7 @@ const code = ORDER.map(f =>
 const out = html.replace(/ *<script src="src\/[^"]+"><\/script>\n?/g, "")
                 .replace("</body>", `  <script>\n"use strict";\n${code}\n  </script>\n</body>`);
 fs.mkdirSync("dist",{recursive:true});
+const ver = (fs.readFileSync("src/config.js","utf8").match(/VERSION = "([^"]+)"/) || [,"?"])[1];
 fs.writeFileSync("dist/index.html", out);
-console.log("dist/index.html —", (out.length/1024).toFixed(1), "КБ");
+fs.writeFileSync(`dist/StickmanArena_v${ver}.html`, out);
+console.log(`dist/index.html и StickmanArena_v${ver}.html —`, (out.length/1024).toFixed(1), "КБ");

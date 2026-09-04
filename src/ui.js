@@ -172,15 +172,16 @@ function drawPetBadge() {
 }
 
 const pauseBtn = document.getElementById("pauseBtn");
-pacv.addEventListener("pointerdown", e => {
+pauseBtn.addEventListener("pointerdown", e => { e.stopPropagation(); pointer.active = false; pauseGame(); });
+pauseBtn.addEventListener("pointerenter", () => { pointer.active = false; });
+
+// тап по шкале ульты тоже запускает её
+cv.addEventListener("pointerdown", e => {
   const r = cv.getBoundingClientRect();
   if (Math.hypot(e.clientX - r.left - W / 2, e.clientY - r.top - (H - 46)) < 34 && ultReady()) {
     pointer.active = false; startUlt();
   }
 });
-
-useBtn.addEventListener("pointerdown", e => { e.stopPropagation(); pointer.active = false; pauseGame(); });
-pauseBtn.addEventListener("pointerenter", () => { pointer.active = false; });
 // ── ВРЕМЕННО: мгновенный уровень для тестов. Удалить перед релизом ──
 const devLvl = document.getElementById("devLvl");
 devLvl.addEventListener("pointerenter", () => { pointer.active = false; });
@@ -235,6 +236,12 @@ function syncHUD() {
   pauseBtn.style.display = running ? "flex" : "none";
   devLvl.style.display = running ? "block" : "none";
   drawPetBadge();
+}
+
+document.title = "Stickman Arena v" + VERSION + " — Vacky Games";
+{
+  const tag = document.getElementById("verTag");
+  if (tag) tag.textContent = "v" + VERSION;
 }
 
 function start() {
