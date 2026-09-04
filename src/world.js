@@ -4,22 +4,30 @@ let flashes = [], hitStop = 0;
 
 /* ── враги ────────────────────────────────────────────────── */
 const KINDS = {
-  basic:  { r: 11, hp: 1,  spd: .76, xp: 1 },
-  runner: { r: 9,  hp: 1,  spd: 1.5, xp: 1 },
-  tank:   { r: 17, hp: 6,  spd: .46, xp: 3 },
-  elite:  { r: 25, hp: 28, spd: .54, xp: 10 },
+  basic:  { r: 11, hp: 1,  spd: .76, xp: 55 },
+  runner: { r: 9,  hp: 1,  spd: 1.5, xp: 70 },
+  tank:   { r: 17, hp: 6,  spd: .46, xp: 150 },
+  elite:  { r: 25, hp: 26, spd: .54, xp: 500 },
 };
 function spawn(kind) {
   const K = KINDS[kind], a = Math.random() * 6.283, d = Math.max(W, H) * .62 + 60;
   const x = Math.max(30, Math.min(WORLD - 30, P.x + Math.cos(a) * d));
   const y = Math.max(30, Math.min(WORLD - 30, P.y + Math.sin(a) * d));
-  const grow = 1 + t / 90000, hp = Math.ceil(K.hp * grow);
+  const stage = Math.max(1, P.lvl || 1);
+  const hpScale = (1 + (stage - 1) * .32) * (1 + Math.min(.55, t / 260000));
+  const speedScale = 1 + Math.min(.32, (stage - 1) * .045) + Math.min(.14, t / 360000);
+  const hp = Math.ceil(K.hp * hpScale);
   enemies.push({ kind, x, y, r: K.r, xp: K.xp, hp, maxhp: hp,
-    speed: K.spd + Math.min(.4, t / 160000), phase: rnd(0, 6),
+    speed: K.spd * speedScale, phase: rnd(0, 6),
     face: 1, flash: 0, kb: 0, kbx: 0, kby: 0, orbCd: 0, slip: 0,
     lx: x, ly: y, stuckT: 0, wander: 0, wanderT: 0, bob: rnd(0, 6) });
 }
 function popEnemy(e) {
+  if (e.rewarded) return;
+  e.rewarded = true;
+  gainXP(e.xp);
+  if (e.xp >= 150)
+    pops.push({ x:e.x, y:e.y-e.r-24, txt:"XP +"+e.xp, life:1.15, col:"#c79018" });
   // у каждого типа своя смерть
   if (ult.on) {                                   // кинематографичная гибель
     const a = Math.atan2(e.y - P.y, e.x - P.x) + rnd(-.28, .28);
@@ -43,8 +51,6 @@ function popEnemy(e) {
       const an = Math.random() * 6.28, sp = rnd(1.5, 5);
       puffs.push({ x: e.x, y: e.y, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, life: 1, r: rnd(2, 5) });
     }
-    for (let i = 0; i < e.xp; i++)
-      orbs.push({ x: e.x + rnd(-14, 14), y: e.y + rnd(-14, 14), vx: 0, vy: 0 });
     score++; SFX.pop();
     return;
   }
@@ -71,11 +77,11 @@ function popEnemy(e) {
     const a = Math.random() * 6.28, s = rnd(.6, 3);
     puffs.push({ x: e.x, y: e.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1, r: rnd(2, 5) });
   }
-  for (let i = 0; i < e.xp; i++) orbs.push({ x: e.x + rnd(-14, 14), y: e.y + rnd(-14, 14), vx: 0, vy: 0 });
   score++; shake = Math.max(shake, e.kind === "elite" ? 16 : 3); SFX.pop();
   if (!ult.on) ult.charge = Math.min(ULT_FULL, ult.charge + ULT_PER_KILL);
 }
 function hit(e, dmg, hx, hy) {
+  if (e.hp <= 0 || e.rewarded) return;
   e.hp -= dmg; e.flash = 110; e.flinch = 1;
   if (hx !== undefined) { const a = Math.atan2(e.y - hy, e.x - hx); e.kb = 3.4; e.kbx = Math.cos(a); e.kby = Math.sin(a); }
   pops.push({ x: e.x, y: e.y - e.r - 10, txt: Math.round(dmg * 10) / 10, life: 1, col: INK });

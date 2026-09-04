@@ -22,6 +22,7 @@ function update(dt) {
   if (ult.on) dt *= .30;               // всё остальное — в замедлении
   t += dt; const k = dt / 16.67;
   updateAbilities(dt, k);
+  if (P.stagePulse > 0) P.stagePulse = Math.max(0, P.stagePulse - dt);
   if (shake > 0) shake = Math.max(0, shake - dt * .045);
   if (xpBoost > 0) xpBoost -= dt;
   if (P.muzzle > 0) P.muzzle -= dt;
@@ -67,11 +68,16 @@ function update(dt) {
 
   spawnT -= dt;
   if (spawnT <= 0 && enemies.length < 140) {
-    spawnT = Math.max(170, 860 - t / 85);
+    const stage = Math.max(1, P.lvl || 1);
+    spawnT = Math.max(155, 820 - (stage - 1) * 72 - Math.min(230, t / 500));
     const r = Math.random();
-    spawn(t > 25000 && r < .28 ? "runner" : t > 55000 && r > .90 ? "tank" : "basic");
+    const tankChance = Math.min(.24, Math.max(0, (stage - 2) * .045));
+    const runnerChance = Math.min(.48, .10 + (stage - 1) * .055);
+    spawn(r < tankChance ? "tank" : r < tankChance + runnerChance ? "runner" : "basic");
   }
-  eliteT -= dt; if (eliteT <= 0) { eliteT = 45000; spawn("elite"); shake = 10; }
+  eliteT -= dt; if (eliteT <= 0) {
+    eliteT = Math.max(17000, 44000 - (P.lvl - 1) * 3500); spawn("elite"); shake = 10;
+  }
   chestT -= dt; if (chestT <= 0) { chestT = 13000 - meta.luck * 2200; spawnChest(); }
   healT -= dt; if (healT <= 0) { healT = 15000; spawnHeart(); }
 
@@ -81,7 +87,7 @@ function update(dt) {
     h.dead = true;
     if (h.kind === "heart") {
       if (P.hp < P.hpMax) { P.hp++; pops.push({ x: P.x, y: P.y - 52, txt: "+1", life: 1.2, col: "#c8402c" }); }
-      else for (let i = 0; i < 3; i++) orbs.push({ x: P.x + rnd(-20, 20), y: P.y + rnd(-20, 20), vx: 0, vy: 0 });
+      else { gainXP(150); pops.push({ x:P.x, y:P.y-52, txt:"XP +150", life:1.2, col:"#c79018" }); }
       SFX.heal();
     } else if (h.kind === "haste") {
       P.hasteT = 7000;
@@ -99,6 +105,12 @@ function update(dt) {
   ices = ices.filter(i => i.life > 0);
 
   for (const e of enemies) {
+    let tankTarget = null, tankDistance = 1e9;
+    for (const q of allyTanks) {
+      if (q.dead || q.hp <= 0) continue;
+      const d = Math.hypot(q.x-e.x,q.y-e.y);
+      if (d < tankDistance && d < 430) { tankDistance=d; tankTarget=q; }
+    }
     let slow = 1;
     for (const ic of ices) if (Math.hypot(e.x - ic.x, e.y - ic.y) < ic.r) {
       slow = .34; e.slip = 1; e.hp -= dt / 1000 * 1.4;
@@ -106,7 +118,8 @@ function update(dt) {
     if (e.hp <= 0) { popEnemy(e); continue; }
     if (e.kb > 0) { e.x += e.kbx * e.kb * k; e.y += e.kby * e.kb * k; e.kb *= .82; }
     else {
-      const tx = P.invT > 0 ? P.seen.x : P.x, ty = P.invT > 0 ? P.seen.y : P.y;
+      const tx = tankTarget ? tankTarget.x : P.invT > 0 ? P.seen.x : P.x;
+      const ty = tankTarget ? tankTarget.y : P.invT > 0 ? P.seen.y : P.y;
       const dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy) || 1;
       let vx = dx / d, vy = dy / d;
       if (P.invT > 0) { vx += Math.cos(t / 300 + e.bob) * .5; vy += Math.sin(t / 300 + e.bob) * .5; }
@@ -161,9 +174,22 @@ function update(dt) {
     if (e.flinch > 0) e.flinch -= dt / 170;
     if (e.orbCd > 0) e.orbCd -= dt;
     pushOut(e);
+    if (tankTarget && Math.hypot(e.x-tankTarget.x,e.y-tankTarget.y) < e.r+tankTarget.r+3) {
+      if (tankTarget.hurt <= 0) {
+        const base = e.kind === "elite" ? 5 : e.kind === "tank" ? 2.4 : e.kind === "runner" ? 1.15 : .8;
+        const dmg = base * (1 + (P.lvl - 1) * .10);
+        tankTarget.hp = Math.max(0, tankTarget.hp - dmg); tankTarget.hurt = 300;
+        pops.push({x:tankTarget.x,y:tankTarget.y-38,txt:"-"+Math.round(dmg),life:.75,col:FOE});
+        shake=Math.max(shake,e.kind==="elite"?9:3);
+      }
+      const a=Math.atan2(e.y-tankTarget.y,e.x-tankTarget.x);
+      e.kb=2.8;e.kbx=Math.cos(a);e.kby=Math.sin(a);
+      continue;
+    }
     if (dist(e, P) < P.r + e.r && P.hurt <= 0 && P.invT <= 0) {
       // мелкие снимают половину сердца, крупные — больше
-      const dmg = e.kind === "elite" ? 1.5 : e.kind === "tank" ? 1 : .5;
+      const base = e.kind === "elite" ? 1.5 : e.kind === "tank" ? 1 : .5;
+      const dmg = Math.min(2.5, base + Math.floor((P.lvl - 1) / 3) * .5);
       P.hp = Math.round((P.hp - dmg) * 2) / 2;
       P.hurt = P.iframe; shake = dmg >= 1 ? 14 : 9; SFX.hurt();
       pops.push({ x: P.x, y: P.y - 40, txt: dmg === .5 ? "-½" : "-" + dmg, life: 1, col: FOE });
@@ -279,34 +305,6 @@ function update(dt) {
   }
   chests = chests.filter(c => !c.dead);
 
-  let tankXP = 0;
-  for (const o of orbs) {
-    if (allyTanks.length) {
-      o.dead = true; tankXP++;
-      // Сохраняем только часть следов, чтобы сотни сфер не превращали кадр в кашу.
-      if (tankXpTrails.length < 48) {
-        let q=allyTanks[0], bd=1e9;
-        for(const tank of allyTanks){const d=Math.hypot(tank.x-o.x,tank.y-o.y);if(d<bd){bd=d;q=tank;}}
-        tankXpTrails.push({ x:o.x, y:o.y, life:1, target:q });
-      }
-      continue;
-    }
-    const dx = P.x - o.x, dy = P.y - o.y, d = Math.hypot(dx, dy) || 1;
-    if (o.superPull) {
-      // Не телепорт: каждая сфера эффектно пролетает через карту к герою.
-      const pull = Math.min(.24, .105 * k);
-      o.x += dx * pull; o.y += dy * pull;
-      o.vx *= .55; o.vy *= .55;
-    } else if (d < P.magnet) { o.vx += dx / d * .62 * k; o.vy += dy / d * .62 * k; }
-    o.x += o.vx * k; o.y += o.vy * k; o.vx *= .94; o.vy *= .94;
-    if (d < 20) { o.dead = true; gainXP(); }
-  }
-  orbs = orbs.filter(o => !o.dead);
-  if (tankXP > 0) {
-    gainXP(tankXP);
-    const q=allyTanks[0] || P;
-    pops.push({ x:q.x, y:q.y-46, txt:"XP +"+tankXP, life:1.1, col:"#dfa128" });
-  }
   for (const c of corpses) {
     if (c.mode === "launch") {                            // бросок с дугой
       c.t += dt;
@@ -358,18 +356,21 @@ function update(dt) {
   booms = booms.filter(b => b.life > 0);
   for (const f of flashes) { f.r += (f.max - f.r) * .34 * k; f.life -= dt / 320; }
   flashes = flashes.filter(f => f.life > 0);
+  if (queuedLevels > 0 && !paused && !ult.on) { SFX.level(); offerCards(); }
 }
 function gainXP(amount) {
   amount = Math.max(1, Math.floor(amount || 1));
-  P.xp += amount * (xpBoost > 0 ? 2 : 1);
-  // за один кадр можно собрать несколько шариков и перескочить два уровня —
-  // копим их в очередь, окно выбора покажем по одному
-  while (P.xp >= P.xpNext) {
-    P.xp -= P.xpNext;
+  const awarded = Math.max(1, Math.round(amount * (xpBoost > 0 ? 2 : 1) * (P.xpMult || 1)));
+  P.xp += awarded;
+  // Порог всегда один и тот же: крупная награда может открыть несколько стадий сразу.
+  while (P.xp >= STAGE_XP) {
+    P.xp -= STAGE_XP;
     P.lvl++;
-    P.xpNext = Math.round(P.xpNext * 1.32 + 2);
+    P.xpNext = STAGE_XP;
     queuedLevels++;
+    applyGear();
+    P.hp = Math.min(P.hpMax, P.hp + 1);
+    P.stagePulse = 1600;
   }
   if (P.xp < 0) P.xp = 0;                       // страховка от отрицательной полоски
-  if (queuedLevels > 0 && !paused) { SFX.level(); offerCards(); }
 }

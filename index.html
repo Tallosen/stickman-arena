@@ -66,7 +66,7 @@
   .ability-slot:not(:disabled):active{transform:translate(2px,2px);box-shadow:1px 1px 0 #2b2620}
   .ability-slot b{position:absolute;right:-4px;top:-5px;min-width:21px;height:21px;padding:0 5px;
     border:2px solid #2b2620;border-radius:12px;background:#d2691e;color:#fff8ec;font:900 11px/17px system-ui}
-  .ability-slot[data-ability="vacuum"]{--ability:#dfa128}
+  .ability-slot[data-ability="airstrike"]{--ability:#d2691e}
   .ability-slot[data-ability="gas"]{--ability:#4e8f4a}
   .ability-slot[data-ability="tank"]{--ability:#3d78bd}
   .ability-slot:not(:disabled){box-shadow:3px 3px 0 #2b2620,0 0 15px color-mix(in srgb,var(--ability) 48%,transparent)}
@@ -79,13 +79,13 @@
 <body>
 <canvas id="c"></canvas>
 <button id="pauseBtn" class="hud-pause" title="Пауза (P)"><b></b><b></b></button>
-<button id="devLvl" class="hud-dev" title="Тестовая кнопка: +1 уровень">+LV</button>
+<button id="devLvl" class="hud-dev" title="Тестовая кнопка: следующая стадия">+STAGE</button>
 <button id="devUlt" class="hud-dev" style="top:150px" title="Тестовая кнопка: зарядить ульту">+ULT</button>
 <button id="devRare" class="hud-dev" style="top:192px" title="Тестовая кнопка: редкий сундук">+RARE</button>
 <button id="devSniper" class="hud-dev" style="top:234px" title="Тест: золотая снайперка и следующая особая ульта">+SNP</button>
 <canvas id="petBadge" class="hud-badge hidden" width="176" height="176"></canvas>
 <div id="abilityDock" class="ability-dock hidden">
-  <button class="ability-slot" data-ability="vacuum" title="Собрать весь опыт"><canvas width="88" height="88"></canvas><b>0</b></button>
+  <button class="ability-slot" data-ability="airstrike" title="Вызвать авиаудар"><canvas width="88" height="88"></canvas><b>0</b></button>
   <button class="ability-slot" data-ability="gas" title="Токсичный туман"><canvas width="88" height="88"></canvas><b>0</b></button>
   <button class="ability-slot" data-ability="tank" title="Вызвать танк"><canvas width="88" height="88"></canvas><b>0</b></button>
 </div>
@@ -96,13 +96,14 @@
 <div id="start" class="overlay">
   <h1>STICKMAN ARENA</h1>
   <p>Веди пальцем — человечек бежит по карте.<br>Ружьё целится само.<br>
+     Уничтожай врагов — опыт начисляется сразу.<br>Каждые 5000 XP начинается новая, более сложная стадия.<br>
      Ищи сундуки: мина, граната, лёд, опыт ×2.<br>Редкий сундук сразу даёт случайную постоянную способность.<br>
-     Ульта: двойной клик или развести пальцы.<br>За уровень может выпасть питомец.<br>Предмет — кнопка справа внизу или пробел.</p>
+     Ульта: двойной клик или развести пальцы.<br>На новой стадии можно усилить вещи или питомца.<br>Предмет — кнопка справа внизу или пробел.</p>
   <button class="btn" id="btnStart">ИГРАТЬ</button>
   <div class="tag" id="verTag"></div>
 </div>
 <div id="levelup" class="overlay hidden">
-  <h2>НОВЫЙ УРОВЕНЬ</h2><div class="tag" id="queueTag"></div><div class="cards" id="cards"></div>
+  <h2 id="levelTitle">НОВАЯ СТАДИЯ</h2><div class="tag" id="queueTag"></div><div class="cards" id="cards"></div>
 </div>
 <div id="pause" class="overlay hidden">
   <h2>ПАУЗА</h2>

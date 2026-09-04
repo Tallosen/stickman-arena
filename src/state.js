@@ -29,7 +29,7 @@ function buildProps() {
 function reset() {
   Object.assign(P, {
     x: WORLD / 2, y: WORLD / 2, r: 14, phase: 0, face: 1, hurt: 0, orbA: 0,
-    aim: 0, muzzle: 0, hp: 5 + meta.hp, lvl: 1, xp: 0, xpNext: 5,
+    aim: 0, muzzle: 0, hp: 5 + meta.hp, lvl: 1, xp: 0, xpNext: STAGE_XP, stagePulse: 0,
     gear: Object.fromEntries(GK.map(k => [k, 0])), item: null, pet: null, wtype: "basic",
   });
   turrets = []; eggs = []; chicks = []; pendingPet = null; lastPetRoll = null; queuedLevels = 0;
@@ -58,7 +58,8 @@ function reset() {
 }
 function applyGear() {
   const g = P.gear, L = g.gun, w = P.wtype;
-  const dm = 1 + .15 * meta.dmg;
+  const stage = Math.max(1, P.lvl || 1);
+  const dm = (1 + .15 * meta.dmg) * (1 + (stage - 1) * .14);
 
   if (w === "shotgun") {
     P.rate = 880; P.damage = (.42 + .11 * L) * dm;
@@ -77,11 +78,11 @@ function applyGear() {
     P.range = 215 + 55 * g.scope; P.pellets = 1;
     P.spread = 0; P.pierce = 0; P.nShots = 1 + g.clip;
   }
-  P.fireRate = Math.max(60, P.rate * Math.pow(.86, g.gloves));
+  P.fireRate = Math.max(60, P.rate * Math.pow(.86, g.gloves) * Math.pow(.985, stage - 1));
 
-  P.speed = (2.15 + .42 * g.boots) * (1 + .08 * meta.spd);
-  P.hpMax = 5 + meta.hp + g.helm;
-  P.magnet = 120 + 75 * g.cape;
+  P.speed = (2.15 + .42 * g.boots) * (1 + .08 * meta.spd) * (1 + Math.min(.22, (stage - 1) * .025));
+  P.hpMax = 5 + meta.hp + g.helm + Math.floor((stage - 1) / 2);
+  P.xpMult = 1 + .10 * g.cape;
   P.iframe = 950 + 320 * g.jacket;
   P.hp = Math.min(P.hp, P.hpMax);
 }
@@ -121,7 +122,7 @@ function pauseGame() {
   if (!running || levelOpen() || userPaused) return;
   userPaused = true; paused = true;
   document.getElementById("pauseStats").textContent =
-    `LV ${P.lvl} · ${(t / 1000).toFixed(0)} с · лопнул ${score}`;
+    `СТАДИЯ ${P.lvl} · ${(t / 1000).toFixed(0)} с · лопнул ${score}`;
   document.getElementById("pause").classList.remove("hidden");
 }
 function resumeGame() {

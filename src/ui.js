@@ -24,27 +24,38 @@ function hud() {
   ctx.strokeStyle = INK; ctx.lineWidth = 1.6;
   ctx.strokeRect(16, 30, bw, 6);
   ctx.fillStyle = HERO; ctx.fillRect(16, 30, bw * (P.xp / P.xpNext), 6);
-  ctx.fillStyle = INK; ctx.font = "700 13px system-ui"; ctx.textAlign = "right";
-  ctx.fillText(`LV ${P.lvl}   ${score}   ${(t / 1000).toFixed(0)}s`, W - 16, 20);
+  ctx.fillStyle = INK; ctx.font = "700 12px system-ui"; ctx.textAlign = "right";
+  ctx.fillText(`СТАДИЯ ${P.lvl}   ${P.xp}/${STAGE_XP} XP   ${score}`, W - 16, 20);
   ctx.textAlign = "left";
   // шкалы эффектов живут под миникартой: слева их перекрывали пауза и +LV
   const RS = Math.min(112, W * .28), rx = W - RS - 12;
   let by = 56 + RS + 9;
-  const buff = (act, max, col, label) => {
+  const buff = (act, max, col, label, value) => {
     if (!(act > 0)) return;
     ctx.fillStyle = "rgba(253,246,232,.92)"; ctx.fillRect(rx, by, RS, 14);
     ctx.fillStyle = col; ctx.fillRect(rx, by, RS * Math.min(1, act / max), 14);
     ctx.strokeStyle = INK; ctx.lineWidth = 1.8; ctx.strokeRect(rx, by, RS, 14);
     ctx.fillStyle = INK; ctx.font = "800 9px system-ui"; ctx.textAlign = "center";
-    ctx.fillText(label + "  " + Math.ceil(act / 1000), rx + RS / 2, by + 10.4);
+    ctx.fillText(label + "  " + (value === undefined ? Math.ceil(act / 1000) : value), rx + RS / 2, by + 10.4);
     ctx.textAlign = "left";
     by += 18;
   };
   buff(xpBoost, 20000, "#f0c443", "ОПЫТ ×2");
   buff(P.hasteT, 7000, "#f0a83a", "УСКОРЕНИЕ");
   buff(P.invT, 6000, "#a9dcf0", "НЕУЯЗВИМОСТЬ");
-  const tankLife=allyTanks.length ? Math.max(...allyTanks.map(q=>q.life)) : 0;
-  buff(tankLife, 120000, "#6b97c7", "ТАНК ×"+allyTanks.length);
+  const tankHP=allyTanks.reduce((s,q)=>s+Math.max(0,q.hp),0);
+  const tankMax=allyTanks.reduce((s,q)=>s+q.hpMax,0);
+  buff(tankHP, tankMax || 1, "#6b97c7", "ТАНК ×"+allyTanks.length,
+       Math.ceil(tankHP)+"/"+Math.ceil(tankMax));
+  if (P.stagePulse > 0) {
+    const a=Math.min(1,P.stagePulse/300,(1600-P.stagePulse)/260);
+    ctx.save();ctx.globalAlpha=Math.max(0,a);ctx.textAlign="center";
+    ctx.fillStyle="rgba(253,246,232,.94)";ctx.strokeStyle="#d2691e";ctx.lineWidth=3;
+    const ww=Math.min(310,W-34),yy=H*.25;
+    ctx.beginPath();ctx.roundRect(W/2-ww/2,yy-34,ww,68,14);ctx.fill();ctx.stroke();
+    ctx.fillStyle="#d2691e";ctx.font="900 22px system-ui";ctx.fillText("СТАДИЯ "+P.lvl,W/2,yy-3);
+    ctx.fillStyle=INK;ctx.font="700 10px system-ui";ctx.fillText("ВРАГИ СИЛЬНЕЕ · ГЕРОЙ СИЛЬНЕЕ",W/2,yy+17);ctx.restore();
+  }
   radar(); ultGauge(); syncHUD();
 }
 function ultGauge() {
@@ -257,7 +268,7 @@ for (const slot of abilitySlots) {
   slot.addEventListener("pointerenter", () => { pointer.active=false; });
 }
 addEventListener("keydown", e => {
-  if (e.code === "Digit1") useAbility("vacuum");
+  if (e.code === "Digit1") useAbility("airstrike");
   if (e.code === "Digit2") useAbility("gas");
   if (e.code === "Digit3") useAbility("tank");
 });
@@ -323,7 +334,7 @@ function start() {
 function gameOver() {
   running = false; meta.best = Math.max(meta.best, Math.round(t / 1000));
   document.getElementById("stats").textContent =
-    `${(t / 1000).toFixed(0)} с · лопнул ${score} · уровень ${P.lvl} · рекорд ${meta.best} с`;
+    `${(t / 1000).toFixed(0)} с · лопнул ${score} · стадия ${P.lvl} · рекорд ${meta.best} с`;
   offerPerks(); document.getElementById("over").classList.remove("hidden");
 }
 document.getElementById("btnStart").onclick = () => { audio(); start(); };

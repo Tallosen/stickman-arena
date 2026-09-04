@@ -424,15 +424,6 @@ function draw() {
   }
 
   ctx.strokeStyle = INK; ctx.lineWidth = 2;
-  for (const o of orbs) {
-    if (!vis(o)) continue;
-    if (o.superPull) {
-      const a = Math.atan2(P.y-o.y, P.x-o.x);
-      ctx.globalAlpha=.32; ctx.strokeStyle="#f4c84b"; ctx.lineWidth=3;
-      sline(ctx,o.x-Math.cos(a)*18,o.y-Math.sin(a)*18,o.x,o.y); ctx.globalAlpha=1;
-    }
-    scircle(ctx, o.x, o.y, o.superPull ? 5.3 : 4.5, "#dfa128");
-  }
   for (const m of mines) {
     ctx.globalAlpha = m.arm > 0 ? .5 : 1;
     if (m.mini) { ctx.lineWidth = 2; scircle(ctx, m.x, m.y, 6, "#4e8f4a");

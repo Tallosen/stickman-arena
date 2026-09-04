@@ -24,6 +24,8 @@ function rollPet() {
 
 function offerCards() {
   paused = true;
+  const title = document.getElementById("levelTitle");
+  if (title) title.textContent = "СТАДИЯ " + P.lvl;
   const pool = GK.filter(k => P.gear[k] < GEAR[k].max);
   const pick = [];
   while (pick.length < Math.min(3, pool.length)) {
@@ -92,7 +94,7 @@ function offerCards() {
     });
   }
   document.getElementById("queueTag").textContent =
-    queuedLevels > 1 ? `ещё уровней в очереди: ${queuedLevels - 1}` : "";
+    queuedLevels > 1 ? `ещё стадий в очереди: ${queuedLevels - 1}` : "Выбери усиление героя";
   document.getElementById("levelup").classList.remove("hidden");
 }
 

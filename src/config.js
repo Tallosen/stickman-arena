@@ -1,7 +1,11 @@
 "use strict";
 /* Версия проекта. Меняется здесь и только здесь — дальше сама
    расходится в заголовок вкладки, на стартовый экран и в имя сборки. */
-const VERSION = "0.52";
+const VERSION = "0.53";
+
+/* Каждая стадия требует одинаковые 5000 опыта. Сложность и сила героя
+   растут от номера стадии, а не от скрытого таймера. */
+const STAGE_XP = 5000;
 
 /* config.js — все константы: одежда, оружие, питомцы, предметы */
 
@@ -14,7 +18,7 @@ const GEAR = {
   boots:  { name: "Сапоги",   desc: "Бежишь быстрее",      max: 4 },
   scope:  { name: "Прицел",   desc: "Дальность больше",    max: 3 },
   clip:   { name: "Магазин",  desc: "Ещё одна пуля",       max: 3 },
-  cape:   { name: "Плащ",     desc: "Опыт летит издалека", max: 3 },
+  cape:   { name: "Плащ",     desc: "+10% опыта",          max: 3 },
 };
 const GK = Object.keys(GEAR);
 
@@ -23,7 +27,7 @@ const GK = Object.keys(GEAR);
 const WEAPONS = {
   basic:   { name: "Ружьё",     rare: 0, rarity: "common", desc: "Надёжный ствол" },
   shotgun: { name: "Дробовик",  rare: 1, rarity: "rare", desc: "Веер дроби, но близко" },
-  sniper:  { name: "Снайперка", rare: 1, rarity: "gold", desc: "Золотая дальнобойная. Имеет две особые ульты" },
+  sniper:  { name: "Снайперка", rare: 1, rarity: "gold", desc: "Золотая дальнобойная с эксклюзивными ультами" },
   minigun: { name: "Миниган",   rare: 1, rarity: "rare", desc: "Шквал огня в упор" },
 };
 const RARE_KEYS = Object.keys(WEAPONS).filter(k => WEAPONS[k].rare);
@@ -49,18 +53,21 @@ const ITEMS = {
 /* Эксклюзивные расходуемые способности из редкого сундука.
    Инвентарь хранится отдельно от забега и переживает смерть/перезагрузку. */
 const ABILITIES = {
-  vacuum: { name: "МАГНИТ ОПЫТА", short: "XP",   col: "#dfa128", desc: "Собирает весь опыт с карты" },
+  airstrike:{ name: "АВИАУДАР", short: "УДАР", col: "#d2691e", desc: "Серия ракет бьёт по скоплениям врагов" },
   gas:    { name: "ТОКСИЧНЫЙ ТУМАН", short: "ГАЗ", col: "#4e8f4a", desc: "Химкостюм и смертельный дым" },
-  tank:   { name: "БОЕВОЙ ТАНК", short: "ТАНК", col: "#3d78bd", desc: "Союзник стреляет и собирает опыт" },
+  tank:   { name: "БОЕВОЙ ТАНК", short: "ТАНК", col: "#3d78bd", desc: "Бронированный союзник живёт, пока есть прочность" },
 };
 const ABILITY_KEYS = Object.keys(ABILITIES);
 const INVENTORY_KEY = "vacky_stickman_inventory_v1";
-const inventory = { vacuum: 0, gas: 0, tank: 0 };
+const inventory = { airstrike: 0, gas: 0, tank: 0 };
 function loadInventory() {
   try {
     const saved = JSON.parse(localStorage.getItem(INVENTORY_KEY) || "{}");
-    for (const key of ABILITY_KEYS)
-      inventory[key] = Math.max(0, Math.min(999, Math.floor(Number(saved[key]) || 0)));
+    for (const key of ABILITY_KEYS) {
+      // Старые заряды магнита автоматически превращаются в авиаудары.
+      const value = key === "airstrike" && saved.airstrike === undefined ? saved.vacuum : saved[key];
+      inventory[key] = Math.max(0, Math.min(999, Math.floor(Number(value) || 0)));
+    }
   } catch (_) { /* закрытый storage не должен ломать игру */ }
 }
 function saveInventory() {
