@@ -201,6 +201,24 @@ function drawUltMotionFX(g) {
     g.globalAlpha=.30;g.strokeStyle="#e3b52f";g.lineWidth=3;
     for(let i=0;i<3;i++){const yy=hy-34+i*24;g.beginPath();g.moveTo(P.x-P.face*(42+i*9),yy);g.lineTo(P.x-P.face*(112+i*14),yy+P.face*i*2);g.stroke();}
   }
+  if(ult.mode==="shellstorm"){
+    const toss=Math.min(1,p/.30),fade=p>.82?Math.max(0,(1-p)/.18):1;
+    for(let i=0;i<3;i++){
+      const an=-2.30+i*.72,rr=30+Math.sin(toss*Math.PI)*22;
+      const x=P.x+P.face*(17+Math.cos(an)*rr),y=P.y-52+Math.sin(an)*rr-Math.sin(toss*Math.PI)*34;
+      g.save();g.translate(x,y);g.rotate((ult.shellSpin||0)*(i%2?1:-1)+i);
+      g.globalAlpha=.95*fade;g.fillStyle="#d9a62e";g.strokeStyle=INK;g.lineWidth=1.7;
+      g.beginPath();g.roundRect(-3,-8,6,16,2);g.fill();g.stroke();
+      g.strokeStyle="#fff1a6";g.lineWidth=1.2;sline(g,-1,-5,-1,5);g.restore();
+    }
+  }
+  if(ult.mode==="rollshot"){
+    const roll=Math.min(1,p/.58),cx=P.x+(ult.stageX||0),cy=hy-14;
+    g.globalAlpha=.30;g.strokeStyle="#e3b52f";g.lineWidth=4;
+    for(let i=0;i<3;i++){g.beginPath();g.arc(cx,cy,27+i*11,-2.8+roll*4.8,-.4+roll*4.8);g.stroke();}
+    g.globalAlpha=.25;g.strokeStyle="#fff4b0";g.lineWidth=3;
+    for(let i=-2;i<=2;i++)sline(g,cx-P.face*(42+i*7),P.y+8+i*6,cx-P.face*(100+i*11),P.y+10+i*7);
+  }
   if (ult.mode === "cross") {
     const pulse = .5 + .5 * Math.sin(ult.t / 48);
     g.globalAlpha = .10 + pulse * .10; g.strokeStyle = ult.mode === "cross" ? "#c8402c" : "#8a53c4";
@@ -284,8 +302,8 @@ function drawUltScreenFX(g) {
 
   if (ult.mode === "scope" || ult.mode === "deadeye") drawWorldScope(g,p,ult.mode,bar);
   else if(SNIPER_STANDARD_ULT_MODES.includes(ult.mode)){
-    const names={ricochet:"GOLDEN RICOCHET",quickdraw:"QUICKDRAW · TRIPLE TAP",dive:"AIRBORNE · BULLET TIME"};
-    const sub={ricochet:"FLIP THE COIN  //  BREAK THE LINE",quickdraw:"STEP BACK  //  THREE TARGETS",dive:"DIVE  //  AIM  //  FIRE"};
+    const names={ricochet:"GOLDEN RICOCHET",quickdraw:"QUICKDRAW · TRIPLE TAP",dive:"AIRBORNE · BULLET TIME",shellstorm:"BRASS STORM",rollshot:"ROLLING THUNDER"};
+    const sub={ricochet:"FLIP THE COIN  //  BREAK THE LINE",quickdraw:"STEP BACK  //  THREE TARGETS",dive:"DIVE  //  AIM  //  FIRE",shellstorm:"THREE SHELLS  //  SIX RICOCHETS",rollshot:"ROLL  //  FIRE  //  KNEEL"};
     const aa=Math.min(1,p*7,(1-p)*7);g.save();g.globalAlpha=aa*.78;g.fillStyle="#211d16";g.fillRect(W/2-165,bar+5,330,42);
     g.globalAlpha=aa;g.fillStyle="#f0c94d";g.textAlign="center";g.font="900 12px system-ui";g.fillText(names[ult.mode],W/2,bar+21);
     g.globalAlpha=aa*.75;g.font="700 9px system-ui";g.fillText(sub[ult.mode],W/2,bar+36);g.restore();
@@ -396,6 +414,7 @@ function draw() {
     if (!vis(h)) continue;
     drawPickup(ctx, h);
   }
+  drawDragonAltar(ctx);
   for (const c of chests) {                      // сундук
     if (!vis(c)) continue;
     if (c.rare) { drawRareChest(ctx, c.x, c.y, 1.1, c.a); continue; }
@@ -545,6 +564,7 @@ function draw() {
       }
     ctx.globalAlpha = 1;
   }
+  drawDragonFinale(ctx);
   ctx.font = "700 14px system-ui"; ctx.textAlign = "center";
   for (const p of pops) {
     ctx.globalAlpha = Math.min(1, p.life * 1.6); ctx.fillStyle = p.col;
@@ -627,4 +647,6 @@ function draw() {
   if (ult.on) drawUltScreenFX(ctx);                    // лучи, вспышка и кино-полосы
   drawAbilityScreenFX(ctx);
   if (!sniperPOV) hud();
+  if (!sniperPOV) drawAltarGuide(ctx);
+  drawDragonScreenFX(ctx);                             // финальные кино-полосы поверх HUD
 }

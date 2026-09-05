@@ -2,34 +2,45 @@
 /* ui.js — интерфейс, радар, кружок питомца, кнопки, старт */
 
 /* ── интерфейс ────────────────────────────────────────────── */
+const hudHeight = () => W < 560 ? 62 : 46;
 function hud() {
-  ctx.fillStyle = "rgba(245,236,221,.9)"; ctx.fillRect(0, 0, W, 46);
-  ctx.strokeStyle = INK; ctx.lineWidth = 2; sline(ctx, 0, 46, W, 46);
+  const mobile = W < 560, hh = hudHeight();
+  const heartY = mobile ? 14 : 17, textY = mobile ? 36 : 20, barY = mobile ? 49 : 30;
+  ctx.fillStyle = "rgba(245,236,221,.9)"; ctx.fillRect(0, 0, W, hh);
+  ctx.strokeStyle = INK; ctx.lineWidth = 2; sline(ctx, 0, hh, W, hh);
   ctx.lineWidth = 2;
-  for (let i = 0; i < P.hpMax; i++) {
+  const maxVisible = mobile ? Math.max(8, Math.floor((W - 48) / 15)) : P.hpMax;
+  const visibleHearts = Math.min(P.hpMax, maxVisible);
+  for (let i = 0; i < visibleHearts; i++) {
     const v = Math.max(0, Math.min(1, P.hp - i));
     const cx2 = 16 + i * 15;
     ctx.strokeStyle = INK; ctx.lineWidth = 2;
-    scircle(ctx, cx2, 17, 5, PAPER);
+    scircle(ctx, cx2, heartY, 5, PAPER);
     if (v > 0) {                                   // половинка — левый полукруг
       ctx.save();
       ctx.beginPath();
-      if (v >= 1) ctx.arc(cx2, 17, 4.4, 0, 7);
-      else { ctx.moveTo(cx2, 12.6); ctx.arc(cx2, 17, 4.4, -Math.PI / 2, Math.PI / 2, true); ctx.closePath(); }
+      if (v >= 1) ctx.arc(cx2, heartY, 4.4, 0, 7);
+      else { ctx.moveTo(cx2, heartY - 4.4); ctx.arc(cx2, heartY, 4.4, -Math.PI / 2, Math.PI / 2, true); ctx.closePath(); }
       ctx.fillStyle = FOE; ctx.fill();
       ctx.restore();
     }
   }
+  if (P.hpMax > visibleHearts) {
+    ctx.fillStyle=INK;ctx.font="800 10px system-ui";ctx.textAlign="left";
+    ctx.fillText("+"+(P.hpMax-visibleHearts),18+visibleHearts*15,heartY+3.5);
+  }
   const bw = W - 32;
   ctx.strokeStyle = INK; ctx.lineWidth = 1.6;
-  ctx.strokeRect(16, 30, bw, 6);
-  ctx.fillStyle = HERO; ctx.fillRect(16, 30, bw * (P.xp / P.xpNext), 6);
+  ctx.strokeRect(16, barY, bw, 6);
+  ctx.fillStyle = HERO; ctx.fillRect(16, barY, bw * (P.xp / P.xpNext), 6);
   ctx.fillStyle = INK; ctx.font = "700 12px system-ui"; ctx.textAlign = "right";
-  ctx.fillText(`СТАДИЯ ${P.lvl}   ${P.xp}/${STAGE_XP} XP   ${score}`, W - 16, 20);
+  const build=`ФУЛЛ ${buildUpgradeCount()}/${FULL_BUILD_CHOICES}`;
+  ctx.fillText(mobile?`СТ.${P.lvl} · ${build} · ${score}`:
+    `СТАДИЯ ${P.lvl}   ${build}   ${P.xp}/${STAGE_XP} XP   ${score}`, W - 16, textY);
   ctx.textAlign = "left";
   // шкалы эффектов живут под миникартой: слева их перекрывали пауза и +LV
   const RS = Math.min(112, W * .28), rx = W - RS - 12;
-  let by = 56 + RS + 9;
+  let by = hh + 10 + RS + 9;
   const buff = (act, max, col, label, value) => {
     if (!(act > 0)) return;
     ctx.fillStyle = "rgba(253,246,232,.92)"; ctx.fillRect(rx, by, RS, 14);
@@ -90,7 +101,7 @@ function ultGauge() {
 }
 
 function radar() {
-  const S = Math.min(112, W * .28), x = W - S - 12, y = 56, s = S / WORLD;
+  const S = Math.min(112, W * .28), x = W - S - 12, y = hudHeight() + 10, s = S / WORLD;
   ctx.fillStyle = "rgba(253,246,232,.92)"; ctx.strokeStyle = INK; ctx.lineWidth = 2.4;
   ctx.beginPath(); ctx.roundRect(x, y, S, S, 6); ctx.fill(); ctx.stroke();
   ctx.save(); ctx.beginPath(); ctx.roundRect(x, y, S, S, 6); ctx.clip();
@@ -115,6 +126,7 @@ function radar() {
   }
   ctx.strokeStyle = "rgba(43,38,32,.4)"; ctx.lineWidth = 1;
   ctx.strokeRect(x + cam.x * s, y + cam.y * s, W * s, H * s);
+  drawAltarRadar(ctx,x,y,s);
   ctx.fillStyle = HERO;
   ctx.beginPath(); ctx.arc(x + P.x * s, y + P.y * s, 3.2, 0, 7); ctx.fill();
   ctx.restore();
@@ -125,6 +137,7 @@ const useName = document.getElementById("useName");
 const abilityDock = document.getElementById("abilityDock");
 const abilitySlots = [...document.querySelectorAll(".ability-slot")];
 const petBadge = document.getElementById("petBadge");
+const dragonBookBtn = document.getElementById("dragonBookBtn");
 const petCtx = petBadge.getContext("2d");
 const REVIVE = 12000;
 
@@ -238,6 +251,40 @@ devSniper.addEventListener("pointerdown", e => {
   pops.push({x:P.x,y:P.y-58,txt:"GOLD · "+mode.toUpperCase(),life:1.4,col:"#c79018"});
 });
 
+// ── ВРЕМЕННО: заполнить всю прокачку и сразу проверить финал с драконом ──
+const devFull=document.getElementById("devFull");
+devFull.addEventListener("pointerenter",()=>{pointer.active=false;});
+function devLaunchFinale(forcedId=null){
+  if(!running||dragonFinale)return;
+  if(forcedId)forceNextDragon(forcedId);
+  userPaused=false;paused=false;queuedLevels=0;
+  document.getElementById("pause").classList.add("hidden");
+  document.getElementById("levelup").classList.add("hidden");
+  for(const key of GK)P.gear[key]=GEAR[key].max;
+  if(!P.pet)P.pet=makePet("dog");
+  P.pet.lvl=PET_MAX;P.pet.hpMax=4+PET_MAX;P.pet.hp=P.pet.hpMax;
+  P.lvl=Math.max(P.lvl,FULL_BUILD_CHOICES+1);
+  applyGear();P.hp=P.hpMax;
+  const forced=forcedId&&DRAGON_TYPES.find(d=>d.id===forcedId);
+  pops.push({x:P.x,y:P.y-62,txt:forced?"ТЕСТ · "+forced.name:"ФУЛЛ 33/33",life:1.2,col:forced?forced.accent:"#b88716"});
+  // +FULL проверяет обычный маршрут к алтарю; +DRG остаётся быстрым просмотром.
+  if(forcedId)startDragonFinale(true);
+  else unlockDragonAltar();
+}
+devFull.addEventListener("pointerdown",e=>{
+  e.stopPropagation();pointer.active=false;devLaunchFinale();
+});
+
+// ── ВРЕМЕННО: три особых вступления по очереди ──
+const devDragon=document.getElementById("devDragon");
+const DEV_DRAGONS=["diamond","blackgold","gold"];
+let devDragonIndex=0;
+devDragon.addEventListener("pointerenter",()=>{pointer.active=false;});
+devDragon.addEventListener("pointerdown",e=>{
+  e.stopPropagation();pointer.active=false;
+  devLaunchFinale(DEV_DRAGONS[devDragonIndex++%DEV_DRAGONS.length]);
+});
+
 devLvl.addEventListener("pointerdown", e => {
   e.stopPropagation(); pointer.active = false;
   if (!running || paused) return;
@@ -276,6 +323,13 @@ addEventListener("keydown", e => {
 for (const el of [useBtn, petBadge])
   el.addEventListener("pointerenter", () => { pointer.active = false; });
 
+dragonBookBtn.addEventListener("pointerdown", e => { e.stopPropagation(); openDragonBook(); });
+dragonBookBtn.addEventListener("pointerenter", () => { pointer.active=false; });
+document.getElementById("btnCloseBook").onclick=closeDragonBook;
+document.getElementById("btnVictoryBook").onclick=openDragonBook;
+document.getElementById("btnRetryDragonSave").onclick=retryDragonReward;
+document.getElementById("btnVictoryRestart").onclick=()=>start();
+
 // клик по кружку — питомец бежит к хозяину
 petBadge.addEventListener("pointerdown", e => {
   e.stopPropagation(); pointer.active = false;
@@ -298,10 +352,14 @@ function syncHUD() {
     useName.textContent = P.item ? ITEMS[P.item].name : "пусто";
   }
   pauseBtn.style.display = running ? "flex" : "none";
+  dragonBookBtn.style.display = running ? "flex" : "none";
+  document.getElementById("dragonHomeBtn").style.display=running?"flex":"none";
   devLvl.style.display = running ? "block" : "none";
   devUlt.style.display = running ? "block" : "none";
   devRare.style.display = running ? "block" : "none";
   devSniper.style.display = running ? "block" : "none";
+  devFull.style.display = running ? "block" : "none";
+  devDragon.style.display = running ? "block" : "none";
   abilityDock.classList.toggle("hidden", !running);
   const invKey = ABILITY_KEYS.map(k => inventory[k]).join(",") + ":" + running + ":" + paused;
   if (invKey !== lastInventory) {
@@ -334,7 +392,7 @@ function start() {
 function gameOver() {
   running = false; meta.best = Math.max(meta.best, Math.round(t / 1000));
   document.getElementById("stats").textContent =
-    `${(t / 1000).toFixed(0)} с · лопнул ${score} · стадия ${P.lvl} · рекорд ${meta.best} с`;
+    `${(t / 1000).toFixed(0)} с · лопнул ${score} · стадия ${P.lvl} · прокачка ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · рекорд ${meta.best} с`;
   offerPerks(); document.getElementById("over").classList.remove("hidden");
 }
 document.getElementById("btnStart").onclick = () => { audio(); start(); };

@@ -23,6 +23,9 @@ function rollPet() {
 }
 
 function offerCards() {
+  if(heroBuildComplete()){
+    queuedLevels=0;unlockDragonAltar();return;
+  }
   paused = true;
   const title = document.getElementById("levelTitle");
   if (title) title.textContent = "СТАДИЯ " + P.lvl;
@@ -33,9 +36,13 @@ function offerCards() {
     if (!pick.includes(c)) pick.push(c);
   }
   // Золотая снайперка роллится отдельно и значительно реже фиолетовых стволов.
+  const currentPower = weaponCombatRating(P.wtype);
   const notOwned = RARE_KEYS.filter(w => w !== P.wtype);
   const goldWeapons = notOwned.filter(w => WEAPONS[w].rarity === "gold");
-  const rareWeapons = notOwned.filter(w => WEAPONS[w].rarity !== "gold");
+  // Фиолетовая пушка появляется только если прямо сейчас сильнее текущей.
+  // Золотая остаётся исключением и может выпасть на любой стадии.
+  const rareWeapons = notOwned.filter(w => WEAPONS[w].rarity !== "gold" &&
+    weaponCombatRating(w) >= currentPower * 1.04);
   if (goldWeapons.length && Math.random() < GOLD_WEAPON_CHANCE) {
     pendingRare = goldWeapons[Math.random() * goldWeapons.length | 0];
     pick[Math.random() * pick.length | 0] = "@rare";
@@ -56,7 +63,10 @@ function offerCards() {
   const close = () => {
     queuedLevels = Math.max(0, queuedLevels - 1);
     document.getElementById("levelup").classList.add("hidden");
-    if (queuedLevels > 0) setTimeout(() => { SFX.level(); offerCards(); }, 120);
+    if (heroBuildComplete()) {
+      queuedLevels=0;paused=false;
+      unlockDragonAltar();
+    } else if (queuedLevels > 0) setTimeout(() => { SFX.level(); offerCards(); }, 120);
     else paused = false;
   };
   const box = document.getElementById("cards"); box.innerHTML = "";
@@ -64,8 +74,10 @@ function offerCards() {
     if (key === "@rare") {
       const w = pendingRare, W2 = WEAPONS[w];
       const isGold = W2.rarity === "gold";
+      const gain=Math.round((weaponCombatRating(w)/Math.max(.01,weaponCombatRating(P.wtype))-1)*100);
       card(box, heroIcon({ ...P.gear, _w: w }),
-        `${W2.name} <span class="rr">${isGold ? "ЗОЛОТОЕ" : "РЕДКОЕ"}</span>`, W2.desc, () => {
+        `${W2.name} <span class="rr">${isGold ? "ЗОЛОТОЕ" : "РЕДКОЕ"}</span>`,
+        W2.desc+(isGold?" · высший класс":` · сейчас сильнее на ${Math.max(4,gain)}%`), () => {
           P.wtype = w; applyGear();
           ult.bag = []; // новый тип оружия сразу получает правильный набор ульт
           SFX.chest(); setTimeout(() => SFX.level(), 160);
@@ -94,7 +106,8 @@ function offerCards() {
     });
   }
   document.getElementById("queueTag").textContent =
-    queuedLevels > 1 ? `ещё стадий в очереди: ${queuedLevels - 1}` : "Выбери усиление героя";
+    queuedLevels > 1 ? `ещё стадий в очереди: ${queuedLevels - 1}` :
+    `ПРОКАЧКА ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · выбери усиление`;
   document.getElementById("levelup").classList.remove("hidden");
 }
 

@@ -50,8 +50,12 @@
     display:flex;align-items:center;justify-content:center;gap:5px;z-index:8;padding:0}
   .hud-pause:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #2b2620}
   .hud-pause b{display:block;width:5px;height:17px;background:#2b2620;border-radius:2px}
+  .hud-book{position:fixed;left:14px;top:108px;width:44px;height:44px;border-radius:12px;
+    border:3px solid #2b2620;background:#f7e3ad;box-shadow:3px 3px 0 #2b2620;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;z-index:8;padding:0;font-size:23px}
+  .hud-book:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #2b2620}
   /* ВРЕМЕННО: тестовая кнопка, перед публикацией удалить */
-  .hud-dev{position:fixed;left:14px;top:108px;height:34px;padding:0 12px;border-radius:9px;
+  .hud-dev{position:fixed;left:14px;top:180px;height:34px;padding:0 12px;border-radius:9px;
     border:2.5px dashed #8d8178;background:rgba(253,246,232,.85);color:#6d6459;cursor:pointer;
     font-family:inherit;font-weight:800;font-size:13px;letter-spacing:.06em;z-index:8}
   .hud-dev:active{transform:translate(1px,1px)}
@@ -72,17 +76,64 @@
   .ability-slot:not(:disabled){box-shadow:3px 3px 0 #2b2620,0 0 15px color-mix(in srgb,var(--ability) 48%,transparent)}
   body.sniper-cinematic .hud-btn,body.sniper-cinematic .hud-pause,
   body.sniper-cinematic .hud-dev,body.sniper-cinematic .hud-badge,
-  body.sniper-cinematic .ability-dock{opacity:0!important;pointer-events:none!important;transition:opacity .12s ease}
+  body.sniper-cinematic .ability-dock,body.sniper-cinematic .hud-book{opacity:0!important;pointer-events:none!important;transition:opacity .12s ease}
+  body.dragon-finale .hud-btn,body.dragon-finale .hud-pause,
+  body.dragon-finale .hud-dev,body.dragon-finale .hud-badge,
+  body.dragon-finale .ability-dock,body.dragon-finale .hud-book{opacity:0!important;pointer-events:none!important;transition:opacity .18s ease}
+  .book-overlay{justify-content:flex-start;overflow:auto;padding:24px 14px 30px;background:rgba(239,224,194,.97);z-index:12}
+  .book-cover{width:min(680px,96vw);padding:20px 16px 24px;border:4px solid #4a3824;border-radius:18px;
+    background:linear-gradient(90deg,#ead39e 0 49.4%,#b8965a 49.5% 50.5%,#f0dfb5 50.6%);box-shadow:8px 8px 0 rgba(43,38,32,.32)}
+  .dragon-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:16px 0}
+  .dragon-card{display:flex;align-items:center;min-height:116px;padding:7px;border:2px solid #4a3824;border-radius:11px;background:rgba(255,249,230,.72);text-align:left}
+  .dragon-card canvas{width:120px;height:87px;flex:0 0 120px}.dragon-card b{display:block;font-size:11px}.dragon-card span{display:block;font-size:9px;opacity:.58;margin-top:3px}.dragon-card strong{display:block;color:#b46a12;font-size:18px;margin-top:5px}
+  .dragon-card.locked canvas{filter:saturate(.72);opacity:.68}.dragon-card.owned{box-shadow:0 0 15px rgba(218,162,42,.28)}
+  .victory-dragon{background:radial-gradient(circle at 50% 42%,#fff7cb,#e9d09d 62%,#b88745);}
+  #victoryDragonCanvas{width:min(360px,88vw);height:210px}
+  @media(max-width:559px){.hud-pause{top:72px}.hud-book{top:124px}.dragon-grid{grid-template-columns:1fr}.book-overlay{padding-top:15px}}
   @media(max-width:420px){.ability-dock{bottom:80px;gap:5px}.ability-slot{width:51px;height:51px}.ability-slot canvas{width:40px;height:40px}}
+  .hud-home{left:66px!important;font-size:24px}
+  .dragon-card>div{flex:1;min-width:0}.craft-btn{display:block;margin-top:7px;padding:8px;border:1px solid #957039;border-radius:6px;background:#f4ce7f;color:#49351d;font-weight:700;cursor:pointer;font-size:11px}
+  .craft-btn:disabled{opacity:.4;cursor:default}.book-note{max-width:none;font-size:12px;opacity:.8;margin-top:10px}
+  .home-overlay{position:fixed;inset:0;z-index:16;overflow:auto;background:#080e1b;color:#ecedf1;padding:22px max(16px,env(safe-area-inset-right)) 26px max(16px,env(safe-area-inset-left));touch-action:pan-y}
+  .home-overlay.hidden{display:none}.home-shell{max-width:1100px;margin:auto}
+  .home-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:22px}
+  .home-eyebrow{font-size:10px;letter-spacing:.22em;color:#b8ac8c;margin-bottom:5px}.home-header h2{font-size:25px;font-weight:600;letter-spacing:.02em}
+  .home-header button,.home-tools button,.home-tabs button,.home-secondary{border:1px solid #344357;background:#131e2e;color:#d8e3ed;padding:10px 16px;border-radius:8px;cursor:pointer;min-height:42px;font-weight:600}
+  .home-wallet{color:#9ccad7;font-size:12px;margin-top:8px}
+  .home-tabs{display:flex;gap:8px;margin-bottom:16px}.home-tabs button[aria-selected="true"]{border-color:#b9a476;background:#2b2b2a;color:#ffe5af}
+  .home-layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(280px,1fr);gap:18px}
+  .home-scene{position:relative;border:1px solid #2c384a;border-radius:16px;overflow:hidden;background:#080e1b;align-self:start}
+  #homeCanvas{width:100%;height:420px;touch-action:none}
+  .home-scene-copy{padding:0 20px 19px;min-height:80px;text-align:center}.home-scene-copy h3{font-size:20px;font-weight:600;color:#f0dfbb}.home-scene-copy p{font-size:11px;max-width:none;margin-top:8px;color:#a9bacd;opacity:1}
+  .home-panel{background:linear-gradient(145deg,#182334,#101824);border:1px solid #2c384a;border-radius:16px;padding:22px}
+  .home-panel h3{font-size:18px;font-weight:600}.home-panel p{max-width:none;color:#aebccd;opacity:1;font-size:12px;margin:12px 0;line-height:1.7}
+  .home-panel .home-small{font-size:10px;color:#8f9baa}.egg-choices{display:flex;gap:8px;margin:24px 0}
+  .egg-choice{flex:1;border:1px solid #354154;border-radius:10px;background:#101928;color:#b7c4d5;padding:12px 3px;cursor:pointer;font-size:10px;min-width:0}
+  .egg-choice i{display:block;width:31px;height:40px;border-radius:50% 50% 45% 45%;margin:0 auto 9px;background:radial-gradient(circle at 28% 24%,#fff,var(--shell) 25%,#172232 90%);box-shadow:0 0 16px color-mix(in srgb,var(--shell) 25%,transparent)}
+  .egg-choice.selected{border-color:#c7ac73;background:#292b2d;color:#ffe3ac}.egg-choice:disabled:not(.selected){opacity:.35}
+  .home-progress{height:7px;background:#293747;border-radius:10px;overflow:hidden;margin:12px 0 22px}.home-progress>div{height:100%;background:linear-gradient(90deg,#41798e,#b8f3ef);transition:width .5s ease}
+  #eggProgressText{font-size:12px;color:#a9d9e2}.home-primary{width:100%;border:0;padding:14px 10px;background:linear-gradient(120deg,#ecd49d,#b99453);color:#241d14;border-radius:9px;font-size:13px;font-weight:800;letter-spacing:.06em;cursor:pointer;min-height:46px}
+  .home-primary:disabled{opacity:.35;cursor:default}.home-secondary{width:100%;margin-top:10px;font-size:12px}
+  .home-tools{display:flex;gap:5px;justify-content:center;flex-wrap:wrap;padding:0 10px 15px}.home-tools.hidden{display:none}.home-tools button{padding:8px 10px;font-size:10px}
+  .home-status{min-height:24px;color:#c7d5df;font-size:12px;margin:16px 0;line-height:1.5}
+  .exclusive-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:15px;max-height:410px;overflow:auto}
+  .exclusive-grid>p{grid-column:1/-1}.exclusive-card{position:relative;border:1px solid #324057;border-radius:10px;background:#0b1321;color:#cbd9e4;padding:0 0 10px;overflow:hidden;cursor:pointer}
+  .exclusive-card.selected{border-color:#d4bb85}.exclusive-card canvas{width:100%;height:auto;pointer-events:none}.exclusive-card span{display:block;font-size:10px;padding:0 7px;min-height:28px}.exclusive-card b{position:absolute;top:6px;right:7px;font-size:11px;color:#efd6a0}
+  @media(max-width:650px){.home-overlay{padding-top:max(16px,env(safe-area-inset-top))}.home-layout{grid-template-columns:1fr}.home-header{margin-bottom:16px}.home-header h2{font-size:21px}.home-header button{padding:8px 12px}.home-panel{padding:18px}#homeCanvas{height:300px}.home-scene-copy{min-height:65px}.home-scene-copy h3{font-size:17px}.home-tabs button{flex:1}.egg-choices{margin:16px 0}.exclusive-grid{max-height:330px;grid-template-columns:repeat(3,minmax(0,1fr))}.home-status{margin:10px 0}.home-eyebrow{font-size:8px}}
+  @media(prefers-reduced-motion:reduce){.home-progress>div{transition:none}}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <button id="pauseBtn" class="hud-pause" title="Пауза (P)"><b></b><b></b></button>
+<button id="dragonBookBtn" class="hud-book" title="Книга спасённых драконов">📖</button>
+<button id="dragonHomeBtn" class="hud-book hud-home" data-open-home title="Дом драконов">⌂</button>
 <button id="devLvl" class="hud-dev" title="Тестовая кнопка: следующая стадия">+STAGE</button>
-<button id="devUlt" class="hud-dev" style="top:150px" title="Тестовая кнопка: зарядить ульту">+ULT</button>
-<button id="devRare" class="hud-dev" style="top:192px" title="Тестовая кнопка: редкий сундук">+RARE</button>
-<button id="devSniper" class="hud-dev" style="top:234px" title="Тест: золотая снайперка и следующая особая ульта">+SNP</button>
+<button id="devUlt" class="hud-dev" style="top:222px" title="Тестовая кнопка: зарядить ульту">+ULT</button>
+<button id="devRare" class="hud-dev" style="top:264px" title="Тестовая кнопка: редкий сундук">+RARE</button>
+<button id="devSniper" class="hud-dev" style="top:306px" title="Тест: золотая снайперка и следующая особая ульта">+SNP</button>
+<button id="devFull" class="hud-dev" style="top:348px;border-color:#b88716;color:#8d641e" title="Тест: полная прокачка и открытие алтаря на карте">+FULL</button>
+<button id="devDragon" class="hud-dev" style="top:390px;border-color:#4aa8cf;color:#2f718d" title="Тест: бриллиантовый, чёрно-золотой и золотой драконы по очереди">+DRG</button>
 <canvas id="petBadge" class="hud-badge hidden" width="176" height="176"></canvas>
 <div id="abilityDock" class="ability-dock hidden">
   <button class="ability-slot" data-ability="airstrike" title="Вызвать авиаудар"><canvas width="88" height="88"></canvas><b>0</b></button>
@@ -96,10 +147,11 @@
 <div id="start" class="overlay">
   <h1>STICKMAN ARENA</h1>
   <p>Веди пальцем — человечек бежит по карте.<br>Ружьё целится само.<br>
-     Уничтожай врагов — опыт начисляется сразу.<br>Каждые 5000 XP начинается новая, более сложная стадия.<br>
+     Уничтожай врагов — опыт начисляется сразу.<br>Прокачай героя и питомца до максимума — откроется алтарь на мини-карте.<br>Можешь продолжить бой. Для финала проведи 2 секунды в круге алтаря — двигаться внутри можно.<br>
      Ищи сундуки: мина, граната, лёд, опыт ×2.<br>Редкий сундук сразу даёт случайную постоянную способность.<br>
      Ульта: двойной клик или развести пальцы.<br>На новой стадии можно усилить вещи или питомца.<br>Предмет — кнопка справа внизу или пробел.</p>
   <button class="btn" id="btnStart">ИГРАТЬ</button>
+  <button class="btn" data-open-home style="background:#576779">ДОМ ДРАКОНОВ</button>
   <div class="tag" id="verTag"></div>
 </div>
 <div id="levelup" class="overlay hidden">
@@ -109,13 +161,58 @@
   <h2>ПАУЗА</h2>
   <p id="pauseStats"></p>
   <button class="btn" id="btnResume">ПРОДОЛЖИТЬ</button>
+  <button class="btn" data-open-home style="background:#576779">ДОМ ДРАКОНОВ</button>
   <button class="btn" id="btnRestart" style="background:#8d8178">ЗАНОВО</button>
+</div>
+
+<div id="dragonBook" class="overlay book-overlay hidden">
+  <div class="book-cover">
+    <h2>КНИГА СПАСЁННЫХ ДРАКОНОВ</h2>
+    <div class="tag" id="dragonTotal">ВСЕГО СПАСЕНИЙ: 0</div>
+    <p class="book-note">Крафт: 3 одинаковых дракона → 1 следующей редкости.<br>Обмен расходует драконов. Число спасений остаётся в истории.</p>
+    <p id="craftMessage" class="book-note" role="status" aria-live="polite"></p>
+    <div class="dragon-grid" id="dragonGrid"></div>
+    <button class="btn" data-open-home style="background:#576779;margin-bottom:10px">ДОМ · ИНКУБАТОР</button>
+    <button class="btn" id="btnCloseBook">ЗАКРЫТЬ КНИГУ</button>
+  </div>
+</div>
+
+<div id="dragonVictory" class="overlay victory-dragon hidden">
+  <div class="tag">ПОЛНАЯ ПРОКАЧКА · ФИНАЛ ПРОЙДЕН</div>
+  <canvas id="victoryDragonCanvas" width="420" height="245"></canvas>
+  <h2 id="victoryDragonName">ДРАКОН СПАСЁН</h2>
+  <p id="victoryDragonText"></p>
+  <button class="btn hidden" id="btnRetryDragonSave">ПОВТОРИТЬ СОХРАНЕНИЕ</button>
+  <button class="btn" id="btnVictoryRestart">ЕЩЁ ЗАБЕГ</button>
+  <button class="btn" id="btnVictoryBook" style="background:#8d641e">ОТКРЫТЬ КНИГУ</button>
+  <button class="btn" data-open-home style="background:#576779">ДОМ ДРАКОНОВ</button>
 </div>
 
 <div id="over" class="overlay hidden">
   <h2>ЗАБЕГ ОКОНЧЕН</h2><p id="stats"></p>
+  <button class="btn" data-open-home style="background:#576779">ДОМ ДРАКОНОВ</button>
   <div class="tag">ПОСТОЯННОЕ УЛУЧШЕНИЕ</div><div class="cards" id="perks"></div>
 </div>
+
+<section id="dragonHome" class="home-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="homeTitle">
+  <div class="home-shell">
+    <header class="home-header"><div><div class="home-eyebrow">VACKY GAMES / DRAGON SANCTUARY</div><h2 id="homeTitle">Дом драконов</h2><div id="homeWallet" class="home-wallet"></div></div><button id="btnCloseHome">Назад ✕</button></header>
+    <nav class="home-tabs" aria-label="Разделы дома"><button id="tabIncubator" role="tab" aria-selected="true">Инкубатор</button><button id="tabWarehouse" role="tab" aria-selected="false">Хранилище</button></nav>
+    <div class="home-layout">
+      <div class="home-scene"><canvas id="homeCanvas" width="720" height="500" aria-label="3D-просмотр: перетаскивай для вращения, используй кнопки для масштаба"></canvas><div class="home-scene-copy"><h3 id="homeSceneTitle"></h3><p id="homeSceneHint"></p></div>
+        <div id="viewerControls" class="home-tools hidden"><button id="btnZoomOut" aria-label="Отдалить дракона">−</button><button id="btnZoomIn" aria-label="Приблизить дракона">+</button><button id="btnTurntable">Вращение: вкл</button><button id="btnResetView">Сброс вида</button></div>
+      </div>
+      <div id="incubatorPanel" class="home-panel"><div class="home-eyebrow">НОВАЯ ЖИЗНЬ / 5 ВЛОЖЕНИЙ</div><h3>Тайна внутри скорлупы</h3><p>Выбери яйцо и вложи пять бриллиантовых драконов. Каждый вклад раскрывает новые трещины. На пятом — вылупление эксклюзивного обитателя.</p>
+        <div class="egg-choices"><button class="egg-choice" data-egg="0" style="--shell:#8ed9e8"><i></i>Лунное</button><button class="egg-choice" data-egg="1" style="--shell:#b49adc"><i></i>Обсидиановое</button><button class="egg-choice" data-egg="2" style="--shell:#f4c875"><i></i>Солнечное</button></div>
+        <div id="eggProgressText"></div><div class="home-progress"><div id="eggProgress"></div></div><button id="btnFeedEgg" class="home-primary">ВЛОЖИТЬ 1 💎</button><button id="btnHomeBook" class="home-secondary">Книга и крафт драконов →</button>
+        <p class="home-small">Вложенные драконы расходуются. После первого вклада яйцо нельзя заменить. 100 возможных эксклюзивов, равный шанс каждого — 1%. Повторы остаются в хранилище. Оболочка яйца не влияет на находку.</p>
+      </div>
+      <div id="warehousePanel" class="home-panel hidden"><div class="home-eyebrow">ТОЛЬКО ТВОИ ОТКРЫТИЯ</div><h3>Хранилище легенд</h3><p id="warehouseCount"></p><p>Вращай дракона пальцем или мышью. Два пальца или кнопки − / + меняют масштаб.</p><div id="exclusiveGrid" class="exclusive-grid"></div></div>
+    </div>
+    <div id="homeMessage" class="home-status" role="status" aria-live="polite"></div>
+    <p style="max-width:none;color:#8293a6;font-size:10px">Коллекция и яйцо сохраняются в этом браузере. Очистка данных сайта удалит прогресс; между устройствами синхронизации пока нет.</p>
+  </div>
+</section>
 
   <script src="src/core.js"></script>
   <script src="src/config.js"></script>
@@ -125,6 +222,10 @@
   <script src="src/state.js"></script>
   <script src="src/world.js"></script>
   <script src="src/abilities.js"></script>
+  <script src="src/dragon-economy.js"></script>
+  <script src="src/dragons.js"></script>
+  <script src="src/dragon-3d.js"></script>
+  <script src="src/dragon-home.js"></script>
   <script src="src/update.js"></script>
   <script src="src/cards.js"></script>
   <script src="src/draw-hero.js"></script>

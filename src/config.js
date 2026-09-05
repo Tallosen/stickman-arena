@@ -1,7 +1,7 @@
 "use strict";
 /* Версия проекта. Меняется здесь и только здесь — дальше сама
    расходится в заголовок вкладки, на стартовый экран и в имя сборки. */
-const VERSION = "0.53";
+const VERSION = "0.62";
 
 /* Каждая стадия требует одинаковые 5000 опыта. Сложность и сила героя
    растут от номера стадии, а не от скрытого таймера. */
@@ -27,7 +27,7 @@ const GK = Object.keys(GEAR);
 const WEAPONS = {
   basic:   { name: "Ружьё",     rare: 0, rarity: "common", desc: "Надёжный ствол" },
   shotgun: { name: "Дробовик",  rare: 1, rarity: "rare", desc: "Веер дроби, но близко" },
-  sniper:  { name: "Снайперка", rare: 1, rarity: "gold", desc: "Золотая дальнобойная с эксклюзивными ультами" },
+  sniper:  { name: "Снайперка", rare: 1, rarity: "gold", desc: "Золотая дальнобойная" },
   minigun: { name: "Миниган",   rare: 1, rarity: "rare", desc: "Шквал огня в упор" },
 };
 const RARE_KEYS = Object.keys(WEAPONS).filter(k => WEAPONS[k].rare);
@@ -88,6 +88,16 @@ const PETS = {
 const PET_MAX = 5;
 const RARE_PET_CHANCE = .18;   // шанс, что в карточке предложат редкого питомца
 let turrets = [], eggs = [], chicks = [], pendingPet = null, pendingRare = null, lastPetRoll = null, queuedLevels = 0;
+
+/* Финал открывается не по жёсткому номеру стадии, а только после полной
+   прокачки экипировки и питомца. Редкая пушка не считается отдельным уровнем. */
+const FULL_BUILD_CHOICES = GK.reduce((sum,key)=>sum+GEAR[key].max,0) + PET_MAX;
+function buildUpgradeCount(){
+  const gear=GK.reduce((sum,key)=>sum+Math.min(GEAR[key].max,P.gear[key]||0),0);
+  const pet=P.pet?Math.min(PET_MAX,P.pet.lvl||1):0;
+  return gear+pet;
+}
+function heroBuildComplete(){return buildUpgradeCount()>=FULL_BUILD_CHOICES;}
 
 function petStats(p) {
   const l = p.lvl;

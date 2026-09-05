@@ -21,6 +21,7 @@ function update(dt) {
   updateUlt(dt);                       // ульта живёт в реальном времени
   if (ult.on) dt *= .30;               // всё остальное — в замедлении
   t += dt; const k = dt / 16.67;
+  updateDragonFinale(dt);
   updateAbilities(dt, k);
   if (P.stagePulse > 0) P.stagePulse = Math.max(0, P.stagePulse - dt);
   if (shake > 0) shake = Math.max(0, shake - dt * .045);
@@ -31,7 +32,7 @@ function update(dt) {
   P.spinV = (P.spinV || 0) * .93;
   if (P.invT > 0) P.invT -= dt;
 
-  if (pointer.active && !ult.on) {
+  if (pointer.active && !ult.on && !dragonFinale) {
     const dx = pointer.x - P.x, dy = pointer.y - P.y, d = Math.hypot(dx, dy);
     if (d > 5) {
       const hs = P.hasteT > 0 ? 1.6 : 1;
@@ -66,20 +67,22 @@ function update(dt) {
   cam.x = Math.max(0, Math.min(WORLD - W, P.x - W / 2));
   cam.y = Math.max(0, Math.min(WORLD - H, P.y - H / 2));
 
-  spawnT -= dt;
-  if (spawnT <= 0 && enemies.length < 140) {
-    const stage = Math.max(1, P.lvl || 1);
-    spawnT = Math.max(155, 820 - (stage - 1) * 72 - Math.min(230, t / 500));
-    const r = Math.random();
-    const tankChance = Math.min(.24, Math.max(0, (stage - 2) * .045));
-    const runnerChance = Math.min(.48, .10 + (stage - 1) * .055);
-    spawn(r < tankChance ? "tank" : r < tankChance + runnerChance ? "runner" : "basic");
+  if (!dragonFinale) {
+    spawnT -= dt;
+    if (spawnT <= 0 && enemies.length < 140) {
+      const stage = Math.max(1, P.lvl || 1);
+      spawnT = Math.max(155, 820 - (stage - 1) * 72 - Math.min(230, t / 500));
+      const r = Math.random();
+      const tankChance = Math.min(.24, Math.max(0, (stage - 2) * .045));
+      const runnerChance = Math.min(.48, .10 + (stage - 1) * .055);
+      spawn(r < tankChance ? "tank" : r < tankChance + runnerChance ? "runner" : "basic");
+    }
+    eliteT -= dt; if (eliteT <= 0) {
+      eliteT = Math.max(17000, 44000 - (P.lvl - 1) * 3500); spawn("elite"); shake = 10;
+    }
+    chestT -= dt; if (chestT <= 0) { chestT = 13000 - meta.luck * 2200; spawnChest(); }
+    healT -= dt; if (healT <= 0) { healT = 15000; spawnHeart(); }
   }
-  eliteT -= dt; if (eliteT <= 0) {
-    eliteT = Math.max(17000, 44000 - (P.lvl - 1) * 3500); spawn("elite"); shake = 10;
-  }
-  chestT -= dt; if (chestT <= 0) { chestT = 13000 - meta.luck * 2200; spawnChest(); }
-  healT -= dt; if (healT <= 0) { healT = 15000; spawnHeart(); }
 
   for (const h of pickups) {
     h.a += .05 * k;
@@ -186,7 +189,7 @@ function update(dt) {
       e.kb=2.8;e.kbx=Math.cos(a);e.kby=Math.sin(a);
       continue;
     }
-    if (dist(e, P) < P.r + e.r && P.hurt <= 0 && P.invT <= 0) {
+    if (dist(e, P) < P.r + e.r && P.hurt <= 0 && P.invT <= 0 && !dragonFinale) {
       // мелкие снимают половину сердца, крупные — больше
       const base = e.kind === "elite" ? 1.5 : e.kind === "tank" ? 1 : .5;
       const dmg = Math.min(2.5, base + Math.floor((P.lvl - 1) / 3) * .5);
@@ -263,7 +266,8 @@ function update(dt) {
         mk(a0 + (i / (P.pellets - 1) - .5) * P.spread + rnd(-.05, .05), P.damage, "pellet");
       P.recoil = 1;
     } else if (P.wtype === "minigun") {
-      mk(ang(near[0].e) + rnd(-P.spread, P.spread) / 2, P.damage, "mini");
+      // Улучшенный магазин даёт минигану дополнительные одновременные цели.
+      for(const {e} of near)mk(ang(e)+rnd(-P.spread,P.spread)/2,P.damage,"mini");
       P.spinV = .42;
     } else if (P.wtype === "sniper") {
       for (const { e } of near) mk(ang(e), P.damage, "sniper");
@@ -356,9 +360,16 @@ function update(dt) {
   booms = booms.filter(b => b.life > 0);
   for (const f of flashes) { f.r += (f.max - f.r) * .34 * k; f.life -= dt / 320; }
   flashes = flashes.filter(f => f.life > 0);
-  if (queuedLevels > 0 && !paused && !ult.on) { SFX.level(); offerCards(); }
+  updateDragonAltar(dt);
+  if (queuedLevels > 0 && !paused && !ult.on && !dragonFinale) { SFX.level(); offerCards(); }
 }
 function gainXP(amount) {
+  if (dragonFinale) return;
+  // После полной сборки остаётся свободный бой на достигнутой стадии.
+  // Опыт больше не открывает пустые карточки и не запускает финал.
+  if(heroBuildComplete()){
+    unlockDragonAltar();P.xp=STAGE_XP;queuedLevels=0;return;
+  }
   amount = Math.max(1, Math.floor(amount || 1));
   const awarded = Math.max(1, Math.round(amount * (xpBoost > 0 ? 2 : 1) * (P.xpMult || 1)));
   P.xp += awarded;

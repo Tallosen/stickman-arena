@@ -3,7 +3,7 @@
    Запуск:  node build.js        Результат: dist/index.html                     */
 const fs = require("fs");
 const ORDER = ["core.js","config.js","pets.js","draw-pets.js","ult.js","state.js","world.js",
-               "abilities.js","update.js","cards.js","draw-hero.js","draw-foe.js","render.js","ui.js"];
+               "abilities.js","dragon-economy.js","dragons.js","dragon-3d.js","dragon-home.js","update.js","cards.js","draw-hero.js","draw-foe.js","render.js","ui.js"];
 const html = fs.readFileSync("index.html","utf8");
 const code = ORDER.map(f =>
   `/* ===== ${f} ===== */\n` +

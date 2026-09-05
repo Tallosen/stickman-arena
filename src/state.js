@@ -53,6 +53,7 @@ function reset() {
   // Активная техника и эффекты заканчиваются вместе с забегом,
   // но накопленные заряды inventory намеренно не сбрасываются.
   resetAbilities();
+  if (typeof resetDragonFinale === "function") resetDragonFinale();
   pointer = { x: P.x, y: P.y, active: false };
   applyGear();
 }
@@ -62,17 +63,17 @@ function applyGear() {
   const dm = (1 + .15 * meta.dmg) * (1 + (stage - 1) * .14);
 
   if (w === "shotgun") {
-    P.rate = 880; P.damage = (.42 + .11 * L) * dm;
-    P.range = 168 + 34 * g.scope; P.pellets = 5 + L + g.clip;
-    P.spread = .52; P.pierce = 0; P.nShots = 1;
+    P.rate = 820; P.damage = (.78 + .90 * L) * dm;
+    P.range = 180 + 38 * g.scope; P.pellets = 6 + L + g.clip;
+    P.spread = .48; P.pierce = 0; P.nShots = 1;
   } else if (w === "sniper") {
     P.rate = 1420 - 125 * L; P.damage = (3.2 + 2.3 * L) * dm;
     P.range = 520 + 110 * g.scope; P.pellets = 1;
     P.spread = 0; P.pierce = 1; P.nShots = 1 + g.clip;
   } else if (w === "minigun") {
-    P.rate = 205 - 21 * L; P.damage = (.46 + .23 * L) * dm;
-    P.range = 205 + 42 * g.scope; P.pellets = 1;
-    P.spread = .17; P.pierce = 0; P.nShots = 1;
+    P.rate = 205 - 22 * L; P.damage = (.58 + .38 * L) * dm;
+    P.range = 225 + 45 * g.scope; P.pellets = 1;
+    P.spread = .15; P.pierce = 0; P.nShots = 1 + Math.floor((g.clip + 1) / 2);
   } else {
     P.rate = 620; P.damage = (1 + L) * dm;
     P.range = 215 + 55 * g.scope; P.pellets = 1;
@@ -85,6 +86,31 @@ function applyGear() {
   P.xpMult = 1 + .10 * g.cape;
   P.iframe = 950 + 320 * g.jacket;
   P.hp = Math.min(P.hp, P.hpMax);
+}
+
+/* Сравниваем не название редкости, а реальную боевую ценность на текущей
+   прокачке: урон в секунду, дальность, пробивание и полезность разброса. */
+function weaponCombatRating(w) {
+  const g=P.gear,L=g.gun,stage=Math.max(1,P.lvl||1);
+  const dm=(1+.15*meta.dmg)*(1+(stage-1)*.14);
+  const glove=Math.pow(.86,g.gloves)*Math.pow(.985,stage-1);
+  let rate,damage,projectiles,range,pierce=0,accuracy=1;
+  if(w==="shotgun"){
+    rate=820;damage=(.78+.90*L)*dm;projectiles=(6+L+g.clip)*.62;
+    range=180+38*g.scope;accuracy=.82;
+  }else if(w==="sniper"){
+    rate=1420-125*L;damage=(3.2+2.3*L)*dm;projectiles=1+g.clip;
+    range=520+110*g.scope;pierce=1;accuracy=1.16;
+  }else if(w==="minigun"){
+    rate=205-22*L;damage=(.58+.38*L)*dm;projectiles=1+Math.floor((g.clip+1)/2);
+    range=225+45*g.scope;accuracy=.92;
+  }else{
+    rate=620;damage=(1+L)*dm;projectiles=1+g.clip;
+    range=215+55*g.scope;
+  }
+  const dps=damage*projectiles/(Math.max(60,rate*glove)/1000);
+  const reach=.82+Math.min(.34,range/1800);
+  return dps*reach*accuracy*(1+pierce*.24);
 }
 
 /* ── ввод ─────────────────────────────────────────────────── */
@@ -112,14 +138,17 @@ cv.addEventListener("pointermove", e => {
 cv.addEventListener("pointerup", e => { ultPointerUp(e); if (e.pointerType !== "mouse") pointer.active = false; });
 cv.addEventListener("pointercancel", ultPointerUp);
 addEventListener("keydown", e => {
+  if(typeof dragonHomeOpen==="function"&&dragonHomeOpen()){if(e.code==="Escape")closeDragonHome();return;}
   if (e.code === "Space" || e.code === "KeyE") { e.preventDefault(); useItem(); }
-  if (e.code === "Escape" || e.code === "KeyP") { e.preventDefault(); userPaused ? resumeGame() : pauseGame(); }
+  if (e.code === "Escape" && typeof dragonBookOpen === "function" && dragonBookOpen()) { closeDragonBook(); return; }
+  if (e.code === "Escape" || e.code === "KeyP") { if (e.code === "KeyP") e.preventDefault(); userPaused ? resumeGame() : pauseGame(); }
 });
 let userPaused = false;
 const levelOpen = () => !document.getElementById("levelup").classList.contains("hidden");
 
 function pauseGame() {
-  if (!running || levelOpen() || userPaused) return;
+  if(typeof dragonHomeOpen==="function"&&dragonHomeOpen())return;
+  if (!running || levelOpen() || userPaused || (typeof dragonBookOpen === "function" && dragonBookOpen())) return;
   userPaused = true; paused = true;
   document.getElementById("pauseStats").textContent =
     `СТАДИЯ ${P.lvl} · ${(t / 1000).toFixed(0)} с · лопнул ${score}`;
@@ -129,7 +158,7 @@ function resumeGame() {
   if (!userPaused) return;
   userPaused = false;
   document.getElementById("pause").classList.add("hidden");
-  if (!levelOpen()) paused = false;
+  if (!levelOpen()&&!dragonBookOpen()&&!dragonHomeOpen()) paused = false;
   pointer.active = false;                 // чтобы герой не рванул к старой точке
 }
 // вкладку свернули — ставим паузу и показываем окно, иначе игра зависала навсегда
