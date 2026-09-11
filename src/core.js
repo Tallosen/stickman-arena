@@ -23,6 +23,7 @@ addEventListener("error", e => {
 const cv = document.getElementById("c"), ctx = cv.getContext("2d");
 let W, H, DPR;
 function resize() {
+  if(typeof Playables!=='undefined'&&Playables.hostPaused)return;
   DPR = Math.min(devicePixelRatio || 1, 2);
   W = innerWidth; H = innerHeight;
   cv.width = W * DPR; cv.height = H * DPR;
@@ -59,18 +60,31 @@ function spoly(g, pts, fill) {
 
 /* ── звук ─────────────────────────────────────────────────── */
 let AC = null;
-const audio = () => AC || (AC = new (window.AudioContext || webkitAudioContext)());
+let audioMaster=null;
+function audio(){
+  if(!AC){AC=new (window.AudioContext||webkitAudioContext)();audioMaster=AC.createGain();audioMaster.connect(AC.destination);}
+  const allowed=typeof Playables==='undefined'||Playables.audioAllowed;
+  audioMaster.gain.value=allowed?1:0;
+  if(allowed&&AC.state==='suspended')AC.resume().catch(()=>{});
+  return AC;
+}
+function platformAudio(enabled){
+  if(!AC)return;audioMaster.gain.value=enabled?1:0;
+  if(enabled)AC.resume().catch(()=>{});else AC.suspend().catch(()=>{});
+}
 function beep(f, d, ty = "square", v = .05, sl = 0) {
+  if(typeof Playables!=='undefined'&&!Playables.audioAllowed)return;
   try {
     const a = audio(), o = a.createOscillator(), g = a.createGain();
     o.type = ty; o.frequency.setValueAtTime(f, a.currentTime);
     if (sl) o.frequency.exponentialRampToValueAtTime(Math.max(40, f + sl), a.currentTime + d);
     g.gain.setValueAtTime(v, a.currentTime);
     g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + d);
-    o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + d);
+    o.connect(g); g.connect(audioMaster); o.start(); o.stop(a.currentTime + d);
   } catch (e) {}
 }
 function noise(dur, vol, cut, sweep) {
+  if(typeof Playables!=='undefined'&&!Playables.audioAllowed)return;
   try {
     const a = audio(), n = Math.floor(a.sampleRate * dur);
     const buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
@@ -81,12 +95,12 @@ function noise(dur, vol, cut, sweep) {
     if (sweep) f.frequency.exponentialRampToValueAtTime(Math.max(80, cut + sweep), a.currentTime + dur);
     const g = a.createGain(); g.gain.setValueAtTime(vol, a.currentTime);
     g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + dur);
-    src.connect(f); f.connect(g); g.connect(a.destination); src.start();
+    src.connect(f); f.connect(g); g.connect(audioMaster); src.start();
   } catch (e) {}
 }
 const vary = () => .92 + Math.random() * .16;
 const chain = (notes, ty = "triangle", v = .05) =>
-  notes.forEach((n, i) => setTimeout(() => beep(n, .11, ty, v), i * 75));
+  notes.forEach((n, i) => (typeof Playables==='undefined'?setTimeout:Playables.delay)(() => beep(n, .11, ty, v), i * 75));
 
 const SFX = {
   shot: () => { beep(700 * vary(), .045, "square", .02, -300); noise(.05, .02, 3000, -2000); },
@@ -100,5 +114,5 @@ const SFX = {
   bite: () => { beep(220, .07, "square", .035, -120); noise(.09, .04, 1400, -900); },
   dead: () => chain([440, 330, 247, 165], "triangle", .06),
   revive:() => chain([392, 523, 659, 880], "sine", .06),
-  build:() => { beep(500, .05, "square", .03); setTimeout(() => beep(700, .07, "square", .03), 60); },
+  build:() => { beep(500, .05, "square", .03); (typeof Playables==='undefined'?setTimeout:Playables.delay)(() => beep(700, .07, "square", .03), 60); },
 };

@@ -69,6 +69,8 @@ function updateAbilities(dt, k) {
         if (e.hp <= 0) continue;
         e.hp -= Math.max(1, e.maxhp * .105);
         e.flash = Math.max(e.flash || 0, 70); e.poison = 300;
+        // Resolve the lethal pulse now, before the enemy loop filters dead bodies.
+        if (e.hp <= 0) popEnemy(e);
         if (Math.random() < .34)
           puffs.push({ x: e.x + rnd(-8, 8), y: e.y - rnd(4, 20), vx: rnd(-.15, .15), vy: -.35,
                        life: .65, r: rnd(3, 7), gas: true });
@@ -152,6 +154,28 @@ function grantRandomAbility(x, y) {
   pops.push({ x, y:y-52, txt:ABILITIES[kind].name+" +1", life:1.8, col:ABILITIES[kind].col });
   chain([520,780,1040], "sine", .065); shake=Math.max(shake,7);
   return kind;
+}
+
+function grantEliteChestReward(c){
+  if(c.rewardGranted||c.retryT>0)return false;
+  // Roll once, including across failed saves or a full slot: no retry rerolls.
+  if(!ABILITY_KEYS.includes(c.rewardKind))c.rewardKind=ABILITY_KEYS[Math.random()*ABILITY_KEYS.length|0];
+  const kind=c.rewardKind;
+  const next={...inventory};
+  next[kind]=Math.min(999,next[kind]+1);
+  let notice='';
+  if(ABILITY_KEYS.every(k=>next[k]===inventory[k]))notice='ИНВЕНТАРЬ ПОЛОН';
+  else try{(typeof Playables==='undefined'?localStorage:Playables.storage).setItem(INVENTORY_KEY,JSON.stringify(next));}
+  catch(_){notice='НЕ УДАЛОСЬ СОХРАНИТЬ · СУНДУК ЖДЁТ';}
+  if(notice){
+    if(!(c.retryT>0)){pops.push({x:c.x,y:c.y-65,txt:notice,life:2,col:'#8650b1'});c.retryT=2500;}
+    return false;
+  }
+  Object.assign(inventory,next);c.rewardGranted=true;
+  rewardDrops.push({kind,x:c.x,y:c.y-12,t:0,life:1});
+  pops.push({x:c.x,y:c.y-65,txt:ABILITIES[kind].name+' +1',life:2.8,col:'#8650b1'});
+  chain([520,780,1040,1560],'sine',.08);shake=Math.max(shake,9);
+  return true;
 }
 
 function drawAbilityIcon(g, kind, x, y, sc) {

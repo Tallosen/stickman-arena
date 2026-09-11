@@ -1,5 +1,61 @@
 "use strict";
 let flashes = [], hitStop = 0;
+let enemyRouteBudget=2;
+// Local depenetration handles exact centres and overlapping rock hulls.
+function enemyFreePoint(x,y,r){
+  const q={x:Math.max(r,Math.min(WORLD-r,x)),y:Math.max(r,Math.min(WORLD-r,y)),r};
+  for(let pass=0;pass<8;pass++){
+    let changed=false;
+    for(const o of props){
+      const dx=q.x-o.x,dy=q.y-o.y,d=Math.hypot(dx,dy),reach=o.r*.78+r+.2;
+      if(d<reach){const a=d>.001?Math.atan2(dy,dx):Math.atan2(WORLD/2-o.y,WORLD/2-o.x);
+        q.x=Math.max(r,Math.min(WORLD-r,o.x+Math.cos(a)*reach));
+        q.y=Math.max(r,Math.min(WORLD-r,o.y+Math.sin(a)*reach));changed=true;}
+    }
+    if(!changed||petPathClear(q.x,q.y,q.x,q.y,r))return q;
+  }
+  let best=null,bd=Infinity;
+  for(const o of props){
+    if(Math.hypot(o.x-x,o.y-y)>o.r*.78+r+180)continue;
+    for(let i=0;i<32;i++){
+      const a=i*Math.PI/16,reach=o.r*.78+r+.5,xx=o.x+Math.cos(a)*reach,yy=o.y+Math.sin(a)*reach,d=Math.hypot(xx-x,yy-y);
+      if(d<bd&&petPathClear(xx,yy,xx,yy,r)){bd=d;best={x:xx,y:yy,r};}
+    }
+  }
+  return best||q;
+}
+function enemyResolveRocks(e){
+  if(petPathClear(e.x,e.y,e.x,e.y,e.r))return;
+  const q=enemyFreePoint(e.x,e.y,e.r);e.x=q.x;e.y=q.y;e.rockPath=null;
+}
+// Swept collisions cover pursuit, recoil and crowd separation equally.
+function enemyDisplace(e,dx,dy){
+  if(petPathClear(e.x,e.y,e.x+dx,e.y+dy,e.r)){e.x+=dx;e.y+=dy;return false;}
+  let lo=0,hi=1;
+  for(let i=0;i<9;i++){const m=(lo+hi)/2;if(petPathClear(e.x,e.y,e.x+dx*m,e.y+dy*m,e.r))lo=m;else hi=m;}
+  e.x+=dx*lo;e.y+=dy*lo;return true;
+}
+function enemyRockIntent(e,tx,ty,intent,dt){
+  e.rockWait=Math.max(0,(e.rockWait||0)-dt);
+  if(intent.locked)return intent;
+  const vl=Math.hypot(intent.vx,intent.vy)||1;
+  if(petPathClear(e.x,e.y,tx,ty,e.r)&&petPathClear(e.x,e.y,e.x+intent.vx/vl*32,e.y+intent.vy/vl*32,e.r)){
+    e.rockPath=null;return intent;
+  }
+  const changed=!e.rockGoal||Math.hypot(tx-e.rockGoal.x,ty-e.rockGoal.y)>72;
+  if(!e.rockWait&&(!e.rockPath?.length||changed)&&enemyRouteBudget>0){
+    enemyRouteBudget--;const goal=enemyFreePoint(tx,ty,e.r);
+    e.rockPath=petRoute(e,goal.x,goal.y);e.rockGoal={x:tx,y:ty};e.rockWait=800;
+  }
+  const route=e.rockPath;
+  if(!route?.length)return {...intent,vx:0,vy:0};
+  while(route.length>1&&petPathClear(e.x,e.y,route[1].x,route[1].y,e.r))route.shift();
+  if(Math.hypot(route[0].x-e.x,route[0].y-e.y)<4)route.shift();
+  if(!route.length)return {...intent,vx:0,vy:0};
+  if(!petPathClear(e.x,e.y,route[0].x,route[0].y,e.r)){e.rockPath=null;return {...intent,vx:0,vy:0};}
+  const dx=route[0].x-e.x,dy=route[0].y-e.y,d=Math.hypot(dx,dy)||1;
+  return {...intent,vx:dx/d,vy:dy/d};
+}
 /* world.js — враги, взрывы, сундуки, бусты, коллизии */
 
 /* ── враги ────────────────────────────────────────────────── */
@@ -8,19 +64,63 @@ const KINDS = {
   runner: { r: 9,  hp: 1,  spd: 1.5, xp: 70 },
   tank:   { r: 17, hp: 6,  spd: .46, xp: 150 },
   elite:  { r: 25, hp: 26, spd: .54, xp: 500 },
+  dasher: { r: 10, hp: 1, spd: 1.05, xp: 70 },
+  shield: { r: 17, hp: 4, spd: .43, xp: 150 },
+  flanker:{ r: 11, hp: 1, spd: 1.0, xp: 55 },
+  pyro:   { r: 12, hp: 1.8, spd: .72, xp: 55 },
+  drummer:{ r: 16, hp: 5, spd: .49, xp: 150 },
 };
 function spawn(kind) {
+  // Specialists replace regular wave slots; cap active pressure, not XP income.
+  if(kind==='pyro'&&enemies.filter(e=>e.hp>0&&e.kind===kind).length>=(P.stage>=16?4:P.stage>=10?3:2))kind='basic';
+  if(kind==='drummer'&&enemies.filter(e=>e.hp>0&&e.kind===kind).length>=2)kind='tank';
   const K = KINDS[kind], a = Math.random() * 6.283, d = Math.max(W, H) * .62 + 60;
   const x = Math.max(30, Math.min(WORLD - 30, P.x + Math.cos(a) * d));
   const y = Math.max(30, Math.min(WORLD - 30, P.y + Math.sin(a) * d));
-  const stage = Math.max(1, P.lvl || 1);
-  const hpScale = (1 + (stage - 1) * .32) * (1 + Math.min(.55, t / 260000));
-  const speedScale = 1 + Math.min(.32, (stage - 1) * .045) + Math.min(.14, t / 360000);
+  const stage = Math.max(1, P.stage || 1);
+  const hpScale = (1 + (stage - 1) * .32) * (1 + Math.min(.55, (stage-1)*.035))*(1+Math.min(.18,Math.max(0,stage-5)*.012));
+  const speedScale = (1 + Math.min(.46, (stage - 1) * .045))*(1+Math.min(.08,Math.max(0,stage-7)*.006));
   const hp = Math.ceil(K.hp * hpScale);
   enemies.push({ kind, x, y, r: K.r, xp: K.xp, hp, maxhp: hp,
     speed: K.spd * speedScale, phase: rnd(0, 6),
     face: 1, flash: 0, kb: 0, kbx: 0, kby: 0, orbCd: 0, slip: 0,
-    lx: x, ly: y, stuckT: 0, wander: 0, wanderT: 0, bob: rnd(0, 6) });
+    lx: x, ly: y, stuckT: 0, wander: 0, wanderT: 0, bob: rnd(0, 6),
+    attackState:'chase',attackT:0,attackCd:rnd(900,1800),flankSide:Math.random()<.5?-1:1,
+    guardAngle:Math.atan2(P.y-y,P.x-x),shieldFlash:0 });
+  enemyResolveRocks(enemies[enemies.length-1]);
+}
+function enemyMovementIntent(e,tx,ty,dt){
+  const dx=tx-e.x,dy=ty-e.y,d=Math.hypot(dx,dy)||1;
+  let vx=dx/d,vy=dy/d,pace=1,locked=false;
+  if(e.kind==='pyro')return pyroMovementIntent(e,tx,ty,dt);
+  e.shieldFlash=Math.max(0,(e.shieldFlash||0)-dt);
+  if(e.kind==='shield'){
+    if(!Number.isFinite(e.guardAngle))e.guardAngle=Math.atan2(dy,dx);
+    const a=Math.atan2(dy,dx),delta=Math.atan2(Math.sin(a-e.guardAngle),Math.cos(a-e.guardAngle));
+    e.guardAngle+=Math.max(-dt*.0018,Math.min(dt*.0018,delta));
+  }
+  if(e.kind==='flanker'&&d>65){
+    const bend=d<330?.85:.35,side=e.flankSide||1;
+    vx+=-dy/d*bend*side;vy+=dx/d*bend*side;
+  }
+  if(e.kind==='dasher'){
+    e.attackCd=Math.max(0,(e.attackCd||0)-dt);
+    if(e.attackState==='windup'){
+      e.attackT-=dt;pace=0;locked=true;
+      if(e.attackT<=0){e.attackState='dash';e.attackT=430;}
+    }else if(e.attackState==='dash'){
+      e.attackT-=dt;vx=Math.cos(e.dashAngle);vy=Math.sin(e.dashAngle);pace=3.7;locked=true;
+      if(e.attackT<=0){e.attackState='recover';e.attackT=550;pace=0;}
+    }else if(e.attackState==='recover'){
+      e.attackT-=dt;pace=.25;locked=true;
+      if(e.attackT<=0){e.attackState='chase';e.attackCd=2600;}
+    }else if(!e.attackCd&&d>85&&d<310){
+      e.attackState='windup';e.attackT=750;e.dashAngle=Math.atan2(dy,dx);
+      e.dashFrom={x:e.x,y:e.y};e.dashLength=e.speed*3.7*430/16.67;
+      pace=0;locked=true;
+    }
+  }
+  return {vx,vy,pace,locked};
 }
 function popEnemy(e) {
   if (e.rewarded) return;
@@ -57,10 +157,10 @@ function popEnemy(e) {
   const c = { kind: e.kind, x: e.x, y: e.y, face: e.face, sc: e.r / 11,
               rot: 0, rotV: 0, vx: e.kbx * 2.4, vy: e.kby * 2.4,
               life: 1, max: 1, mode: "puff", phase: e.phase };
-  if (e.kind === "runner") {                       // кувыркается и тает
+  if (enemyBaseKind(e.kind) === "runner") {                       // кувыркается и тает
     c.mode = "tumble"; c.rotV = (Math.random() < .5 ? -1 : 1) * .14;
     c.vx = e.kbx * 4.2 + rnd(-.6, .6); c.vy = e.kby * 4.2 - 1.9; c.max = 1.25; c.life = 1.25;
-  } else if (e.kind === "tank") {                  // тяжело заваливается набок
+  } else if (enemyBaseKind(e.kind) === "tank") {                  // тяжело заваливается набок
     c.mode = "fall"; c.max = 1.6; c.life = 1.6;
   } else if (e.kind === "elite") {                 // разлетается с ударной волной
     c.mode = "blast"; c.max = 1.2; c.life = 1.2;
@@ -82,6 +182,13 @@ function popEnemy(e) {
 }
 function hit(e, dmg, hx, hy) {
   if (e.hp <= 0 || e.rewarded) return;
+  if(e.kind==='shield'&&Number.isFinite(hx)&&Number.isFinite(hy)){
+    const a=Math.atan2(hy-e.y,hx-e.x),front=Math.cos(a-(e.guardAngle||0));
+    if(front>.45){dmg*=.6;e.shieldFlash=150;}
+  }
+  if(e.kind==='dasher'&&(e.attackState==='windup'||e.attackState==='dash')){
+    e.attackState='recover';e.attackT=550;e.attackCd=2600;
+  }
   e.hp -= dmg; e.flash = 110; e.flinch = 1;
   if (hx !== undefined) { const a = Math.atan2(e.y - hy, e.x - hx); e.kb = 3.4; e.kbx = Math.cos(a); e.kby = Math.sin(a); }
   pops.push({ x: e.x, y: e.y - e.r - 10, txt: Math.round(dmg * 10) / 10, life: 1, col: INK });
@@ -92,13 +199,13 @@ function hit(e, dmg, hx, hy) {
 function useItem() {
   if (!running || paused || !P.item) return;
   const it = P.item; P.item = null;
-  if (it === "mine") mines.push({ x: P.x, y: P.y, arm: 700 });
+  if (it === "mine") {mines.push({ x: P.x, y: P.y, arm: 700 });triggerArenaSecret('mine',P.x,P.y);}
   else if (it === "nade") {
     let tg = null, bd = 1e9;
     for (const e of enemies) { const d = dist(e, P); if (d < bd) { bd = d; tg = e; } }
     const a = tg ? Math.atan2(tg.y - P.y, tg.x - P.x) : P.aim;
     nades.push({ x: P.x, y: P.y, vx: Math.cos(a) * 5.5, vy: Math.sin(a) * 5.5, fuse: 700 });
-  } else if (it === "ice") { ices.push({ x: P.x, y: P.y, r: 150, life: 11000 }); SFX.ice(); }
+  } else if (it === "ice") { ices.push({ x: P.x, y: P.y, r: 150, life: 11000 });triggerArenaSecret('ice',P.x,P.y,150); SFX.ice(); }
   else if (it === "xp") { xpBoost = 20000; SFX.chest(); }
 }
 function explode(x, y, r, dmg) {
@@ -111,13 +218,13 @@ function explode(x, y, r, dmg) {
   }
 }
 function spawnChest() {
-  if (chests.length >= 3) return;
+  if (chests.filter(c=>!c.elite).length >= 3) return;
   for (let i = 0; i < 30; i++) {
     const a = Math.random() * 6.283, d = rnd(260, 620);
     const x = P.x + Math.cos(a) * d, y = P.y + Math.sin(a) * d;
     if (x < 60 || y < 60 || x > WORLD - 60 || y > WORLD - 60) continue;
     if (props.some(o => Math.hypot(o.x - x, o.y - y) < o.r + 40)) continue;
-    const rare = !chests.some(c => c.rare) && Math.random() < .035;
+    const rare = !chests.some(c => c.rare) && Math.random() < MAP_RARE_CHEST_CHANCE;
     const r = Math.random();
     chests.push({ x, y, a: 0, rare, item: rare ? null : r < .10 ? "xp" : r < .40 ? "mine" : r < .72 ? "nade" : "ice" });
     return;

@@ -37,7 +37,22 @@ function drawFlash(g, f) {
 
 /* draw-foe.js — враги и анимации смерти */
 
-function drawFoe(g, x, y, face, phase, sc, col, kind, rot, flinch) {
+function drawEnemyIntent(g,e){
+  if(e.hp<=0)return;
+  if(e.kind==='pyro'&&e.attackState==='windup'&&e.fireAim){drawFireMarker(g,e.fireAim.x,e.fireAim.y,40,1-e.attackT/950);return;}
+  if(e.kind==='drummer'){
+    g.save();g.globalAlpha=.12;g.strokeStyle='#9b4a3d';g.lineWidth=1.5;g.setLineDash([3,14]);
+    g.beginPath();g.arc(e.x,e.y,180,0,7);g.stroke();g.setLineDash([]);
+    g.globalAlpha=.4;g.beginPath();g.ellipse(e.x,e.y,24+Math.sin(e.phase*2)*3,12,0,0,7);g.stroke();g.restore();
+  }
+  if(e.kind!=='dasher'||e.attackState!=='windup'||e.hp<=0)return;
+  const a=e.dashAngle,L=e.dashLength||150,u=1-Math.max(0,e.attackT)/750;
+  g.save();g.translate(e.x,e.y);g.rotate(a);g.strokeStyle='#bd482f';g.lineWidth=2;
+  g.globalAlpha=.35+u*.4;g.setLineDash([7,5]);g.beginPath();g.moveTo(12,0);g.lineTo(L,0);g.stroke();g.setLineDash([]);
+  g.beginPath();g.moveTo(L-10,-6);g.lineTo(L,0);g.lineTo(L-10,6);g.stroke();
+  g.lineWidth=2.5;g.beginPath();g.arc(0,0,e.r+6,-Math.PI/2,-Math.PI/2+u*Math.PI*2);g.stroke();g.restore();
+}
+function drawFoe(g, x, y, face, phase, sc, col, kind, rot, flinch, detail) {
   const sw = Math.sin(phase) * .6;
   g.save(); g.translate(x, y);
   if (rot) g.rotate(rot);
@@ -45,7 +60,37 @@ function drawFoe(g, x, y, face, phase, sc, col, kind, rot, flinch) {
   g.scale(sc * (1 + f * .22), sc * (1 - f * .16));
   g.strokeStyle = col; g.lineWidth = 2.4; g.lineCap = "round"; g.lineJoin = "round";
 
-  if (kind === "runner") {
+  if(kind==='pyro'||kind==='drummer'){
+    g.save();g.scale(face,1);g.lineWidth=2.7;
+    sline(g,0,-11,sw*8,2);sline(g,0,-11,-sw*8,2);sline(g,0,-11,0,-25);
+    scircle(g,0,-31,5.8,PAPER);
+    if(kind==='pyro'){
+      // Hood, soot mask, fire pot and a raised throwing hand — still a red stickman.
+      spoly(g,[[-7,-29],[-7,-36],[-1,-41],[6,-36],[7,-29],[3,-34],[-3,-34]],'#b65139');
+      g.lineWidth=1.4;spoly(g,[[-4,-29],[5,-29],[3,-25],[-3,-25]],'#6e5142');
+      g.fillStyle=col;g.beginPath();g.arc(2,-32,1,0,7);g.fill();
+      g.lineWidth=2.2;sline(g,0,-23,-10,-18);sline(g,-10,-18,-11,-11);
+      spoly(g,[[-17,-18],[-8,-18],[-7,-7],[-16,-7]],'#b27440');
+      const lifted=detail?.attackState==='windup',yy=lifted?-33:-19;
+      sline(g,1,-23,10,yy);sline(g,10,yy,13,yy-3);
+      g.strokeStyle='#ac512b';g.lineWidth=1.2;
+      spoly(g,[[10,yy-4],[9,yy-9],[13,yy-15],[14,yy-10],[17,yy-7],[16,yy-3]],'#ec9b3e');
+      g.strokeStyle='#f8db81';sline(g,13,yy-5,13,yy-9);
+    }else{
+      spoly(g,[[-6,-35],[-6,-40],[6,-40],[6,-35]],'#9e4437');
+      g.lineWidth=1.3;sline(g,-6,-36,6,-36);g.fillStyle=col;g.beginPath();g.arc(2,-32,1,0,7);g.fill();
+      g.strokeStyle='#974638';sline(g,-9,-15,-9,-47);
+      spoly(g,[[-9,-47],[5,-45],[2,-40],[5,-37],[-9,-39]],'#cc6650');
+      g.strokeStyle=col;g.lineWidth=2.2;
+      const beat=Math.sin(phase*2.5)*3;
+      sline(g,0,-24,-10,-24+beat);sline(g,0,-24,10,-24-beat);
+      g.strokeStyle='#805c39';g.lineWidth=1.5;sline(g,-10,-24+beat,-5,-15);sline(g,10,-24-beat,4,-15);
+      g.strokeStyle=col;g.lineWidth=1.7;
+      spoly(g,[[-9,-17],[9,-17],[8,-7],[-8,-7]],'#c88154');
+      g.beginPath();g.ellipse(0,-17,9,4,0,0,7);g.fillStyle='#f0dbab';g.fill();g.stroke();
+      g.lineWidth=1;sline(g,-6,-14,-3,-8);sline(g,6,-14,3,-8);
+    }g.restore();
+  } else if (kind === "runner"||kind==='dasher') {
     // бегун: наклон вперёд, руки назад, частый шаг
     g.save(); g.scale(face, 1); g.rotate(-.20);
     const f = Math.sin(phase * 1.55) * .85;
@@ -55,9 +100,13 @@ function drawFoe(g, x, y, face, phase, sc, col, kind, rot, flinch) {
     sline(g, 0, -21, -8, -25 - f * 3);
     g.fillStyle = PAPER; scircle(g, 2, -29, 5.2, PAPER);
     g.fillStyle = col; g.beginPath(); g.arc(4, -30, .9, 0, 7); g.fill();
+    if(kind==='dasher'){
+      spoly(g,[[-3,-33],[0,-39],[3,-34],[8,-36],[5,-29]],'#e7ad83');
+      g.strokeStyle=col;g.lineWidth=2;sline(g,-4,-28,6,-28);sline(g,-9,-23,-17,-29);
+    }
     g.restore();
 
-  } else if (kind === "tank") {
+  } else if (kind === "tank"||kind==='shield') {
     // танк: тяжёлый шаг, приседает на опорной ноге, широкие плечи
     const squash = Math.abs(Math.sin(phase)) * 2.2;
     g.translate(0, squash);
@@ -72,7 +121,17 @@ function drawFoe(g, x, y, face, phase, sc, col, kind, rot, flinch) {
     g.fillStyle = col; g.beginPath(); g.arc(2, -31, 1, 0, 7); g.fill();
     g.lineWidth = 2.4;
     sline(g, -5, -35, 5, -35);                       // насупленная бровь
+    if(kind==='shield'){
+      spoly(g,[[-7,-32],[-5,-39],[6,-39],[8,-32],[3,-34]],'#bf5b47');
+      sline(g,-7,-22,6,-12);sline(g,7,-22,-5,-12);
+    }
     g.restore();
+    if(kind==='shield'){
+      const a=detail?.guardAngle??(face>0?0:Math.PI);
+      g.save();g.translate(Math.cos(a)*13,-15+Math.sin(a)*8);g.rotate(a);g.strokeStyle=col;
+      spoly(g,[[-3,-13],[5,-10],[7,0],[4,12],[-3,15],[-5,0]],detail?.shieldFlash>0?'#fff0c1':'#ecc4ae');
+      g.lineWidth=1.5;sline(g,1,-8,3,7);scircle(g,2,0,2.6,col);g.restore();
+    }
 
   } else if (kind === "elite") {
     // элита: покачивается, руки подняты, рожки
@@ -102,6 +161,12 @@ function drawFoe(g, x, y, face, phase, sc, col, kind, rot, flinch) {
     sline(g, 0, -22, 8, -17 + sw * 3); sline(g, 0, -22, -8, -17 - sw * 3);
     g.fillStyle = PAPER; scircle(g, 0, -30, 5.6, PAPER);
     g.fillStyle = col; g.beginPath(); g.arc(1.8, -31, .9, 0, 7); g.fill();
+    if(kind==='flanker'){
+      g.lineWidth=2;spoly(g,[[-6,-34],[6,-34],[6,-30],[-6,-30]],'#bc493a');
+      spoly(g,[[-5,-32],[-14,-37],[-11,-31],[-17,-29]],'#e0a784');
+      g.beginPath();g.moveTo(8,-16+sw*3);g.quadraticCurveTo(17,-24+sw*3,16,-14+sw*3);g.stroke();
+      g.beginPath();g.moveTo(-8,-18-sw*3);g.quadraticCurveTo(-17,-24-sw*3,-16,-14-sw*3);g.stroke();
+    }
     g.restore();
   }
   g.restore();

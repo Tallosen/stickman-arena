@@ -150,6 +150,33 @@ function drawHeroGlove(g, hand, shoulder, level, color, line, detail) {
   });
 }
 
+function drawCombatBackpack(g,face,level,Q,flashes,line,detail){
+  if(!level)return;
+  const top=Q.neck+1,bottom=Q.hip+1,color=TIER[level];
+  g.save();g.scale(face,1);g.strokeStyle=INK;g.lineWidth=line;
+  // A rigid pack, handle, metal face plate and progressively larger power cells.
+  spoly(g,[[-23,top+3],[-18,top-2],[-7,top],[-7,bottom],[-20,bottom+1],[-24,bottom-4]],"#665744");
+  spoly(g,[[-21,top+5],[-10,top+3],[-10,bottom-3],[-21,bottom-2]],color);
+  g.lineWidth=detail;sline(g,-18,top,-18,top-5);sline(g,-18,top-5,-12,top-5);sline(g,-12,top-5,-12,top);
+  for(let i=0;i<level;i++){
+    spoly(g,[[-18+i*3.1,bottom-7],[-16+i*3.1,bottom-7],[-16+i*3.1,bottom-3],[-18+i*3.1,bottom-3]],"#efcd77");
+  }
+  if(level===3){g.strokeStyle="#edcf85";sline(g,-21,top+5,-10,top+3);scircle(g,-15,top+11,3,"#bce1e3");}
+  g.restore();
+  for(let i=0;i<level;i++){
+    const p=backpackPort(i,face,Q.neck);
+    g.save();g.translate(p.x,p.y);g.rotate(p.a);g.strokeStyle=INK;g.lineWidth=line;
+    scircle(g,0,0,3.5,color);
+    spoly(g,[[1,-2.8],[9,-2.8],[11,-1.7],[11,1.7],[1,2.8]],"#a4a49a");
+    g.lineWidth=detail;sline(g,7,-2.4,7,2.4);
+    if((flashes?.[i]||0)>0){
+      g.strokeStyle="#c18b27";g.lineWidth=detail;
+      spoly(g,[[10,-1],[17,-4],[15,0],[21,1],[14,3],[10,1]],"#fff0a0");
+    }
+    g.restore();
+  }
+}
+
 /* ── человечек: линии + одежда + ружьё ────────────────────── */
 /* Пропорции героя (локальные единицы, ступни на y = 0):
    бедро -18 · плечи -40 · шея -44 · голова -52, r 8.5
@@ -207,6 +234,8 @@ function drawHero(g, x, y, face, phase, gear, sc, aim, muzzle, pose, bold) {
     g.restore();
   }
 
+  drawCombatBackpack(g,face,gear.clip||0,Q,gear._backpackFlash,CL,DT);
+
   /* ── НОГИ и сапоги, привязанные к каждой ступне ── */
   g.strokeStyle = INK; g.lineWidth = gear._chem ? 8 : SK;
   sline(g, 0, Q.hip, Q.lb[0], Q.lb[1]); sline(g, 0, Q.hip, Q.lf[0], Q.lf[1]);
@@ -254,18 +283,11 @@ function drawHero(g, x, y, face, phase, gear, sc, aim, muzzle, pose, bold) {
     g.restore();
   }
 
-  /* ── РЕМЕНЬ И ПОДСУМКИ ── */
+  /* ── РЕМНИ РЮКЗАКА поверх торса, сам корпус остаётся за спиной ── */
   if (gear.clip) {
-    const L = gear.clip, by = Q.hip - 1;
-    g.save(); g.scale(face, 1); g.strokeStyle = "#6b4a2a"; g.lineWidth = 3.2;
-    sline(g, -8, by, 8, by); g.strokeStyle = INK; g.lineWidth = CL;
-    const slots = L === 1 ? [-5] : L === 2 ? [-6, 2] : [-8, 0, 8];
-    for (const px of slots) {
-      spoly(g, [[px - 3.2, by - 1], [px + 3.2, by - 1], [px + 2.7, by + 7], [px - 2.7, by + 7]], C(L));
-      g.lineWidth = DT; g.strokeStyle = "#efe6d2"; sline(g, px - 2, by + 1.5, px + 2, by + 1.5);
-      g.lineWidth = CL; g.strokeStyle = INK;
-    }
-    if (L >= 3) scircle(g, 0, by, 2.4, "#f2c45e");
+    g.save();g.scale(face,1);g.strokeStyle="#64533d";g.lineWidth=3.2;
+    sline(g,-5,Q.neck+3,4,Q.hip-2);sline(g,-7,Q.hip-1,7,Q.hip-1);
+    g.strokeStyle=INK;g.lineWidth=DT;spoly(g,[[0,Q.hip-7],[5,Q.hip-7],[5,Q.hip-3],[0,Q.hip-3]],"#e5bf63");
     g.restore();
   }
 

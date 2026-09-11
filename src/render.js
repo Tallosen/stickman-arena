@@ -1,6 +1,44 @@
 "use strict";
 /* render.js — отрисовка кадра */
 
+// Code-native frost: no image downloads, particles or per-frame random geometry.
+function drawIceField(g,ic){
+  const fade=Math.max(0,Math.min(1,ic.life/1500)),age=Math.max(0,11000-ic.life);
+  const bloom=1-Math.pow(1-Math.min(1,age/650),3),r=ic.r;
+  g.save();g.translate(ic.x,ic.y);g.globalAlpha=fade;g.lineJoin='round';g.lineCap='round';
+  g.fillStyle='rgba(134,211,231,.26)';g.strokeStyle='#78b9cb';g.lineWidth=2;
+  g.beginPath();g.arc(0,0,r,0,Math.PI*2);g.fill();g.stroke();
+  g.save();g.beginPath();g.arc(0,0,r-3,0,Math.PI*2);g.clip();
+  // Translucent irregular frozen plates leave enemies and ground readable.
+  for(let i=0;i<9;i++){
+    const a=i*2.399+ic.x*.003,rr=r*(.22+(i%3)*.24),x=Math.cos(a)*rr,y=Math.sin(a)*rr;
+    g.save();g.translate(x,y);g.rotate(a);g.scale(bloom,bloom);
+    g.strokeStyle='rgba(102,171,194,.30)';g.lineWidth=1;
+    spoly(g,[[-36,-15],[-7,-26],[31,-12],[39,10],[3,24],[-30,12]],i%2?'rgba(236,252,250,.48)':'rgba(151,218,233,.32)');
+    g.strokeStyle='rgba(255,255,246,.7)';sline(g,-21,-10,7,-18);g.restore();
+  }
+  g.save();g.scale(bloom,bloom);g.strokeStyle='rgba(252,255,247,.86)';g.lineWidth=2.3;
+  // Six fern-like frost branches instead of six plain spokes.
+  for(let i=0;i<6;i++){
+    g.save();g.rotate(i*Math.PI/3+.12);sline(g,0,0,r*.70,0);
+    for(let j=1;j<=3;j++){const x=r*(.14+j*.14),d=r*(.20-j*.032);sline(g,x,0,x-d,-d);sline(g,x,0,x-d,d);}
+    g.restore();
+  }
+  g.restore();g.restore();
+  // Low edge crystals, contained inside the actual slowing radius.
+  for(let i=0;i<12;i++){
+    const a=i*Math.PI/6+.17,rr=r-13,x=Math.cos(a)*rr,y=Math.sin(a)*rr;
+    const shimmer=.80+.20*Math.sin(age/480+i*1.9);
+    g.save();g.translate(x,y);g.rotate(a+Math.PI/2);g.scale(.7+.3*bloom,.7+.3*bloom);
+    g.globalAlpha=fade*shimmer;g.strokeStyle='#6da9bd';g.lineWidth=1.2;
+    spoly(g,[[-7,3],[-5,-6],[0,-12],[5,-5],[7,4],[0,8]],'#bae6eb');
+    spoly(g,[[0,-12],[5,-5],[0,8],[-1,-3]],'#eefdf5');g.restore();
+  }
+  if(age<650){g.globalAlpha=fade*(1-age/650)*.75;g.strokeStyle='#fafff3';g.lineWidth=3;
+    g.beginPath();g.arc(0,0,Math.max(1,(r-5)*bloom),0,Math.PI*2);g.stroke();}
+  g.restore();
+}
+
 /* ── кинематографичные эффекты ульты ─────────────────────── */
 function drawUltImpact(g, f) {
   const a = Math.max(0, Math.min(1, f.life));
@@ -334,6 +372,30 @@ function drawRareChest(g, x, y, sc, phase) {
   g.restore();
 }
 
+function drawEliteChest(g,c){
+  // The event uses exactly the regular rare chest model and size after landing.
+  if(!(c.dropT>0)){drawRareChest(g,c.x,c.y,1.1,c.a);return;}
+  const flying=c.dropT>0,u=flying?c.dropT/c.dropDuration:0,height=Math.pow(u,.9)*420;
+  g.save();g.translate(c.x,c.y);
+  g.strokeStyle='#9b70be';g.lineWidth=2;g.setLineDash([5,7]);
+  g.beginPath();g.ellipse(0,7,43,24,0,0,7);g.stroke();g.setLineDash([]);
+  g.fillStyle='rgba(87,51,113,.13)';g.beginPath();g.ellipse(0,10,32-12*u,15-5*u,0,0,7);g.fill();
+  g.translate(flying?Math.sin(c.a*.8)*14*u:0,-height);
+  if(flying){
+    g.save();g.strokeStyle='#7c6090';g.lineWidth=1.5;
+    sline(g,-63,-91,-22,-12);sline(g,-22,-94,-10,-12);sline(g,22,-94,10,-12);sline(g,63,-91,22,-12);
+    g.strokeStyle='#684784';g.lineWidth=2.5;
+    g.beginPath();g.moveTo(-65,-91);g.bezierCurveTo(-60,-153,60,-153,65,-91);
+    g.quadraticCurveTo(43,-105,22,-91);g.quadraticCurveTo(0,-103,-22,-91);g.quadraticCurveTo(-43,-105,-65,-91);
+    g.fillStyle='#b793d3';g.fill();g.stroke();
+    g.beginPath();g.moveTo(-22,-91);g.quadraticCurveTo(-19,-136,0,-137);g.quadraticCurveTo(19,-136,22,-91);
+    g.quadraticCurveTo(0,-103,-22,-91);g.fillStyle='#e4d3ec';g.fill();g.stroke();
+    g.strokeStyle='#b69145';g.lineWidth=1.5;spoly(g,[[0,-127],[6,-119],[0,-110],[-6,-119]],'#f3d482');g.restore();
+  }
+  drawRareChest(g,0,0,1.1,c.a);
+  g.restore();
+}
+
 /* ── кадр ─────────────────────────────────────────────────── */
 function draw() {
   ctx.fillStyle = PAPER; ctx.fillRect(0, 0, W, H);
@@ -359,55 +421,20 @@ function draw() {
   const L = fx - hw, R = fx + hw, T = fy - hh, B = fy + hh;
   const vis = o => o.x > L && o.x < R && o.y > T && o.y < B;
 
-  // тетрадная сетка
-  ctx.strokeStyle = "rgba(120,100,70,.11)"; ctx.lineWidth = 1;
-  for (let x = Math.floor(L / 58) * 58; x < R; x += 58) { ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, B); ctx.stroke(); }
-  for (let y = Math.floor(T / 58) * 58; y < B; y += 58) { ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(R, y); ctx.stroke(); }
-  ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.strokeRect(0, 0, WORLD, WORLD);
+  drawMapGround(ctx,L,R,T,B);
+  drawArenaSecrets(ctx,L,R,T,B);
 
   ctx.lineCap = "round"; ctx.lineJoin = "round";
 
-  for (const ic of ices) {                       // каток
-    const a = Math.min(1, ic.life / 1500);
-    ctx.globalAlpha = .35 * a; ctx.fillStyle = "#a9dcf0";
-    ctx.beginPath(); ctx.arc(ic.x, ic.y, ic.r, 0, 7); ctx.fill();
-    ctx.globalAlpha = .75 * a; ctx.strokeStyle = "#4aa8cf"; ctx.lineWidth = 2.5;
-    ctx.stroke();
-    for (let i = 0; i < 6; i++) {
-      const an = i * 1.05 + ic.x;
-      sline(ctx, ic.x + Math.cos(an) * ic.r * .3, ic.y + Math.sin(an) * ic.r * .3,
-                 ic.x + Math.cos(an) * ic.r * .8, ic.y + Math.sin(an) * ic.r * .8);
-    }
-    ctx.globalAlpha = 1;
-  }
+  for(const ic of ices)if(ic.x+ic.r>L&&ic.x-ic.r<R&&ic.y+ic.r>T&&ic.y-ic.r<B)drawIceField(ctx,ic);
 
   drawGasCloud(ctx, L, R, T, B);
+  drawEnemyHazards(ctx);
+  drawCompassStorm(ctx,L,R,T,B);
 
   for (const o of props) {                       // камни, кусты, деревья
-    if (!vis(o)) continue;
-    ctx.save(); ctx.translate(o.x, o.y);
-    ctx.strokeStyle = INK; ctx.lineWidth = 2.6;
-    if (o.kind === "rock") {
-      spoly(ctx, o.pts, "#ded2be");
-      ctx.lineWidth = 1.6;
-      sline(ctx, -o.r * .3, -o.r * .1, o.r * .1, o.r * .35);
-      sline(ctx, o.r * .05, -o.r * .35, o.r * .35, 0);
-    } else if (o.kind === "bush") {
-      spoly(ctx, o.pts, "#bcd3a8");
-      ctx.lineWidth = 1.5;
-      for (let i = 0; i < 4; i++) {
-        const a = i * 1.5 + o.seed * 6;
-        sline(ctx, Math.cos(a) * o.r * .2, Math.sin(a) * o.r * .2,
-                   Math.cos(a) * o.r * .55, Math.sin(a) * o.r * .55);
-      }
-    } else {
-      ctx.lineWidth = 3; ctx.strokeStyle = "#7a5a35";
-      sline(ctx, 0, o.r * .7, 0, -o.r * .2);
-      ctx.strokeStyle = INK; ctx.lineWidth = 2.6;
-      scircle(ctx, 0, -o.r * .55, o.r * .8, "#9dc48a");
-      scircle(ctx, -o.r * .45, -o.r * .15, o.r * .5, "#b0d39c");
-    }
-    ctx.restore();
+    if(o.x+o.r*1.4<L||o.x-o.r*1.4>R||o.y+o.r*1.4<T||o.y-o.r*1.4>B)continue;
+    drawMapProp(ctx,o);
   }
 
   for (const h of pickups) {                     // бусты на карте
@@ -416,6 +443,10 @@ function draw() {
   }
   drawDragonAltar(ctx);
   for (const c of chests) {                      // сундук
+    if(c.elite){
+      if(c.x+90>L&&c.x-90<R&&c.y+55>T&&c.y-(c.dropT>0?570:60)<B)drawEliteChest(ctx,c);
+      continue;
+    }
     if (!vis(c)) continue;
     if (c.rare) { drawRareChest(ctx, c.x, c.y, 1.1, c.a); continue; }
     ctx.strokeStyle = INK; ctx.lineWidth = 2.6;
@@ -460,9 +491,10 @@ function draw() {
   for (const c of corpses) drawCorpse(ctx, c);
   for (const e of enemies) {
     if (!vis(e)) continue;
-    drawFoe(ctx, e.x, e.y + 13 * (e.r / 11), e.face, e.phase, e.r / 11,
-            e.poison > 0 ? "#86aa65" : e.flash > 0 ? "#f0907c" : FOE, e.kind, 0, e.flinch);
-    if (e.kind === "elite" || e.kind === "tank") {
+    drawEnemyIntent(ctx,e);
+    drawFoe(ctx, e.x, e.y + 13 * (e.r / 11)-(ult.on?0:(e.stormLift||0)), e.face, e.phase, e.r / 11,
+            e.poison > 0 ? "#86aa65" : e.flash > 0 ? "#f0907c" : FOE, e.kind, 0, e.flinch,e);
+    if (e.kind === "elite" || enemyBaseKind(e.kind) === "tank") {
       const w = e.r * 2.2;
       ctx.fillStyle = "rgba(0,0,0,.12)"; ctx.fillRect(e.x - w / 2, e.y - e.r - 18, w, 4);
       ctx.fillStyle = FOE; ctx.fillRect(e.x - w / 2, e.y - e.r - 18, w * Math.max(0, e.hp / e.maxhp), 4);
@@ -470,6 +502,7 @@ function draw() {
   }
   for (const f of flashes) drawFlash(ctx, f);
   for (const b of booms) {                            // волна стелется по земле
+    if(b.style==='boar'){drawBoarBlast(ctx,b);continue;}
     const a2 = Math.max(0, b.life);
     ctx.globalAlpha = a2 * .85; ctx.strokeStyle = "#e08a2a"; ctx.lineWidth = 5;
     ctx.beginPath(); ctx.ellipse(b.x, b.y + 8, b.r, b.r * .44, 0, 0, 7); ctx.stroke();
@@ -478,6 +511,12 @@ function draw() {
     ctx.globalAlpha = 1;
   }
   for (const s of shots) {
+    if(s.source==='backpack'){
+      ctx.strokeStyle="#d2a23d";ctx.lineWidth=2;ctx.beginPath();
+      ctx.moveTo(s.x-Math.cos(s.a)*9,s.y-Math.sin(s.a)*9);ctx.lineTo(s.x,s.y);ctx.stroke();
+      ctx.fillStyle="#fff2bb";ctx.beginPath();ctx.arc(s.x,s.y,2.6,0,7);ctx.fill();
+      continue;
+    }
     if (s.kind === "sniper") {
       ctx.strokeStyle = "#8a53c4"; ctx.lineWidth = 3.4;
       ctx.beginPath(); ctx.moveTo(s.x, s.y);
@@ -508,9 +547,10 @@ function draw() {
   for (const tu of turrets) drawTurret(ctx, tu);
   for (const q of allyTanks) drawAllyTank(ctx, q);
   if (running) {
+    drawMoleBurrow(ctx,P.pet);
     if (P.pet && P.pet.dead <= 0 && !(P.pet.hurt > 0 && Math.floor(t / 80) % 2 === 0)) {
       drawPet(ctx, P.pet.x, P.pet.y, P.pet.type, P.pet.lvl, P.pet.face, P.pet.phase, P.pet);
-      const w = 22;
+      const w = P.pet.type==='mole'&&P.pet.state==='down'?0:22;
       ctx.fillStyle = "rgba(43,38,32,.18)"; ctx.fillRect(P.pet.x - w / 2, P.pet.y - 40, w, 3.5);
       ctx.fillStyle = "#4e8f4a"; ctx.fillRect(P.pet.x - w / 2, P.pet.y - 40, w * (P.pet.hp / P.pet.hpMax), 3.5);
     }
@@ -560,7 +600,7 @@ function draw() {
         }
         ctx.globalAlpha = 1;
         drawHero(ctx, P.x - Math.cos(P.aim) * rc, P.y + 17 - Math.sin(P.aim) * rc,
-                 P.face, P.phase, { ...P.gear, _w: P.wtype, _chem: P.chemT > 0 }, 1.02, P.aim, P.muzzle, hp2);
+                   P.face, P.phase, { ...P.gear, _w: P.wtype, _chem: P.chemT > 0, _backpackFlash:P.backpackFlash }, 1.02, P.aim, P.muzzle, hp2);
       }
     ctx.globalAlpha = 1;
   }

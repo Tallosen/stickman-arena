@@ -3,11 +3,41 @@
 
 /* ── карточки ─────────────────────────────────────────────── */
 function card(box, icon, title, sub, cb, rarity) {
-  const el = document.createElement("div");
+  const el = document.createElement("button");el.type="button";
   el.className = rarity === "gold" ? "card gold" : rarity ? "card rare" : "card";
   el.innerHTML = `<canvas width="40" height="52"></canvas><div><b>${title}</b><span>${sub}</span></div>`;
   icon(el.querySelector("canvas").getContext("2d"));
-  el.onclick = cb; box.appendChild(el);
+  // One shared latch per offer: a touch's compatibility click or another card
+  // cannot spend the same level twice, including while the next offer is queued.
+  const choice=box.cardChoice||(box.cardChoice={accepted:false});
+  let gesture=null,suppressClick=false;
+  const activate=()=>{
+    if(choice.accepted||box.cardChoice!==choice)return;
+    choice.accepted=true;el.disabled=true;pointer.active=false;cb();
+  };
+  el.addEventListener('pointerdown',e=>{
+    if(e.isPrimary===false){gesture=null;suppressClick=true;return;}
+    if(e.button!==0)return;
+    suppressClick=false;
+    gesture={id:e.pointerId,x:e.clientX,y:e.clientY,scroll:box.scrollTop||0,moved:false};
+    el.setPointerCapture?.(e.pointerId);
+  });
+  el.addEventListener('pointermove',e=>{
+    if(gesture&&gesture.id===e.pointerId&&Math.hypot(e.clientX-gesture.x,e.clientY-gesture.y)>12)gesture.moved=true;
+  });
+  el.addEventListener('pointercancel',()=>{gesture=null;suppressClick=true;});
+  el.addEventListener('lostpointercapture',()=>{if(gesture){gesture=null;suppressClick=true;}});
+  el.addEventListener('pointerup',e=>{
+    if(!gesture||gesture.id!==e.pointerId)return;
+    const tap=!gesture.moved&&Math.hypot(e.clientX-gesture.x,e.clientY-gesture.y)<=12&&Math.abs((box.scrollTop||0)-gesture.scroll)<2;
+    gesture=null;suppressClick=true;
+    if(tap){e.preventDefault();e.stopPropagation();activate();}
+  });
+  el.onclick=e=>{
+    // Native keyboard/assistive activation remains available without a pointer.
+    if(!e||e.detail===0||!suppressClick)activate();
+  };
+  box.appendChild(el);
 }
 const heroIcon = gear => g => drawHero(g, 18, 50, 1, 0, gear, .62, -.2, 0);
 const petIcon = (type, lvl) => g => drawPet(g, 15, 42, type, lvl, 1, 0, { saw: .6, aim: -.3, state: "up", bite: 0 });
@@ -24,11 +54,11 @@ function rollPet() {
 
 function offerCards() {
   if(heroBuildComplete()){
-    queuedLevels=0;unlockDragonAltar();return;
+    queuedLevels=0;P.xp=P.xpNext;return;
   }
-  paused = true;
+  paused = true;pointer.active=false;
   const title = document.getElementById("levelTitle");
-  if (title) title.textContent = "СТАДИЯ " + P.lvl;
+  if (title) title.textContent = "УРОВЕНЬ " + P.lvl;
   const pool = GK.filter(k => P.gear[k] < GEAR[k].max);
   const pick = [];
   while (pick.length < Math.min(3, pool.length)) {
@@ -65,11 +95,11 @@ function offerCards() {
     document.getElementById("levelup").classList.add("hidden");
     if (heroBuildComplete()) {
       queuedLevels=0;paused=false;
-      unlockDragonAltar();
-    } else if (queuedLevels > 0) setTimeout(() => { SFX.level(); offerCards(); }, 120);
+      P.xp=P.xpNext;
+    } else if (queuedLevels > 0) (typeof Playables==='undefined'?setTimeout:Playables.delay)(() => { SFX.level(); offerCards(); }, 120);
     else paused = false;
   };
-  const box = document.getElementById("cards"); box.innerHTML = "";
+  const box = document.getElementById("cards"); box.innerHTML = "";box.cardChoice={accepted:false};box.scrollTop=0;
   for (const key of pick) {
     if (key === "@rare") {
       const w = pendingRare, W2 = WEAPONS[w];
@@ -80,7 +110,7 @@ function offerCards() {
         W2.desc+(isGold?" · высший класс":` · сейчас сильнее на ${Math.max(4,gain)}%`), () => {
           P.wtype = w; applyGear();
           ult.bag = []; // новый тип оружия сразу получает правильный набор ульт
-          SFX.chest(); setTimeout(() => SFX.level(), 160);
+          SFX.chest(); (typeof Playables==='undefined'?setTimeout:Playables.delay)(() => SFX.level(), 160);
           close();
         }, isGold ? "gold" : true);
       continue;
@@ -93,8 +123,8 @@ function offerCards() {
                     (isRare ? ' <span class="rr">РЕДКИЙ</span>' : "");
       card(box, petIcon(ty, lv), title,
         P.pet ? "Питомец становится сильнее" : PETS[ty].desc, () => {
-          if (P.pet) { P.pet.lvl++; P.pet.hpMax = 4 + P.pet.lvl; P.pet.hp = P.pet.hpMax; }
-          else { P.pet = makePet(ty); if (isRare) { SFX.chest(); setTimeout(() => SFX.level(), 160); } }
+          if (P.pet) { P.pet.lvl++; P.pet.hpMax = petStats(P.pet).hp; P.pet.hp = P.pet.hpMax; }
+          else { P.pet = makePet(ty); if (isRare) { SFX.chest(); (typeof Playables==='undefined'?setTimeout:Playables.delay)(() => SFX.level(), 160); } }
           close();
         }, isRare);
       continue;
@@ -106,7 +136,7 @@ function offerCards() {
     });
   }
   document.getElementById("queueTag").textContent =
-    queuedLevels > 1 ? `ещё стадий в очереди: ${queuedLevels - 1}` :
+    queuedLevels > 1 ? `ещё уровней в очереди: ${queuedLevels - 1}` :
     `ПРОКАЧКА ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · выбери усиление`;
   document.getElementById("levelup").classList.remove("hidden");
 }
@@ -114,9 +144,9 @@ function offerCards() {
 function offerPerks() {
   const keys = Object.keys(PERKS), pick = [];
   while (pick.length < 3) { const c = keys[Math.random() * keys.length | 0]; if (!pick.includes(c)) pick.push(c); }
-  const box = document.getElementById("perks"); box.innerHTML = "";
+  const box = document.getElementById("perks"); box.innerHTML = "";box.cardChoice={accepted:false};box.scrollTop=0;
   for (const key of pick)
     card(box, heroIcon(P.gear), `${PERKS[key].name} ${"◆".repeat(meta[key] + 1)}`, PERKS[key].desc, () => {
-      meta[key]++; document.getElementById("over").classList.add("hidden"); start();
+      meta[key]++; saveMeta(); document.getElementById("over").classList.add("hidden"); start();
     });
 }

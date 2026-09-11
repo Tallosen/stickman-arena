@@ -19,7 +19,7 @@ const ALTAR_HOLD_MS=2000;
 
 // Один алтарь на забег; место под весь круг проверяется на препятствия.
 function unlockDragonAltar(){
-  if(dragonAltar||dragonFinale||!heroBuildComplete())return;
+  if(dragonAltar||dragonFinale||!campaignComplete())return;
   const clear=(x,y)=>x>150&&y>150&&x<WORLD-150&&y<WORLD-150&&
     Math.hypot(x-P.x,y-P.y)>380&&
     props.every(o=>Math.hypot(x-o.x,y-o.y)>o.r+130);
@@ -34,7 +34,6 @@ function unlockDragonAltar(){
     for(let x=180;x<WORLD-120&&!spot;x+=110)if(clear(x,y))spot={x,y};
   if(!spot)return;
   dragonAltar={...spot,r:80,hold:0,notice:8500};
-  queuedLevels=0;P.xp=STAGE_XP;
   pops.push({x:P.x,y:P.y-72,txt:"АЛТАРЬ ОТКРЫТ · МЕТКА НА КАРТЕ",life:3,col:"#287e94"});
   SFX.chest();
 }
@@ -106,7 +105,7 @@ function drawAltarGuide(g){
   g.fillStyle=INK;g.textAlign="center";g.font="800 "+(W<380?10:11)+"px system-ui";
   g.fillText(title,xx,yy+18);
   g.font="600 10px system-ui";g.fillText(near?"Выйди из круга, чтобы отменить":
-    "Призови, когда решишь завершить забег",xx,yy+34);
+    "Дракон прилетит через "+formatRunTime(campaignRemaining()),xx,yy+34);
   if(!near){
     const angle=Math.atan2(a.y-P.y,a.x-P.x);
     g.translate(xx,yy-17);g.rotate(angle);g.strokeStyle="#246f80";g.lineWidth=2;
@@ -139,13 +138,15 @@ function resetDragonFinale(){
   document.getElementById("btnRetryDragonSave")?.classList.add("hidden");
 }
 
-function startDragonFinale(testPreview=false){
+function startDragonFinale(testPreview=false,automatic=false){
   if(dragonFinale)return;
-  if(!testPreview&&(!heroBuildComplete()||!dragonAltar||dragonAltar.hold<ALTAR_HOLD_MS))return;
+  if(!testPreview&&(!campaignComplete()||(automatic?campaignRemaining()>0:!dragonAltar||dragonAltar.hold<ALTAR_HOLD_MS)))return;
   const type=rollDragon();
+  resetEnemyHazards();
   dragonFinale={t:0,type,nextKill:0,rewarded:false,finished:false,cleared:0,roared:false,burst:false};
   document.body.classList.add("dragon-finale");
-  pointer.active=false;P.xp=STAGE_XP;P.stagePulse=0;queuedLevels=0;
+  pointer.active=false;P.xp=P.xpNext;P.stagePulse=0;queuedLevels=0;
+  paused=false;userPaused=false;document.getElementById('levelup')?.classList.add('hidden');
   if(ult.on){ult.on=false;ult.zoom=1;ult.rot=0;ult.lift=0;document.body.classList.remove("sniper-cinematic");}
   // Доводим толпу примерно до 72 врагов: достаточно страшно, но безопасно для телефона.
   const need=Math.max(0,72-enemies.length);
@@ -193,7 +194,8 @@ function finishDragonVictory(){
   const f=dragonFinale;if(!f||f.finished)return;
   f.finished=true;running=false;paused=false;pointer.active=false;
   document.body.classList.remove("dragon-finale");
-  meta.best=Math.max(meta.best,Math.round(t/1000));
+  meta.best=Math.max(meta.best,Math.round(P.runMs/1000));
+  if(typeof saveMeta==='function')saveMeta();
   const title=document.getElementById("victoryDragonName");
   const sub=document.getElementById("victoryDragonText");
   if(title){title.textContent=f.type.name;title.style.color=f.type.id==="blackgold"?"#b88716":f.type.col;}
@@ -213,26 +215,47 @@ function retryDragonReward(){
 }
 
 function dragonBookOpen(){return !document.getElementById("dragonBook").classList.contains("hidden");}
+function dragonBookName(d){const n=d.name.replace(/ ДРАКОН$/,'').toLowerCase();return n[0].toUpperCase()+n.slice(1);}
 function renderDragonBook(){
   const grid=document.getElementById("dragonGrid");if(!grid)return;grid.innerHTML="";
-  document.getElementById("dragonTotal").textContent="СПАСЕНИЙ: "+dragonTotal()+" · В КНИГЕ: "+Object.values(dragonCollection).reduce((a,b)=>a+b,0);
-  for(const d of DRAGON_TYPES){
-    const card=document.createElement("div");card.className="dragon-card "+(dragonCollection[d.id]?"owned":"locked");
-    card.innerHTML=`<canvas width="160" height="116"></canvas><div><b>${d.name}</b><span>${d.rarity} · вес ${d.weight}</span><strong>×${dragonCollection[d.id]}</strong></div>`;
-    card.style.borderColor=d.dark;card.style.boxShadow=dragonCollection[d.id]?`0 0 18px ${d.breath}66`:"none";
+  document.getElementById("dragonTotal").textContent="В коллекции: "+Object.values(dragonCollection).reduce((a,b)=>a+b,0)+" · Спасений: "+dragonTotal();
+  for(const [i,d] of DRAGON_TYPES.entries()){
+    const count=dragonCollection[d.id],next=DRAGON_TYPES[i+1];
+    const card=document.createElement("div");card.className="dragon-card "+(count?"owned":"locked");
+    card.setAttribute("tabindex","-1");card.setAttribute("data-dragon",d.id);
+    card.innerHTML=`<canvas width="176" height="140" aria-hidden="true"></canvas><div class="dragon-copy"><b>${dragonBookName(d)}</b><span>${d.rarity}</span><strong aria-label="В коллекции: ${count}">×${count}</strong></div>`;
+    card.style.borderColor=count?d.dark:"#c2b297";
     grid.appendChild(card);const g=card.querySelector("canvas").getContext("2d");
-    drawDragon(g,76,78,.54,d,.9,0);
-    const i=DRAGON_IDS.indexOf(d.id),btn=document.createElement("button");btn.className="craft-btn";
-    if(i<6){btn.textContent=`3 → 1 ${DRAGON_TYPES[i+1].name.toLowerCase()}`;btn.disabled=dragonCollection[d.id]<3;
-      btn.onclick=()=>{const result=craftDragon(d.id);renderDragonBook();document.getElementById("craftMessage").textContent=result.ok?`Создан ${DRAGON_TYPES[i+1].name.toLowerCase()}. Сохранено.`:result.message;};
-    }else{btn.textContent="К инкубатору →";btn.onclick=openDragonHome;}
-    card.querySelector("div").appendChild(btn);
+    drawDragon(g,86,91,.54,d,.9,0);
+    const btn=document.createElement("button");btn.className="craft-btn";
+    if(next){
+      const cost=DRAGON_CRAFT_COST;
+      btn.textContent=count>=cost?`${cost} → 1 · ${dragonBookName(next)}`:`Ещё ${cost-count} для обмена → ${dragonBookName(next)}`;
+      btn.disabled=count<cost;
+      btn.setAttribute("aria-label",`Обменять ${cost}: ${dragonBookName(d)}. Получить 1: ${dragonBookName(next)}`);
+      let used=false;
+      btn.onclick=()=>{
+        if(used||btn.disabled)return;used=true;
+        const overlay=document.getElementById("dragonBook"),scroll=overlay.scrollTop;
+        const result=craftDragon(d.id);renderDragonBook();overlay.scrollTop=scroll;
+        const message=document.getElementById("craftMessage");
+        message.textContent=result.ok?`−${cost} ${dragonBookName(d).toLowerCase()} · +1 ${dragonBookName(next).toLowerCase()}. Сохранено.`:result.message;
+        message.classList.toggle("craft-error",!result.ok);
+        const replacement=grid.querySelector('[data-dragon="'+d.id+'"]');
+        replacement?.focus?.({preventScroll:true});
+      };
+    }else{
+      btn.textContent="В инкубатор · 5 → яйцо";btn.onclick=()=>openDragonHome("incubator");
+    }
+    card.appendChild(btn);
   }
 }
 function openDragonBook(){
   if(dragonFinale&&!dragonFinale.finished)return;
   pointer.active=false;if(running)paused=true;renderDragonBook();
   document.getElementById("dragonBook").classList.remove("hidden");
+  document.getElementById("craftMessage").textContent="";
+  document.getElementById("btnCloseBook").focus?.({preventScroll:true});
 }
 function closeDragonBook(){
   document.getElementById("dragonBook").classList.add("hidden");

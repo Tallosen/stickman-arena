@@ -29,7 +29,8 @@ function buildProps() {
 function reset() {
   Object.assign(P, {
     x: WORLD / 2, y: WORLD / 2, r: 14, phase: 0, face: 1, hurt: 0, orbA: 0,
-    aim: 0, muzzle: 0, hp: 5 + meta.hp, lvl: 1, xp: 0, xpNext: STAGE_XP, stagePulse: 0,
+    aim: 0, muzzle: 0, hp: 5 + meta.hp, lvl: 1, xp: 0, xpNext: heroXPRequired(1), stagePulse: 0,
+    stage:1,runMs:0,
     gear: Object.fromEntries(GK.map(k => [k, 0])), item: null, pet: null, wtype: "basic",
   });
   turrets = []; eggs = []; chicks = []; pendingPet = null; lastPetRoll = null; queuedLevels = 0;
@@ -42,6 +43,7 @@ function reset() {
   // временные эффекты и состояние ульты — иначе тянутся из прошлого забега
   P.hasteT = 0; P.invT = 0; P.seen = { x: P.x, y: P.y };
   P.run = 0; P.recoilT = 0; P.stepT = 0; P.ghostT = 0; P.ghosts = [];
+  P.backpackQueue=[];P.backpackFlash=[0,0,0];P.backpackCooldown=0;
   ult.charge = 0; ult.on = false; ult.zoom = 1; ult.rot = 0; ult.lift = 0;
   ult.trail = []; ult.shards = []; ult.blinks = []; ult.marks = []; ult.swoosh = null;
   ult.impacts = []; ult.flash = 0; ult.punch = 0;
@@ -53,6 +55,8 @@ function reset() {
   // Активная техника и эффекты заканчиваются вместе с забегом,
   // но накопленные заряды inventory намеренно не сбрасываются.
   resetAbilities();
+  resetEnemyHazards();
+  resetArenaSecrets();
   if (typeof resetDragonFinale === "function") resetDragonFinale();
   pointer = { x: P.x, y: P.y, active: false };
   applyGear();
@@ -64,7 +68,7 @@ function applyGear() {
 
   if (w === "shotgun") {
     P.rate = 820; P.damage = (.78 + .90 * L) * dm;
-    P.range = 180 + 38 * g.scope; P.pellets = 6 + L + g.clip;
+    P.range = 180 + 38 * g.scope; P.pellets = 6 + L;
     P.spread = .48; P.pierce = 0; P.nShots = 1;
   } else if (w === "sniper") {
     P.rate = 1420 - 125 * L; P.damage = (3.2 + 2.3 * L) * dm;
@@ -73,7 +77,7 @@ function applyGear() {
   } else if (w === "minigun") {
     P.rate = 205 - 22 * L; P.damage = (.58 + .38 * L) * dm;
     P.range = 225 + 45 * g.scope; P.pellets = 1;
-    P.spread = .15; P.pierce = 0; P.nShots = 1 + Math.floor((g.clip + 1) / 2);
+    P.spread = .15; P.pierce = 0; P.nShots = 1 + g.clip;
   } else {
     P.rate = 620; P.damage = (1 + L) * dm;
     P.range = 215 + 55 * g.scope; P.pellets = 1;
@@ -84,6 +88,7 @@ function applyGear() {
   P.speed = (2.15 + .42 * g.boots) * (1 + .08 * meta.spd) * (1 + Math.min(.22, (stage - 1) * .025));
   P.hpMax = 5 + meta.hp + g.helm + Math.floor((stage - 1) / 2);
   P.xpMult = 1 + .10 * g.cape;
+  P.xpNext = heroXPRequired(P.lvl);
   P.iframe = 950 + 320 * g.jacket;
   P.hp = Math.min(P.hp, P.hpMax);
 }
@@ -96,19 +101,20 @@ function weaponCombatRating(w) {
   const glove=Math.pow(.86,g.gloves)*Math.pow(.985,stage-1);
   let rate,damage,projectiles,range,pierce=0,accuracy=1;
   if(w==="shotgun"){
-    rate=820;damage=(.78+.90*L)*dm;projectiles=(6+L+g.clip)*.62;
+    rate=820;damage=(.78+.90*L)*dm;projectiles=(6+L)*.62;
     range=180+38*g.scope;accuracy=.82;
   }else if(w==="sniper"){
-    rate=1420-125*L;damage=(3.2+2.3*L)*dm;projectiles=1+g.clip;
+    rate=1420-125*L;damage=(3.2+2.3*L)*dm;projectiles=1;
     range=520+110*g.scope;pierce=1;accuracy=1.16;
   }else if(w==="minigun"){
-    rate=205-22*L;damage=(.58+.38*L)*dm;projectiles=1+Math.floor((g.clip+1)/2);
+    rate=205-22*L;damage=(.58+.38*L)*dm;projectiles=1;
     range=225+45*g.scope;accuracy=.92;
   }else{
-    rate=620;damage=(1+L)*dm;projectiles=1+g.clip;
+    rate=620;damage=(1+L)*dm;projectiles=1;
     range=215+55*g.scope;
   }
-  const dps=damage*projectiles/(Math.max(60,rate*glove)/1000);
+  const fireRate=Math.max(60,rate*glove);
+  const dps=damage*(projectiles/(fireRate/1000)+g.clip/(backpackSalvoCooldown(fireRate)/1000));
   const reach=.82+Math.min(.34,range/1800);
   return dps*reach*accuracy*(1+pierce*.24);
 }
@@ -151,7 +157,7 @@ function pauseGame() {
   if (!running || levelOpen() || userPaused || (typeof dragonBookOpen === "function" && dragonBookOpen())) return;
   userPaused = true; paused = true;
   document.getElementById("pauseStats").textContent =
-    `СТАДИЯ ${P.lvl} · ${(t / 1000).toFixed(0)} с · лопнул ${score}`;
+    `СТАДИЯ ${P.stage}/${RUN_STAGES} · УР. ${P.lvl} · ${formatRunTime(P.runMs)} · лопнул ${score}`;
   document.getElementById("pause").classList.remove("hidden");
 }
 function resumeGame() {
@@ -162,4 +168,4 @@ function resumeGame() {
   pointer.active = false;                 // чтобы герой не рванул к старой точке
 }
 // вкладку свернули — ставим паузу и показываем окно, иначе игра зависала навсегда
-document.addEventListener("visibilitychange", () => { if (document.hidden) pauseGame(); });
+if(typeof Playables==='undefined'||!Playables.cloud)document.addEventListener("visibilitychange", () => { if (document.hidden) pauseGame(); });

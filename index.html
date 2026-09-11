@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Stickman Arena — Vacky Games</title>
+<script src="https://www.youtube.com/game_api/v1"></script>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{height:100%;background:#f2e8d7;overflow:hidden;user-select:none;
@@ -18,12 +19,18 @@
   p{opacity:.68;font-size:13px;line-height:1.55;max-width:320px}
   .btn{background:#d2691e;color:#fff8ec;border:0;border-radius:11px;padding:13px 32px;
     font-size:16px;font-weight:700;letter-spacing:.04em;cursor:pointer}
-  .cards{display:flex;flex-direction:column;gap:8px;width:min(320px,90vw);
-    max-height:62vh;overflow-y:auto}
+  .cards{display:flex;flex-direction:column;gap:8px;width:min(332px,100%);min-height:0;
+    max-height:62vh;max-height:62dvh;overflow-y:auto;overflow-x:hidden;padding:3px 6px 7px 3px;
+    overscroll-behavior:contain;touch-action:pan-y pinch-zoom}
   .card{background:#fdf6e8;border:2.5px solid #2b2620;border-radius:12px;padding:10px 12px;
-    cursor:pointer;display:flex;gap:11px;align-items:center;text-align:left;
+    cursor:pointer;display:flex;gap:11px;align-items:center;text-align:left;flex:0 0 auto;
+    width:100%;min-width:0;font:inherit;color:inherit;touch-action:pan-y pinch-zoom;
     box-shadow:3px 3px 0 #2b2620}
-  .card:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #2b2620}
+  .card:active{background:#f7e7c9;box-shadow:1px 1px 0 #2b2620}
+  .card:focus-visible{outline:3px solid #287e94;outline-offset:-5px}
+  .card>div{min-width:0;overflow-wrap:anywhere}
+  .card>*{pointer-events:none}
+  .card canvas{touch-action:pan-y pinch-zoom}
   .card.rare{border-color:#8a53c4;background:#f7eefc;
     box-shadow:3px 3px 0 #8a53c4, 0 0 16px rgba(138,83,196,.35)}
   .card.rare:active{box-shadow:1px 1px 0 #8a53c4}
@@ -45,12 +52,12 @@
   .hud-btn:not(:disabled):active{transform:translate(2px,2px);box-shadow:1px 1px 0 #2b2620}
   .hud-btn canvas{width:36px;height:36px}
   .hud-btn em{font-style:normal;font-size:10.5px;font-weight:700;letter-spacing:.02em}
-  .hud-pause{position:fixed;left:14px;top:56px;width:44px;height:44px;border-radius:12px;
+  .hud-pause{position:fixed;left:14px;top:72px;width:44px;height:44px;border-radius:12px;
     border:3px solid #2b2620;background:#fdf6e8;box-shadow:3px 3px 0 #2b2620;cursor:pointer;
     display:flex;align-items:center;justify-content:center;gap:5px;z-index:8;padding:0}
   .hud-pause:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #2b2620}
   .hud-pause b{display:block;width:5px;height:17px;background:#2b2620;border-radius:2px}
-  .hud-book{position:fixed;left:14px;top:108px;width:44px;height:44px;border-radius:12px;
+  .hud-book{position:fixed;left:14px;top:124px;width:44px;height:44px;border-radius:12px;
     border:3px solid #2b2620;background:#f7e3ad;box-shadow:3px 3px 0 #2b2620;cursor:pointer;
     display:flex;align-items:center;justify-content:center;z-index:8;padding:0;font-size:23px}
   .hud-book:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #2b2620}
@@ -80,60 +87,139 @@
   body.dragon-finale .hud-btn,body.dragon-finale .hud-pause,
   body.dragon-finale .hud-dev,body.dragon-finale .hud-badge,
   body.dragon-finale .ability-dock,body.dragon-finale .hud-book{opacity:0!important;pointer-events:none!important;transition:opacity .18s ease}
-  .book-overlay{justify-content:flex-start;overflow:auto;padding:24px 14px 30px;background:rgba(239,224,194,.97);z-index:12}
-  .book-cover{width:min(680px,96vw);padding:20px 16px 24px;border:4px solid #4a3824;border-radius:18px;
-    background:linear-gradient(90deg,#ead39e 0 49.4%,#b8965a 49.5% 50.5%,#f0dfb5 50.6%);box-shadow:8px 8px 0 rgba(43,38,32,.32)}
-  .dragon-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:16px 0}
-  .dragon-card{display:flex;align-items:center;min-height:116px;padding:7px;border:2px solid #4a3824;border-radius:11px;background:rgba(255,249,230,.72);text-align:left}
-  .dragon-card canvas{width:120px;height:87px;flex:0 0 120px}.dragon-card b{display:block;font-size:11px}.dragon-card span{display:block;font-size:9px;opacity:.58;margin-top:3px}.dragon-card strong{display:block;color:#b46a12;font-size:18px;margin-top:5px}
-  .dragon-card.locked canvas{filter:saturate(.72);opacity:.68}.dragon-card.owned{box-shadow:0 0 15px rgba(218,162,42,.28)}
+  .book-overlay{display:block;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;touch-action:pan-y;
+    padding:12px max(10px,env(safe-area-inset-right)) max(18px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));background:rgba(239,224,194,.98);z-index:12}
+  .book-overlay.hidden{display:none}
+  .book-cover{width:min(760px,100%);min-width:0;margin:0 auto;padding:0 14px 16px;border:3px solid #6e5437;border-radius:16px;
+    background:#f5e8c9;box-shadow:0 4px 0 #bca27c;text-align:left}
+  .book-header{position:sticky;top:0;z-index:2;display:grid;grid-template-columns:minmax(0,1fr) 44px;gap:2px 10px;
+    padding:13px 0 9px;background:#f5e8c9;border-bottom:1px solid #c7b18b;border-radius:12px 12px 0 0}
+  .book-header h2{font-size:21px;letter-spacing:0;line-height:1.15}
+  .book-header .tag{font-size:10px;letter-spacing:0;opacity:1;color:#80684a;line-height:1.5;margin-top:4px}
+  .book-close{width:44px;height:44px;border:2px solid #6e5437;border-radius:11px;background:#fff7e7;color:#493923;font-size:25px;cursor:pointer;touch-action:manipulation}
+  .book-close:focus-visible,.craft-btn:focus-visible{outline:3px solid #287e94;outline-offset:2px}
+  .book-recipe{margin:12px 0;color:#715739;font-size:12px;font-weight:700;line-height:1.5}
+  .book-recipe b{display:inline-block;margin-right:6px;border:1px solid #bf9e64;border-radius:7px;padding:3px 9px;background:#efdab0;color:#755021}
+  .dragon-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}
+  .dragon-card{display:grid;grid-template-columns:88px minmax(0,1fr);gap:7px 10px;align-items:center;min-width:0;
+    padding:10px;border:1.7px solid #9a815d;border-radius:12px;background:#fff7e7;text-align:left}
+  .dragon-card canvas{display:block;width:88px;height:70px;max-width:100%;pointer-events:none;touch-action:pan-y}
+  .dragon-copy{min-width:0;overflow-wrap:anywhere}.dragon-card b{display:block;font-size:14px;line-height:1.25}
+  .dragon-card span{display:block;font-size:9px;color:#897357;margin-top:4px;letter-spacing:.03em}
+  .dragon-card strong{display:block;color:#8f6326;font-size:18px;margin-top:5px;line-height:1.15;overflow-wrap:anywhere}
+  .dragon-card.locked canvas{filter:saturate(.5);opacity:.6}.dragon-card.owned{background:#fff9ec}
   .victory-dragon{background:radial-gradient(circle at 50% 42%,#fff7cb,#e9d09d 62%,#b88745);}
   #victoryDragonCanvas{width:min(360px,88vw);height:210px}
-  @media(max-width:559px){.hud-pause{top:72px}.hud-book{top:124px}.dragon-grid{grid-template-columns:1fr}.book-overlay{padding-top:15px}}
+  @media(max-width:559px){.hud-pause{top:72px}.hud-book{top:124px}.dragon-grid{grid-template-columns:1fr;gap:10px}.book-cover{padding:0 10px 12px}.book-header h2{font-size:19px}}
   @media(max-width:420px){.ability-dock{bottom:80px;gap:5px}.ability-slot{width:51px;height:51px}.ability-slot canvas{width:40px;height:40px}}
-  .hud-home{left:66px!important;font-size:24px}
-  .dragon-card>div{flex:1;min-width:0}.craft-btn{display:block;margin-top:7px;padding:8px;border:1px solid #957039;border-radius:6px;background:#f4ce7f;color:#49351d;font-weight:700;cursor:pointer;font-size:11px}
-  .craft-btn:disabled{opacity:.4;cursor:default}.book-note{max-width:none;font-size:12px;opacity:.8;margin-top:10px}
-  .home-overlay{position:fixed;inset:0;z-index:16;overflow:auto;background:#080e1b;color:#ecedf1;padding:22px max(16px,env(safe-area-inset-right)) 26px max(16px,env(safe-area-inset-left));touch-action:pan-y}
-  .home-overlay.hidden{display:none}.home-shell{max-width:1100px;margin:auto}
-  .home-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:22px}
-  .home-eyebrow{font-size:10px;letter-spacing:.22em;color:#b8ac8c;margin-bottom:5px}.home-header h2{font-size:25px;font-weight:600;letter-spacing:.02em}
-  .home-header button,.home-tools button,.home-tabs button,.home-secondary{border:1px solid #344357;background:#131e2e;color:#d8e3ed;padding:10px 16px;border-radius:8px;cursor:pointer;min-height:42px;font-weight:600}
-  .home-wallet{color:#9ccad7;font-size:12px;margin-top:8px}
-  .home-tabs{display:flex;gap:8px;margin-bottom:16px}.home-tabs button[aria-selected="true"]{border-color:#b9a476;background:#2b2b2a;color:#ffe5af}
-  .home-layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(280px,1fr);gap:18px}
-  .home-scene{position:relative;border:1px solid #2c384a;border-radius:16px;overflow:hidden;background:#080e1b;align-self:start}
-  #homeCanvas{width:100%;height:420px;touch-action:none}
-  .home-scene-copy{padding:0 20px 19px;min-height:80px;text-align:center}.home-scene-copy h3{font-size:20px;font-weight:600;color:#f0dfbb}.home-scene-copy p{font-size:11px;max-width:none;margin-top:8px;color:#a9bacd;opacity:1}
-  .home-panel{background:linear-gradient(145deg,#182334,#101824);border:1px solid #2c384a;border-radius:16px;padding:22px}
-  .home-panel h3{font-size:18px;font-weight:600}.home-panel p{max-width:none;color:#aebccd;opacity:1;font-size:12px;margin:12px 0;line-height:1.7}
-  .home-panel .home-small{font-size:10px;color:#8f9baa}.egg-choices{display:flex;gap:8px;margin:24px 0}
-  .egg-choice{flex:1;border:1px solid #354154;border-radius:10px;background:#101928;color:#b7c4d5;padding:12px 3px;cursor:pointer;font-size:10px;min-width:0}
-  .egg-choice i{display:block;width:31px;height:40px;border-radius:50% 50% 45% 45%;margin:0 auto 9px;background:radial-gradient(circle at 28% 24%,#fff,var(--shell) 25%,#172232 90%);box-shadow:0 0 16px color-mix(in srgb,var(--shell) 25%,transparent)}
-  .egg-choice.selected{border-color:#c7ac73;background:#292b2d;color:#ffe3ac}.egg-choice:disabled:not(.selected){opacity:.35}
-  .home-progress{height:7px;background:#293747;border-radius:10px;overflow:hidden;margin:12px 0 22px}.home-progress>div{height:100%;background:linear-gradient(90deg,#41798e,#b8f3ef);transition:width .5s ease}
-  #eggProgressText{font-size:12px;color:#a9d9e2}.home-primary{width:100%;border:0;padding:14px 10px;background:linear-gradient(120deg,#ecd49d,#b99453);color:#241d14;border-radius:9px;font-size:13px;font-weight:800;letter-spacing:.06em;cursor:pointer;min-height:46px}
-  .home-primary:disabled{opacity:.35;cursor:default}.home-secondary{width:100%;margin-top:10px;font-size:12px}
-  .home-tools{display:flex;gap:5px;justify-content:center;flex-wrap:wrap;padding:0 10px 15px}.home-tools.hidden{display:none}.home-tools button{padding:8px 10px;font-size:10px}
-  .home-status{min-height:24px;color:#c7d5df;font-size:12px;margin:16px 0;line-height:1.5}
-  .exclusive-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:15px;max-height:410px;overflow:auto}
-  .exclusive-grid>p{grid-column:1/-1}.exclusive-card{position:relative;border:1px solid #324057;border-radius:10px;background:#0b1321;color:#cbd9e4;padding:0 0 10px;overflow:hidden;cursor:pointer}
-  .exclusive-card.selected{border-color:#d4bb85}.exclusive-card canvas{width:100%;height:auto;pointer-events:none}.exclusive-card span{display:block;font-size:10px;padding:0 7px;min-height:28px}.exclusive-card b{position:absolute;top:6px;right:7px;font-size:11px;color:#efd6a0}
-  @media(max-width:650px){.home-overlay{padding-top:max(16px,env(safe-area-inset-top))}.home-layout{grid-template-columns:1fr}.home-header{margin-bottom:16px}.home-header h2{font-size:21px}.home-header button{padding:8px 12px}.home-panel{padding:18px}#homeCanvas{height:300px}.home-scene-copy{min-height:65px}.home-scene-copy h3{font-size:17px}.home-tabs button{flex:1}.egg-choices{margin:16px 0}.exclusive-grid{max-height:330px;grid-template-columns:repeat(3,minmax(0,1fr))}.home-status{margin:10px 0}.home-eyebrow{font-size:8px}}
+  .hud-egg{left:66px!important}.hud-home{left:118px!important}
+  .dragon-entry-icon{width:28px;height:28px;display:block;pointer-events:none}.dragon-entry-icon svg{width:100%;height:100%}
+  .dragon-entry-row{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin:10px 0}
+  .dragon-entry-row button{display:flex;align-items:center;gap:7px;min-height:44px;padding:7px 12px;border:2px solid #655239;border-radius:10px;background:#f4e2b9;color:#493820;font:800 12px system-ui;cursor:pointer;box-shadow:2px 2px 0 #655239}
+  .dragon-entry-row button:focus-visible{outline:3px solid #287e94;outline-offset:2px}
+  .craft-btn{display:block;grid-column:1/-1;width:100%;min-width:0;min-height:44px;padding:9px 10px;border:1.7px solid #957039;border-radius:9px;
+    background:#efd18e;color:#49351d;font:800 12px/1.35 system-ui;white-space:normal;overflow-wrap:anywhere;cursor:pointer;touch-action:manipulation}
+  .craft-btn:active:not(:disabled){background:#e8c171}.craft-btn:disabled{background:#eee6d6;border-color:#c9baa0;color:#8a7c65;cursor:default}
+  .book-note{max-width:none;font-size:11px;opacity:1;color:#806b4d;margin-top:12px;line-height:1.5}
+  #craftMessage{grid-column:1/-1;min-height:17px;margin:5px 0 0;font-size:11px;line-height:1.4;color:#527644;overflow-wrap:anywhere}
+  #craftMessage.craft-error{color:#a33928}
+  .home-overlay{position:fixed;inset:0;z-index:16;overflow:auto;background:#f5ecdd;color:#2b2620;padding:20px max(16px,env(safe-area-inset-right)) 26px max(16px,env(safe-area-inset-left));touch-action:pan-y;background-image:linear-gradient(#c6b99a24 1px,transparent 1px),linear-gradient(90deg,#c6b99a24 1px,transparent 1px);background-size:48px 48px}
+  .home-overlay.hidden{display:none}.home-shell{max-width:1120px;margin:auto}
+  .home-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;border-bottom:3px solid #2b2620;padding-bottom:14px}
+  .home-eyebrow{font-size:10px;letter-spacing:.14em;color:#8d641e;margin-bottom:5px;font-weight:800}.home-header h2{font-size:27px;font-weight:900;letter-spacing:.02em}
+  .home-header button,.home-tools button,.home-tabs button,.home-secondary,.home-pager button,.home-admin button{border:2px solid #2b2620;background:#fff7e7;color:#2b2620;padding:10px 14px;border-radius:9px 7px 10px 8px;cursor:pointer;min-height:42px;font-weight:800;box-shadow:2px 2px 0 #2b2620}
+  .home-wallet{color:#685d48;font-size:12px;margin-top:8px;white-space:pre-line;line-height:1.5}.home-header>button{white-space:nowrap;flex-shrink:0}
+  .home-tabs{display:flex;gap:10px;margin-bottom:18px}.home-tabs button[aria-selected="true"]{background:#d2691e;color:#fff8ec}
+  .home-layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(280px,1fr);gap:20px}
+  .home-scene{position:sticky;top:12px;border:3px solid #2b2620;border-radius:13px 10px 15px 9px;overflow:hidden;background:#f5ecdd;align-self:start;box-shadow:4px 4px 0 #b8a78b}
+  #homeCanvas{width:100%;height:410px;touch-action:none}
+  .home-scene-copy{padding:12px 15px 17px;min-height:80px;text-align:center;border-top:2px solid #a6906b;background:#efe0bb}.home-scene-copy h3{font-size:19px;font-weight:900;color:#473724}.home-scene-copy p{font-size:11px;max-width:none;margin-top:7px;color:#736247;opacity:1}
+  .home-panel{background:#f9f0db;border:3px solid #2b2620;border-radius:9px 13px 8px 12px;padding:22px;box-shadow:4px 4px 0 #b8a78b}
+  .home-panel h3{font-size:21px;font-weight:900}.home-panel p{max-width:none;color:#6d5c43;opacity:1;font-size:12px;margin:13px 0;line-height:1.65}
+  .home-panel .home-small{font-size:11px;color:#827154}
+  .home-dragon-stock{display:inline-flex;align-items:center;gap:10px;padding:8px 14px 8px 9px;background:#f5ecd6;border:2px solid #8c7652;border-radius:12px;color:#493d2c;font-size:26px;font-weight:900;line-height:1;margin:18px 0;font-variant-numeric:tabular-nums;max-width:100%;box-sizing:border-box}
+  .diamond-stock-icon{width:40px;height:40px;flex:none;overflow:visible}
+  #incubatorPanel{align-self:start}#incubatorPanel .incubator-rule{font-size:11px;margin:6px 0 0;color:#736247}
+  .home-scene-copy p:empty{display:none}.home-overlay:not(.view-warehouse) .home-scene-copy{min-height:0;padding:12px}
+  .home-progress{height:13px;background:#e3d5b9;border:2px solid #2b2620;border-radius:5px;overflow:hidden;margin:12px 0 22px}.home-progress>div{height:100%;background:#a6bd7d;transition:width .4s ease}
+  #eggProgressText{font-size:12px;font-weight:800;color:#665438}.home-primary{width:100%;border:2px solid #2b2620;padding:14px 10px;background:#d2691e;color:#fff8ec;border-radius:9px;font-size:12px;font-weight:900;cursor:pointer;min-height:50px;box-shadow:3px 3px 0 #2b2620}
+  .home-primary:disabled,.home-pager button:disabled{opacity:.4;cursor:default;box-shadow:none}.home-secondary{width:100%;margin-top:12px;font-size:12px}
+  .home-tools{display:flex;gap:7px;justify-content:center;flex-wrap:wrap;padding:12px 10px 15px;background:#efe0bb}.home-tools.hidden{display:none}.home-tools button{padding:8px 10px;font-size:10px}
+  .home-status{min-height:24px;color:#70552e;font-size:12px;margin:18px 0;line-height:1.5}
+  .exclusive-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 8px;margin-top:15px}
+  .exclusive-grid>p{grid-column:1/-1}.exclusive-card{position:relative;border:2px solid #5f4b31;border-bottom:5px solid #97754d;border-radius:8px;background:#f4e7c9;color:#473723;padding:0 0 8px;overflow:hidden;cursor:pointer;min-width:0}
+  .exclusive-card.selected{border-color:#d2691e;box-shadow:0 0 0 2px #d2691e33}.exclusive-card canvas{width:100%;height:auto;pointer-events:none}.exclusive-card span{display:block;font-size:10px;padding:0 6px;min-height:30px;font-weight:700}.exclusive-card b{position:absolute;top:4px;right:5px;font-size:9px;background:#fff4d9d9;padding:2px 4px;border-radius:4px;color:#795020}
+  .home-pager{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:17px;font-size:11px;font-weight:700}.home-pager button{padding:7px 13px}
+  .home-admin{margin:18px 0;border:2px dashed #97754d;border-radius:8px;background:#efdfbd;padding:12px}.home-admin summary{cursor:pointer;font-size:12px;font-weight:800}.home-admin-actions{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}.home-admin button{font-size:11px}.home-admin p{max-width:none;font-size:11px}
+  #adminFilterRow{font-size:11px;font-weight:800;margin-top:12px}#adminFamily{display:block;margin-top:6px;width:100%;padding:10px;border:2px solid #7c6849;border-radius:6px;background:#fff7e7;color:#493d2c}
+  @media(max-width:650px){.home-overlay{padding-top:max(14px,env(safe-area-inset-top))}.home-layout{grid-template-columns:1fr;gap:16px}.home-header{margin-bottom:14px}.home-header h2{font-size:22px}.home-header button{padding:8px 11px}.home-wallet{font-size:11px}.home-panel{padding:17px}#homeCanvas{height:260px}.home-scene-copy{min-height:65px}.home-scene-copy h3{font-size:16px}.home-tabs button{flex:1;font-size:12px}.exclusive-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.home-status{margin:12px 0}.home-eyebrow{font-size:9px}.home-admin-actions{flex-direction:column}}
+  @media(max-width:650px){.home-scene{position:relative;top:auto}}
   @media(prefers-reduced-motion:reduce){.home-progress>div{transition:none}}
+  /* Collection becomes a drawer inside the habitat, not a second page of controls. */
+  .home-overlay.view-warehouse .home-layout{display:block}
+  .home-overlay.view-warehouse .home-scene{position:relative;top:auto}
+  .home-overlay.view-warehouse #homeCanvas{display:block;height:clamp(360px,70dvh,680px)}
+  .home-overlay.view-warehouse .home-scene-copy{position:absolute;bottom:0;left:0;right:0;min-height:0;padding:24px 15px 14px;border:0;background:linear-gradient(transparent,#172020df);pointer-events:none}
+  .home-overlay.view-warehouse .home-scene-copy h3{color:#fff1d4;font-size:17px}
+  .home-overlay.view-warehouse .home-scene-copy p{color:#ebd9b3;margin-top:4px}
+  .home-overlay.view-warehouse:not(.inspecting) .home-scene-copy,.home-overlay.drawer-open .home-scene-copy{display:none}
+  .cave-collection-toggle{position:absolute;right:12px;top:12px;z-index:3;display:flex;align-items:center;gap:7px;min-width:46px;min-height:46px;padding:7px 11px;border:2px solid #655239;border-radius:12px;background:#f6e7c8f2;color:#493820;box-shadow:0 3px 12px #0003;cursor:pointer}
+  .cave-collection-toggle span:first-child{font-size:24px;line-height:1}.cave-collection-toggle span:last-child{font-size:12px;font-weight:800}
+  .cave-collection-toggle.hidden,.cave-drawer.hidden{display:none}
+  .cave-drawer{position:absolute;left:12px;right:12px;bottom:12px;z-index:2;max-height:72%;overflow-y:auto;overscroll-behavior:contain;background:#f6ead1f5;border:2px solid #796343;border-radius:13px;padding:12px;box-shadow:0 6px 24px #0005}
+  .cave-drawer header{display:flex;align-items:center;justify-content:space-between;gap:10px}.cave-drawer h3{font-size:15px}.cave-drawer #warehouseCount{font-size:10px;color:#79664a;margin:0;text-align:right}
+  .cave-drawer .exclusive-grid{display:grid;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:112px;gap:8px;margin-top:10px;overflow-x:auto;padding:2px 2px 7px;overscroll-behavior-x:contain;touch-action:pan-x;scrollbar-width:thin}
+  .cave-drawer .exclusive-grid>p{grid-column:auto;width:240px;font-size:12px;color:#766348}
+  .cave-drawer .exclusive-card{width:112px;align-self:start}.cave-drawer .exclusive-card span{font-size:10px;min-height:26px}
+  .cave-drawer .home-pager{margin-top:5px}.cave-drawer .home-pager.hidden{display:none}
+  .cave-drawer #adminFilterRow{margin-top:8px;font-size:10px}.cave-drawer #adminFamily{padding:6px;margin-top:4px}
+  .home-status:empty{display:none}.home-overlay.view-warehouse .home-header{margin-bottom:10px;padding-bottom:9px}.home-overlay.view-warehouse .home-tabs{margin-bottom:10px}
+  #homeCanvas:focus-visible,.cave-collection-toggle:focus-visible{outline:3px solid #edb658;outline-offset:-4px}
+  @media(max-width:650px){.home-overlay.view-warehouse #homeCanvas{height:clamp(340px,66dvh,580px)}.cave-drawer{left:8px;right:8px;bottom:8px;padding:10px}.cave-drawer .exclusive-grid{grid-auto-columns:104px}.cave-drawer .exclusive-card{width:104px}.home-overlay.view-warehouse .home-header .home-eyebrow{display:none}}
+  #platformGate{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;background:#f5ecddf7;padding:28px;text-align:center}
+  #platformGate[hidden]{display:none}#platformMessage{max-width:360px;font-size:15px;line-height:1.5;color:#6b5235}
+  #platformRetry{min-height:48px;padding:12px 24px;border:2px solid #6e5437;border-radius:10px;background:#efd18e;font:700 14px system-ui;color:#49351d}
+  #platformRetry[hidden]{display:none}
+
+  /* Collection: paper nest cells, no nested drawer or room-sized scene. */
+  .home-header>div{min-width:0;overflow-wrap:anywhere}
+  .home-overlay.view-warehouse .home-layout{display:block}
+  .home-overlay.view-warehouse:not(.inspecting) .home-scene{display:none}
+  .home-overlay.view-warehouse .cave-drawer{position:static;max-height:none;overflow:visible;margin:0;padding:0;border:0;box-shadow:none;background:none}
+  .home-overlay.view-warehouse .cave-drawer.hidden{display:none}
+  .home-overlay.view-warehouse .cave-drawer header{padding:2px 0 12px}
+  .home-overlay.view-warehouse .cave-drawer h3{display:none}
+  .home-overlay.view-warehouse .exclusive-grid{display:grid;grid-auto-flow:row;grid-auto-columns:auto;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;overflow:visible;padding:0;margin:0}
+  .home-overlay.view-warehouse .exclusive-card{width:100%;min-width:0;padding:0 0 12px;border:2px solid #776347;border-radius:13px 10px 14px 11px;background:#fff5df;box-shadow:0 3px 0 #c7b38d;touch-action:pan-y;overflow:hidden;position:relative;cursor:pointer}
+  .home-overlay.view-warehouse .exclusive-card canvas{display:block;width:100%;height:auto;aspect-ratio:164/112;touch-action:pan-y;pointer-events:none}
+  .home-overlay.view-warehouse .exclusive-card span{display:block;padding:7px 8px 0;min-height:38px;font:800 12px/1.3 system-ui;overflow-wrap:anywhere;color:#493b28}
+  .home-overlay.view-warehouse .exclusive-card b{position:absolute;right:7px;top:7px;font:800 11px system-ui;color:#60472b;border:1px solid #b6a078;border-radius:7px;padding:3px 6px;background:#fff5dfed}
+  .home-overlay.view-warehouse .exclusive-card:focus-visible{outline:3px solid #c88c32;outline-offset:3px}
+  .home-overlay.view-warehouse .exclusive-card:hover{border-color:#b67727}
+  .home-overlay.view-warehouse .exclusive-grid>p{grid-column:1/-1;width:auto;padding:40px 18px;border:2px dashed #bbaa8a;border-radius:14px;text-align:center}
+  .home-overlay.view-warehouse #homeCanvas{height:clamp(270px,52dvh,480px);background:#f5ecdd}
+  .home-overlay.view-warehouse .home-scene-copy{position:static;background:#efe0bb;padding:12px;border-top:1px solid #b8a17a;pointer-events:auto}
+  .home-overlay.view-warehouse .home-scene-copy h3{color:#493b28}
+  .home-overlay.view-warehouse .home-scene-copy p{color:#7c6746}
+  .home-overlay.view-warehouse .cave-collection-toggle{left:10px;right:auto;top:10px;min-height:44px}
+  @media(max-width:650px){.home-overlay.view-warehouse .exclusive-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.home-overlay.view-warehouse .exclusive-card{width:100%}}
+
 </style>
 </head>
 <body>
+<div id="platformGate" role="status" aria-live="polite"><strong>VACKY GAMES</strong><div id="platformMessage">Загружаем игру…</div><button id="platformRetry" hidden>Повторить</button></div>
 <canvas id="c"></canvas>
 <button id="pauseBtn" class="hud-pause" title="Пауза (P)"><b></b><b></b></button>
 <button id="dragonBookBtn" class="hud-book" title="Книга спасённых драконов">📖</button>
-<button id="dragonHomeBtn" class="hud-book hud-home" data-open-home title="Дом драконов">⌂</button>
-<button id="devLvl" class="hud-dev" title="Тестовая кнопка: следующая стадия">+STAGE</button>
+<button id="dragonEggBtn" class="hud-book hud-egg" data-open-home="incubator" title="Яйцо в гнезде" aria-label="Открыть яйцо в гнезде"><span class="dragon-entry-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3C11 3 5 16 5 22a11 8 0 0 0 22 0C27 16 21 3 16 3Z" fill="#f5d793" stroke="#473b29" stroke-width="2"/><path d="m14 5-3 11" stroke="#fff7d9" stroke-width="3" stroke-linecap="round"/><ellipse cx="19" cy="14" rx="2" ry="3" fill="#b98748"/><ellipse cx="11" cy="22" rx="2.5" ry="2" fill="#82a06a"/><circle cx="22" cy="24" r="2" fill="#b98748"/></svg></span></button>
+<button id="dragonHomeBtn" class="hud-book hud-home" data-open-home="warehouse" title="Моя коллекция" aria-label="Открыть коллекцию драконов"><span class="dragon-entry-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="m8 13-3-9 9 5 9-5-1 9 6 4-1 8-8 4-10-4-3-6Z" fill="#7fa36c" stroke="#473b29" stroke-width="2" stroke-linejoin="round"/><path d="m7 5 2 8 5-4m9-4-6 5 5 2" fill="#ebce89"/><path d="m11 16 5 1-3 4Z" fill="#fff5d9"/><circle cx="14" cy="18" r="1.5" fill="#302c24"/><path d="m18 25 8-3" fill="none" stroke="#473b29" stroke-width="1.5"/><circle cx="24" cy="18" r="1.3" fill="#473b29"/></svg></span></button>
+<button id="devLvl" class="hud-dev" title="Тестовая кнопка: следующий уровень героя">+LV</button>
 <button id="devUlt" class="hud-dev" style="top:222px" title="Тестовая кнопка: зарядить ульту">+ULT</button>
 <button id="devRare" class="hud-dev" style="top:264px" title="Тестовая кнопка: редкий сундук">+RARE</button>
 <button id="devSniper" class="hud-dev" style="top:306px" title="Тест: золотая снайперка и следующая особая ульта">+SNP</button>
 <button id="devFull" class="hud-dev" style="top:348px;border-color:#b88716;color:#8d641e" title="Тест: полная прокачка и открытие алтаря на карте">+FULL</button>
 <button id="devDragon" class="hud-dev" style="top:390px;border-color:#4aa8cf;color:#2f718d" title="Тест: бриллиантовый, чёрно-золотой и золотой драконы по очереди">+DRG</button>
+<button id="devCompass" class="hud-dev" style="top:432px;border-color:#9854bd;color:#79449b" title="Тест: открыть три секрета и перенести к компасу. Сундук выдаёт настоящие заряды при подборе, один раз за забег.">+КОМПАС</button>
 <canvas id="petBadge" class="hud-badge hidden" width="176" height="176"></canvas>
 <div id="abilityDock" class="ability-dock hidden">
   <button class="ability-slot" data-ability="airstrike" title="Вызвать авиаудар"><canvas width="88" height="88"></canvas><b>0</b></button>
@@ -147,33 +233,34 @@
 <div id="start" class="overlay">
   <h1>STICKMAN ARENA</h1>
   <p>Веди пальцем — человечек бежит по карте.<br>Ружьё целится само.<br>
-     Уничтожай врагов — опыт начисляется сразу.<br>Прокачай героя и питомца до максимума — откроется алтарь на мини-карте.<br>Можешь продолжить бой. Для финала проведи 2 секунды в круге алтаря — двигаться внутри можно.<br>
+     20 стадий по минуте. Уничтожай врагов и прокачивай героя за опыт.<br>Через 20 минут откроется алтарь на мини-карте.<br>Проведи 2 секунды в его круге или продолжай бой — через 5 минут дракон прилетит сам.<br>
      Ищи сундуки: мина, граната, лёд, опыт ×2.<br>Редкий сундук сразу даёт случайную постоянную способность.<br>
-     Ульта: двойной клик или развести пальцы.<br>На новой стадии можно усилить вещи или питомца.<br>Предмет — кнопка справа внизу или пробел.</p>
+     Ульта: двойной клик или развести пальцы.<br>Новый уровень — улучшение вещей или питомца.<br>Предмет — кнопка справа внизу или пробел.</p>
   <button class="btn" id="btnStart">ИГРАТЬ</button>
-  <button class="btn" data-open-home style="background:#576779">ДОМ ДРАКОНОВ</button>
+  <div class="dragon-entry-row"><button data-open-home="incubator"><span class="dragon-entry-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3C11 3 5 16 5 22a11 8 0 0 0 22 0C27 16 21 3 16 3Z" fill="#f5d793" stroke="#473b29" stroke-width="2"/><path d="m14 5-3 11" stroke="#fff7d9" stroke-width="3" stroke-linecap="round"/><ellipse cx="19" cy="14" rx="2" ry="3" fill="#b98748"/><ellipse cx="11" cy="22" rx="2.5" ry="2" fill="#82a06a"/><circle cx="22" cy="24" r="2" fill="#b98748"/></svg></span>Гнездо</button><button data-open-home="warehouse"><span class="dragon-entry-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="m8 13-3-9 9 5 9-5-1 9 6 4-1 8-8 4-10-4-3-6Z" fill="#7fa36c" stroke="#473b29" stroke-width="2" stroke-linejoin="round"/><path d="m7 5 2 8 5-4m9-4-6 5 5 2" fill="#ebce89"/><path d="m11 16 5 1-3 4Z" fill="#fff5d9"/><circle cx="14" cy="18" r="1.5" fill="#302c24"/><path d="m18 25 8-3" fill="none" stroke="#473b29" stroke-width="1.5"/><circle cx="24" cy="18" r="1.3" fill="#473b29"/></svg></span>Коллекция</button></div>
   <div class="tag" id="verTag"></div>
 </div>
 <div id="levelup" class="overlay hidden">
-  <h2 id="levelTitle">НОВАЯ СТАДИЯ</h2><div class="tag" id="queueTag"></div><div class="cards" id="cards"></div>
+  <h2 id="levelTitle">НОВЫЙ УРОВЕНЬ</h2><div class="tag" id="queueTag"></div><div class="cards" id="cards"></div>
 </div>
 <div id="pause" class="overlay hidden">
   <h2>ПАУЗА</h2>
   <p id="pauseStats"></p>
   <button class="btn" id="btnResume">ПРОДОЛЖИТЬ</button>
-  <button class="btn" data-open-home style="background:#576779">ДОМ ДРАКОНОВ</button>
+  <div class="dragon-entry-row"><button data-open-home="incubator"><span class="dragon-entry-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3C11 3 5 16 5 22a11 8 0 0 0 22 0C27 16 21 3 16 3Z" fill="#f5d793" stroke="#473b29" stroke-width="2"/><path d="m14 5-3 11" stroke="#fff7d9" stroke-width="3" stroke-linecap="round"/><ellipse cx="19" cy="14" rx="2" ry="3" fill="#b98748"/><ellipse cx="11" cy="22" rx="2.5" ry="2" fill="#82a06a"/><circle cx="22" cy="24" r="2" fill="#b98748"/></svg></span>Гнездо</button><button data-open-home="warehouse"><span class="dragon-entry-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="m8 13-3-9 9 5 9-5-1 9 6 4-1 8-8 4-10-4-3-6Z" fill="#7fa36c" stroke="#473b29" stroke-width="2" stroke-linejoin="round"/><path d="m7 5 2 8 5-4m9-4-6 5 5 2" fill="#ebce89"/><path d="m11 16 5 1-3 4Z" fill="#fff5d9"/><circle cx="14" cy="18" r="1.5" fill="#302c24"/><path d="m18 25 8-3" fill="none" stroke="#473b29" stroke-width="1.5"/><circle cx="24" cy="18" r="1.3" fill="#473b29"/></svg></span>Коллекция</button></div>
   <button class="btn" id="btnRestart" style="background:#8d8178">ЗАНОВО</button>
 </div>
 
 <div id="dragonBook" class="overlay book-overlay hidden">
   <div class="book-cover">
-    <h2>КНИГА СПАСЁННЫХ ДРАКОНОВ</h2>
-    <div class="tag" id="dragonTotal">ВСЕГО СПАСЕНИЙ: 0</div>
-    <p class="book-note">Крафт: 3 одинаковых дракона → 1 следующей редкости.<br>Обмен расходует драконов. Число спасений остаётся в истории.</p>
-    <p id="craftMessage" class="book-note" role="status" aria-live="polite"></p>
+    <header class="book-header">
+      <div><h2>Книга драконов</h2><div class="tag" id="dragonTotal">В коллекции: 0 · Спасений: 0</div></div>
+      <button class="book-close" id="btnCloseBook" aria-label="Закрыть книгу" title="Закрыть книгу">×</button>
+      <p id="craftMessage" role="status" aria-live="polite"></p>
+    </header>
+    <div class="book-recipe"><b>3 → 1</b>Одинаковые → следующая редкость</div>
     <div class="dragon-grid" id="dragonGrid"></div>
-    <button class="btn" data-open-home style="background:#576779;margin-bottom:10px">ДОМ · ИНКУБАТОР</button>
-    <button class="btn" id="btnCloseBook">ЗАКРЫТЬ КНИГУ</button>
+    <p class="book-note">Обмен расходует 3 дракона. История спасений сохраняется.<br>5 бриллиантовых драконов → яйцо в Доме.</p>
   </div>
 </div>
 
@@ -185,52 +272,79 @@
   <button class="btn hidden" id="btnRetryDragonSave">ПОВТОРИТЬ СОХРАНЕНИЕ</button>
   <button class="btn" id="btnVictoryRestart">ЕЩЁ ЗАБЕГ</button>
   <button class="btn" id="btnVictoryBook" style="background:#8d641e">ОТКРЫТЬ КНИГУ</button>
-  <button class="btn" data-open-home style="background:#576779">ДОМ ДРАКОНОВ</button>
+  <div class="dragon-entry-row"><button data-open-home="incubator"><span class="dragon-entry-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3C11 3 5 16 5 22a11 8 0 0 0 22 0C27 16 21 3 16 3Z" fill="#f5d793" stroke="#473b29" stroke-width="2"/><path d="m14 5-3 11" stroke="#fff7d9" stroke-width="3" stroke-linecap="round"/><ellipse cx="19" cy="14" rx="2" ry="3" fill="#b98748"/><ellipse cx="11" cy="22" rx="2.5" ry="2" fill="#82a06a"/><circle cx="22" cy="24" r="2" fill="#b98748"/></svg></span>Гнездо</button><button data-open-home="warehouse"><span class="dragon-entry-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="m8 13-3-9 9 5 9-5-1 9 6 4-1 8-8 4-10-4-3-6Z" fill="#7fa36c" stroke="#473b29" stroke-width="2" stroke-linejoin="round"/><path d="m7 5 2 8 5-4m9-4-6 5 5 2" fill="#ebce89"/><path d="m11 16 5 1-3 4Z" fill="#fff5d9"/><circle cx="14" cy="18" r="1.5" fill="#302c24"/><path d="m18 25 8-3" fill="none" stroke="#473b29" stroke-width="1.5"/><circle cx="24" cy="18" r="1.3" fill="#473b29"/></svg></span>Коллекция</button></div>
 </div>
 
 <div id="over" class="overlay hidden">
   <h2>ЗАБЕГ ОКОНЧЕН</h2><p id="stats"></p>
-  <button class="btn" data-open-home style="background:#576779">ДОМ ДРАКОНОВ</button>
+  <div class="dragon-entry-row"><button data-open-home="incubator"><span class="dragon-entry-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3C11 3 5 16 5 22a11 8 0 0 0 22 0C27 16 21 3 16 3Z" fill="#f5d793" stroke="#473b29" stroke-width="2"/><path d="m14 5-3 11" stroke="#fff7d9" stroke-width="3" stroke-linecap="round"/><ellipse cx="19" cy="14" rx="2" ry="3" fill="#b98748"/><ellipse cx="11" cy="22" rx="2.5" ry="2" fill="#82a06a"/><circle cx="22" cy="24" r="2" fill="#b98748"/></svg></span>Гнездо</button><button data-open-home="warehouse"><span class="dragon-entry-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="m8 13-3-9 9 5 9-5-1 9 6 4-1 8-8 4-10-4-3-6Z" fill="#7fa36c" stroke="#473b29" stroke-width="2" stroke-linejoin="round"/><path d="m7 5 2 8 5-4m9-4-6 5 5 2" fill="#ebce89"/><path d="m11 16 5 1-3 4Z" fill="#fff5d9"/><circle cx="14" cy="18" r="1.5" fill="#302c24"/><path d="m18 25 8-3" fill="none" stroke="#473b29" stroke-width="1.5"/><circle cx="24" cy="18" r="1.3" fill="#473b29"/></svg></span>Коллекция</button></div>
   <div class="tag">ПОСТОЯННОЕ УЛУЧШЕНИЕ</div><div class="cards" id="perks"></div>
 </div>
 
 <section id="dragonHome" class="home-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="homeTitle">
   <div class="home-shell">
-    <header class="home-header"><div><div class="home-eyebrow">VACKY GAMES / DRAGON SANCTUARY</div><h2 id="homeTitle">Дом драконов</h2><div id="homeWallet" class="home-wallet"></div></div><button id="btnCloseHome">Назад ✕</button></header>
-    <nav class="home-tabs" aria-label="Разделы дома"><button id="tabIncubator" role="tab" aria-selected="true">Инкубатор</button><button id="tabWarehouse" role="tab" aria-selected="false">Хранилище</button></nav>
-    <div class="home-layout">
-      <div class="home-scene"><canvas id="homeCanvas" width="720" height="500" aria-label="3D-просмотр: перетаскивай для вращения, используй кнопки для масштаба"></canvas><div class="home-scene-copy"><h3 id="homeSceneTitle"></h3><p id="homeSceneHint"></p></div>
-        <div id="viewerControls" class="home-tools hidden"><button id="btnZoomOut" aria-label="Отдалить дракона">−</button><button id="btnZoomIn" aria-label="Приблизить дракона">+</button><button id="btnTurntable">Вращение: вкл</button><button id="btnResetView">Сброс вида</button></div>
+    <header class="home-header"><div><div class="home-eyebrow">VACKY GAMES · ДРАКОНЫ</div><h2 id="homeTitle">Дом драконов</h2><div id="homeWallet" class="home-wallet"></div></div><button id="btnCloseHome">Назад ✕</button></header>
+    <div id="homeContent" class="home-layout">
+      <div class="home-scene"><canvas id="homeCanvas" width="720" height="480" tabindex="0" aria-label="Осмотр дракона. Перетаскивание вращает, два пальца или колесо приближают. Нажатие или Escape возвращает к ячейкам."></canvas><div class="home-scene-copy"><h3 id="homeSceneTitle"></h3><p id="homeSceneHint"></p></div>
+        <button id="btnCaveCollection" class="cave-collection-toggle hidden" aria-label="Вернуться к ячейкам" title="К ячейкам" aria-expanded="false" aria-controls="warehousePanel"><span aria-hidden="true">←</span><span>К ячейкам</span><span id="caveCollectionGlyph" hidden></span><span id="caveCollectionCount" hidden></span></button>
       </div>
-      <div id="incubatorPanel" class="home-panel"><div class="home-eyebrow">НОВАЯ ЖИЗНЬ / 5 ВЛОЖЕНИЙ</div><h3>Тайна внутри скорлупы</h3><p>Выбери яйцо и вложи пять бриллиантовых драконов. Каждый вклад раскрывает новые трещины. На пятом — вылупление эксклюзивного обитателя.</p>
-        <div class="egg-choices"><button class="egg-choice" data-egg="0" style="--shell:#8ed9e8"><i></i>Лунное</button><button class="egg-choice" data-egg="1" style="--shell:#b49adc"><i></i>Обсидиановое</button><button class="egg-choice" data-egg="2" style="--shell:#f4c875"><i></i>Солнечное</button></div>
-        <div id="eggProgressText"></div><div class="home-progress"><div id="eggProgress"></div></div><button id="btnFeedEgg" class="home-primary">ВЛОЖИТЬ 1 💎</button><button id="btnHomeBook" class="home-secondary">Книга и крафт драконов →</button>
-        <p class="home-small">Вложенные драконы расходуются. После первого вклада яйцо нельзя заменить. 100 возможных эксклюзивов, равный шанс каждого — 1%. Повторы остаются в хранилище. Оболочка яйца не влияет на находку.</p>
+        <section id="warehousePanel" class="cave-drawer hidden" aria-label="Коллекция драконов"><header><h3>Коллекция</h3><p id="warehouseCount"></p></header>
+          <label id="adminFilterRow" class="hidden">Тестовый каталог<select id="adminFamily"><option value="all">Все 107 моделей</option><option value="rescue">7 драконов финала</option></select></label>
+          <div id="exclusiveGrid" class="exclusive-grid"></div><div id="homePager" class="home-pager"><button id="homePrev" aria-label="Предыдущая страница">←</button><span id="homePageLabel"></span><button id="homeNext" aria-label="Следующая страница">→</button></div>
+        </section>
+      <div id="incubatorPanel" class="home-panel"><h3>Инкубация</h3>
+        <div id="homeAvailable" class="home-dragon-stock" role="img" aria-label="Бриллиантовые драконы: 0" title="Бриллиантовые драконы в наличии">
+          <svg class="diamond-stock-icon" viewBox="0 0 48 48" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+            <g stroke="#2b2620" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+              <path d="M12 26 4 18 6 34 17 40 24 36" fill="#70b8c9"/>
+              <path d="m16 18-3-13 11 9 7-10 1 14" fill="#dcf7fa"/>
+              <path d="m12 23 8-12 13 3 3 10 8 3-1 9-12 3-5 6-12-6 4-8Z" fill="#9bdde4"/>
+              <path d="m20 12 3 14 10-12M23 26l13-2M23 26l-5 5 8 14M23 26l8 13" fill="none" stroke="#e8fbfc" stroke-width="1.5"/>
+              <path d="m25 22 6 1-3 4Z" fill="#2b2620"/><path d="m35 32 6-1M19 38l6 2" fill="none"/>
+              <path d="m39 5 1.5 4.5L45 11l-4.5 1.5L39 17l-1.5-4.5L33 11l4.5-1.5Z" fill="#fff9de" stroke-width="1.4"/>
+            </g>
+          </svg><span id="homeDiamondCount" aria-hidden="true">0</span>
+        </div>
+        <div id="eggProgressText">0 / 5</div><p class="incubator-rule">5 драконов → 1 питомец</p>
+        <div class="home-progress" id="eggProgressBar" role="progressbar" aria-label="Вложено драконов" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0"><div id="eggProgress"></div></div>
+        <button id="btnFeedEgg" class="home-primary" title="Один бриллиантовый дракон будет потрачен на яйцо">Вложить · 1</button><button id="btnHomeBook" class="home-secondary">Крафт →</button>
       </div>
-      <div id="warehousePanel" class="home-panel hidden"><div class="home-eyebrow">ТОЛЬКО ТВОИ ОТКРЫТИЯ</div><h3>Хранилище легенд</h3><p id="warehouseCount"></p><p>Вращай дракона пальцем или мышью. Два пальца или кнопки − / + меняют масштаб.</p><div id="exclusiveGrid" class="exclusive-grid"></div></div>
     </div>
     <div id="homeMessage" class="home-status" role="status" aria-live="polite"></div>
-    <p style="max-width:none;color:#8293a6;font-size:10px">Коллекция и яйцо сохраняются в этом браузере. Очистка данных сайта удалит прогресс; между устройствами синхронизации пока нет.</p>
+    <details id="homeAdminTools" class="home-admin"><summary>ВРЕМЕННАЯ АДМИН-ПАНЕЛЬ · ДЛЯ ТЕСТА</summary><div class="home-admin-actions"><button id="btnAdminDiamonds">+5 БРИЛЛИАНТОВЫХ ДРАКОНОВ</button><button id="btnAdminCatalog">ПОКАЗАТЬ ВСЕХ 107 ДРАКОНОВ</button></div><p>Добавление сохраняется. Просмотр всех моделей не открывает их в коллекции. Эти кнопки нужно отключить перед публичным релизом.</p></details>
+    <p id="homeSaveNote" style="max-width:none;color:#827154;font-size:10px">Прогресс сохраняется в этом браузере.</p>
   </div>
 </section>
 
-  <script src="src/core.js"></script>
-  <script src="src/config.js"></script>
-  <script src="src/pets.js"></script>
-  <script src="src/draw-pets.js"></script>
-  <script src="src/ult.js"></script>
-  <script src="src/state.js"></script>
-  <script src="src/world.js"></script>
-  <script src="src/abilities.js"></script>
-  <script src="src/dragon-economy.js"></script>
-  <script src="src/dragons.js"></script>
-  <script src="src/dragon-3d.js"></script>
-  <script src="src/dragon-home.js"></script>
-  <script src="src/update.js"></script>
-  <script src="src/cards.js"></script>
-  <script src="src/draw-hero.js"></script>
-  <script src="src/draw-foe.js"></script>
-  <script src="src/render.js"></script>
-  <script src="src/ui.js"></script>
+  <script src="src/playables.js"></script>
+  <script type="text/vacky-module" src="src/core.js"></script>
+  <script type="text/vacky-module" src="src/config.js"></script>
+  <script type="text/vacky-module" src="src/map-art.js"></script>
+  <script type="text/vacky-module" src="src/arena-secrets.js"></script>
+  <script type="text/vacky-module" src="src/pets.js"></script>
+  <script type="text/vacky-module" src="src/draw-pets.js"></script>
+  <script type="text/vacky-module" src="src/ult.js"></script>
+  <script type="text/vacky-module" src="src/state.js"></script>
+  <script type="text/vacky-module" src="src/progression.js"></script>
+  <script type="text/vacky-module" src="src/world.js"></script>
+  <script type="text/vacky-module" src="src/enemy-hazards.js"></script>
+  <script type="text/vacky-module" src="src/combat.js"></script>
+  <script type="text/vacky-module" src="src/abilities.js"></script>
+  <script type="text/vacky-module" src="src/dragon-economy.js"></script>
+  <script type="text/vacky-module" src="src/dragons.js"></script>
+  <script type="text/vacky-module" src="src/dragon-breeds.js"></script>
+  <script type="text/vacky-module" src="src/dragon-camera.js"></script>
+  <script type="text/vacky-module" src="src/dragon-3d.js"></script>
+  <script type="text/vacky-module" src="src/dragon-hangar.js"></script>
+  <script type="text/vacky-module" src="src/dragon-cave.js"></script>
+  <script type="text/vacky-module" src="src/dragon-collection.js"></script>
+  <script type="text/vacky-module" src="src/dragon-home.js"></script>
+  <script type="text/vacky-module" src="src/update.js"></script>
+  <script type="text/vacky-module" src="src/cards.js"></script>
+  <script type="text/vacky-module" src="src/draw-hero.js"></script>
+  <script type="text/vacky-module" src="src/draw-foe.js"></script>
+  <script type="text/vacky-module" src="src/render.js"></script>
+  <script type="text/vacky-module" src="src/ui.js"></script>
+  <script src="src/boot-source.js"></script>
 </body>
 </html>

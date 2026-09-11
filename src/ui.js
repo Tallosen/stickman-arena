@@ -2,42 +2,66 @@
 /* ui.js — интерфейс, радар, кружок питомца, кнопки, старт */
 
 /* ── интерфейс ────────────────────────────────────────────── */
-const hudHeight = () => W < 560 ? 62 : 46;
-function hud() {
-  const mobile = W < 560, hh = hudHeight();
-  const heartY = mobile ? 14 : 17, textY = mobile ? 36 : 20, barY = mobile ? 49 : 30;
-  ctx.fillStyle = "rgba(245,236,221,.9)"; ctx.fillRect(0, 0, W, hh);
-  ctx.strokeStyle = INK; ctx.lineWidth = 2; sline(ctx, 0, hh, W, hh);
-  ctx.lineWidth = 2;
-  const maxVisible = mobile ? Math.max(8, Math.floor((W - 48) / 15)) : P.hpMax;
-  const visibleHearts = Math.min(P.hpMax, maxVisible);
-  for (let i = 0; i < visibleHearts; i++) {
-    const v = Math.max(0, Math.min(1, P.hp - i));
-    const cx2 = 16 + i * 15;
-    ctx.strokeStyle = INK; ctx.lineWidth = 2;
-    scircle(ctx, cx2, heartY, 5, PAPER);
-    if (v > 0) {                                   // половинка — левый полукруг
-      ctx.save();
-      ctx.beginPath();
-      if (v >= 1) ctx.arc(cx2, heartY, 4.4, 0, 7);
-      else { ctx.moveTo(cx2, heartY - 4.4); ctx.arc(cx2, heartY, 4.4, -Math.PI / 2, Math.PI / 2, true); ctx.closePath(); }
-      ctx.fillStyle = FOE; ctx.fill();
-      ctx.restore();
+const hudHeight = () => 62;
+function topHUDLayout(width) {
+  const margin=width<360?8:12,gap=8,rightW=width<380?122:146;
+  return {left:{x:margin,y:8,w:Math.min(264,width-margin*2-gap-rightW),h:54},
+    right:{x:width-margin-rightW,y:8,w:rightW,h:54}};
+}
+function drawTopHUD(g,width,p) {
+  const {left:L,right:R}=topHUDLayout(width);
+  const round=(x,y,w,h,r,fill,stroke)=>{
+    g.beginPath();g.roundRect(x,y,w,h,r);g.fillStyle=fill;g.fill();
+    if(stroke){g.strokeStyle=stroke;g.lineWidth=1.7;g.stroke();}
+  };
+  g.save();g.lineCap='round';g.lineJoin='round';
+  for(const q of [L,R]){
+    round(q.x+1,q.y+2,q.w,q.h,12,'rgba(61,45,25,.16)');
+    round(q.x,q.y,q.w,q.h,12,'rgba(253,246,232,.96)','#76654e');
+  }
+  // One compact character card: level badge, health, then XP.
+  const bx=L.x+25,by=L.y+27;
+  g.fillStyle='#f1dfb8';g.strokeStyle='#b37d30';g.lineWidth=1.8;
+  g.beginPath();g.arc(bx,by,17,0,Math.PI*2);g.fill();g.stroke();
+  g.textAlign='center';g.fillStyle='#8b693a';g.font='800 8px system-ui';g.fillText('УР',bx,by-5);
+  g.fillStyle=INK;g.font='900 15px system-ui';g.fillText(String(p.lvl),bx,by+10,29);
+  const x=L.x+51,edge=L.x+L.w-11,hpMax=Math.max(1,p.hpMax||1);
+  const hp=Math.max(0,Math.min(hpMax,p.hp||0)),healthW=Math.max(8,edge-x-39);
+  g.textAlign='right';g.fillStyle=hp<=hpMax*.25?'#b33829':'#6c5440';g.font='800 10px system-ui';
+  g.fillText(hp+'/'+hpMax,edge,L.y+20,37);
+  const dotCount=Math.ceil(hpMax),pitch=Math.min(12,healthW/Math.max(1,dotCount));
+  if(pitch>=7){
+    for(let i=0;i<dotCount;i++){
+      const cx=x+4+i*pitch,cy=L.y+16,r=Math.min(4,pitch*.36),v=Math.max(0,Math.min(1,hp-i));
+      g.beginPath();g.arc(cx,cy,r,0,Math.PI*2);g.fillStyle='#e7dcc7';g.fill();
+      if(v>0){g.save();g.beginPath();g.rect(cx-r,cy-r,r*2*v,r*2);g.clip();
+        g.beginPath();g.arc(cx,cy,r,0,Math.PI*2);g.fillStyle=FOE;g.fill();g.restore();}
+      g.beginPath();g.arc(cx,cy,r,0,Math.PI*2);g.strokeStyle='#634a3b';g.lineWidth=1.1;g.stroke();
     }
+  }else{
+    // Many hearts on a narrow phone: exact HP stays readable, none are hidden.
+    round(x,L.y+11,healthW,9,4,'#e7dcc7');
+    const fill=healthW*hp/hpMax;if(fill>0)round(x,L.y+11,fill,9,Math.min(4,fill/2),FOE);
   }
-  if (P.hpMax > visibleHearts) {
-    ctx.fillStyle=INK;ctx.font="800 10px system-ui";ctx.textAlign="left";
-    ctx.fillText("+"+(P.hpMax-visibleHearts),18+visibleHearts*15,heartY+3.5);
-  }
-  const bw = W - 32;
-  ctx.strokeStyle = INK; ctx.lineWidth = 1.6;
-  ctx.strokeRect(16, barY, bw, 6);
-  ctx.fillStyle = HERO; ctx.fillRect(16, barY, bw * (P.xp / P.xpNext), 6);
-  ctx.fillStyle = INK; ctx.font = "700 12px system-ui"; ctx.textAlign = "right";
-  const build=`ФУЛЛ ${buildUpgradeCount()}/${FULL_BUILD_CHOICES}`;
-  ctx.fillText(mobile?`СТ.${P.lvl} · ${build} · ${score}`:
-    `СТАДИЯ ${P.lvl}   ${build}   ${P.xp}/${STAGE_XP} XP   ${score}`, W - 16, textY);
-  ctx.textAlign = "left";
+  const barX=x+18,barY=L.y+34,barW=edge-barX;
+  const full=heroBuildComplete(),xp=full?1:Math.max(0,Math.min(1,(p.xp||0)/Math.max(1,p.xpNext||1)));
+  g.textAlign='left';g.fillStyle=full?'#63805c':'#97723c';g.font='800 8px system-ui';g.fillText('XP',x,L.y+41);
+  round(barX,barY,barW,8,4,'#e8dcc5');
+  if(xp>0)round(barX,barY,barW*xp,8,Math.min(4,barW*xp/2),full?'#7f9c65':'#d7953b');
+  g.strokeStyle=full?'#63805c':'#ac8652';g.lineWidth=.8;g.beginPath();g.roundRect(barX,barY,barW,8,4);g.stroke();
+  if(full){g.fillStyle='#f8f3e7';g.textAlign='center';g.font='800 7px system-ui';g.fillText('MAX',barX+barW/2,barY+6.5);}
+  const done=campaignComplete(),cx=R.x+12;
+  g.textAlign='left';g.fillStyle=done?'#287e94':INK;g.font='900 11px system-ui';
+  g.fillText(done?'АЛТАРЬ ОТКРЫТ':'СТАДИЯ '+p.stage+' / '+RUN_STAGES,cx,R.y+20,R.w-24);
+  g.fillStyle='#88735a';g.font='700 8px system-ui';
+  g.fillText(done?'ДРАКОН ЧЕРЕЗ':'СМЕНА ЧЕРЕЗ',cx,R.y+41,R.w-59);
+  g.textAlign='right';g.fillStyle=done?'#287e94':'#755426';g.font='900 12px system-ui';
+  g.fillText(formatRunTime(done?campaignRemaining():stageRemaining()),R.x+R.w-11,R.y+41,37);
+  g.restore();
+}
+function hud() {
+  const hh = hudHeight();
+  drawTopHUD(ctx,W,P);
   // шкалы эффектов живут под миникартой: слева их перекрывали пауза и +LV
   const RS = Math.min(112, W * .28), rx = W - RS - 12;
   let by = hh + 10 + RS + 9;
@@ -64,8 +88,8 @@ function hud() {
     ctx.fillStyle="rgba(253,246,232,.94)";ctx.strokeStyle="#d2691e";ctx.lineWidth=3;
     const ww=Math.min(310,W-34),yy=H*.25;
     ctx.beginPath();ctx.roundRect(W/2-ww/2,yy-34,ww,68,14);ctx.fill();ctx.stroke();
-    ctx.fillStyle="#d2691e";ctx.font="900 22px system-ui";ctx.fillText("СТАДИЯ "+P.lvl,W/2,yy-3);
-    ctx.fillStyle=INK;ctx.font="700 10px system-ui";ctx.fillText("ВРАГИ СИЛЬНЕЕ · ГЕРОЙ СИЛЬНЕЕ",W/2,yy+17);ctx.restore();
+    ctx.fillStyle="#d2691e";ctx.font="900 22px system-ui";ctx.fillText("СТАДИЯ "+P.stage+" / "+RUN_STAGES,W/2,yy-3);
+    ctx.fillStyle=INK;ctx.font="700 10px system-ui";ctx.fillText("НОВАЯ ВОЛНА",W/2,yy+17);ctx.restore();
   }
   radar(); ultGauge(); syncHUD();
 }
@@ -117,7 +141,8 @@ function radar() {
   for (const c of chests) {
     const px=x+c.x*s, py=y+c.y*s;
     ctx.fillStyle = c.rare ? "#8a53c4" : "#dfa128";
-    if (c.rare) { ctx.save(); ctx.translate(px,py); ctx.rotate(Math.PI/4); ctx.fillRect(-3.5,-3.5,7,7); ctx.restore(); }
+    if (c.rare) { ctx.save(); ctx.translate(px,py); ctx.rotate(Math.PI/4);const sz=c.elite?5:3.5;
+      ctx.fillRect(-sz,-sz,sz*2,sz*2);if(c.elite){ctx.strokeStyle='#e2ba58';ctx.lineWidth=1.3;ctx.strokeRect(-sz,-sz,sz*2,sz*2);}ctx.restore(); }
     else ctx.fillRect(px-2,py-2,5,5);
   }
   for (const h of pickups) {
@@ -262,14 +287,14 @@ function devLaunchFinale(forcedId=null){
   document.getElementById("levelup").classList.add("hidden");
   for(const key of GK)P.gear[key]=GEAR[key].max;
   if(!P.pet)P.pet=makePet("dog");
-  P.pet.lvl=PET_MAX;P.pet.hpMax=4+PET_MAX;P.pet.hp=P.pet.hpMax;
+  P.pet.lvl=PET_MAX;P.pet.hpMax=petStats(P.pet).hp;P.pet.hp=P.pet.hpMax;
   P.lvl=Math.max(P.lvl,FULL_BUILD_CHOICES+1);
   applyGear();P.hp=P.hpMax;
   const forced=forcedId&&DRAGON_TYPES.find(d=>d.id===forcedId);
   pops.push({x:P.x,y:P.y-62,txt:forced?"ТЕСТ · "+forced.name:"ФУЛЛ 33/33",life:1.2,col:forced?forced.accent:"#b88716"});
   // +FULL проверяет обычный маршрут к алтарю; +DRG остаётся быстрым просмотром.
   if(forcedId)startDragonFinale(true);
-  else unlockDragonAltar();
+  else {P.runMs=RUN_MAIN_MS;updateRunProgress(0);}
 }
 devFull.addEventListener("pointerdown",e=>{
   e.stopPropagation();pointer.active=false;devLaunchFinale();
@@ -291,6 +316,11 @@ devLvl.addEventListener("pointerdown", e => {
   P.xp = P.xpNext - 1;
   gainXP();
 });
+
+// ВРЕМЕННО: награда остаётся настоящей, повторные нажатия не создают дубликаты.
+const devCompass=document.getElementById('devCompass');
+devCompass.addEventListener('pointerenter',()=>{pointer.active=false;});
+devCompass.addEventListener('pointerdown',e=>{e.stopPropagation();devTestCompass();});
 
 document.getElementById("btnResume").onclick = resumeGame;
 document.getElementById("btnRestart").onclick = () => {
@@ -336,7 +366,7 @@ petBadge.addEventListener("pointerdown", e => {
   const p = P.pet;
   if (!p || p.dead > 0 || !running) return;
   p.recall = 3000;
-  if (p.type === "mole" && p.state === "down") { p.state = "up"; p.timer = 1500; }
+  // The mole finishes its marked tunnel before answering the recall.
   pops.push({ x: P.x, y: P.y - 60, txt: "КО МНЕ!", life: 1.2, col: HERO });
   chain([760, 1010], "square", .045);
 });
@@ -354,12 +384,14 @@ function syncHUD() {
   pauseBtn.style.display = running ? "flex" : "none";
   dragonBookBtn.style.display = running ? "flex" : "none";
   document.getElementById("dragonHomeBtn").style.display=running?"flex":"none";
-  devLvl.style.display = running ? "block" : "none";
-  devUlt.style.display = running ? "block" : "none";
-  devRare.style.display = running ? "block" : "none";
-  devSniper.style.display = running ? "block" : "none";
-  devFull.style.display = running ? "block" : "none";
-  devDragon.style.display = running ? "block" : "none";
+  document.getElementById("dragonEggBtn").style.display=running?"flex":"none";
+  devLvl.style.display = running&&DRAGON_ADMIN_ENABLED ? "block" : "none";
+  devUlt.style.display = running&&DRAGON_ADMIN_ENABLED ? "block" : "none";
+  devRare.style.display = running&&DRAGON_ADMIN_ENABLED ? "block" : "none";
+  devSniper.style.display = running&&DRAGON_ADMIN_ENABLED ? "block" : "none";
+  devFull.style.display = running&&DRAGON_ADMIN_ENABLED ? "block" : "none";
+  devDragon.style.display = running&&DRAGON_ADMIN_ENABLED ? "block" : "none";
+  devCompass.style.display = running&&DRAGON_ADMIN_ENABLED ? 'block' : 'none';
   abilityDock.classList.toggle("hidden", !running);
   const invKey = ABILITY_KEYS.map(k => inventory[k]).join(",") + ":" + running + ":" + paused;
   if (invKey !== lastInventory) {
@@ -390,10 +422,27 @@ function start() {
   document.getElementById("over").classList.add("hidden");
 }
 function gameOver() {
-  running = false; meta.best = Math.max(meta.best, Math.round(t / 1000));
+  running = false; meta.best = Math.max(meta.best, Math.round(P.runMs / 1000));
+  saveMeta();
   document.getElementById("stats").textContent =
-    `${(t / 1000).toFixed(0)} с · лопнул ${score} · стадия ${P.lvl} · прокачка ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · рекорд ${meta.best} с`;
+    `${formatRunTime(P.runMs)} · лопнул ${score} · стадия ${P.stage}/${RUN_STAGES} · ур. ${P.lvl} · прокачка ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · рекорд ${meta.best} с`;
   offerPerks(); document.getElementById("over").classList.remove("hidden");
 }
 document.getElementById("btnStart").onclick = () => { audio(); start(); };
 reset(); running = false;
+function platformGameHooks(){
+  let frozenAt=null;
+  return {
+    initial(){draw();},
+    suspend(){if(frozenAt===null)frozenAt=performance.now();pointer.active=false;homeTouches.clear();homeTap=null;},
+    resume(){
+      const now=performance.now(),elapsed=frozenAt===null?0:now-frozenAt;frozenAt=null;
+      last=now;homeLastFrame=now;caveLastTime=0;
+      if(homeHatching)homeHatching+=elapsed;
+      if(cavePickup)cavePickup.start+=elapsed;if(caveRelease)caveRelease.start+=elapsed;
+      resize();homeNeedsPaint=true;if(dragonHomeOpen()){resizeHomeCanvas();wakeDragonHome();}
+    },
+    audio:platformAudio,
+    catalogue(){if(DRAGON_ADMIN_ENABLED){openDragonHome("warehouse");document.getElementById("btnAdminCatalog").click();}},
+  };
+}

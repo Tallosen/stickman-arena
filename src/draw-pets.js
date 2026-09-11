@@ -2,6 +2,45 @@
 /* draw-pets.js — рисование питомцев, предметов, яиц, турелей */
 
 /* ── рисование питомцев ───────────────────────────────────── */
+function drawBoarBlast(g,b){
+  const t=Math.max(0,Math.min(1,1-b.life)),fade=1-t,R=b.max;
+  g.save();g.translate(b.x,b.y);g.lineCap='round';
+  // Low ground shockwave, short bright core, then separate dust curls and debris.
+  g.globalAlpha=fade*.8;g.strokeStyle='#b6662f';g.lineWidth=2+fade*4;
+  g.beginPath();g.ellipse(0,5,R*(.15+.85*Math.sqrt(t)),R*(.09+.46*Math.sqrt(t)),0,0,7);g.stroke();
+  g.globalAlpha=fade*.5;g.strokeStyle='#efbb60';g.lineWidth=9*fade;
+  g.beginPath();g.ellipse(0,5,R*(.12+.69*Math.sqrt(t)),R*(.07+.37*Math.sqrt(t)),0,0,7);g.stroke();
+  for(let i=0;i<9;i++){
+    const a=i*Math.PI*2/9+(b.seed||0)*.05,d=R*(.2+t*.6),x=Math.cos(a)*d,y=Math.sin(a)*d*.50-15*Math.sin(t*Math.PI);
+    g.globalAlpha=Math.sin(t*Math.PI)*.48;g.fillStyle=i%2?'#d8b98a':'#bba17b';
+    g.beginPath();g.ellipse(x,y,5+t*14,4+t*9,a,0,7);g.fill();
+    const dx=Math.cos(a)*R*t*.96,dy=Math.sin(a)*R*t*.53-Math.sin(t*Math.PI)*(22+i%3*8);
+    g.globalAlpha=fade;g.strokeStyle=i%2?'#f2bd59':'#826347';g.lineWidth=2.4;
+    sline(g,dx,dy,dx-Math.cos(a)*9*fade,dy+5*fade);
+  }
+  if(t<.5){
+    const u=t/.5,rr=(18+Math.sin(u*Math.PI)*29)*(R/130);
+    g.globalAlpha=1-u;g.strokeStyle='#a95a2b';g.lineWidth=2;
+    const rays=[];for(let i=0;i<20;i++){const a=i*Math.PI/10,r=rr*(i%2?.48:1);rays.push([Math.cos(a)*r,Math.sin(a)*r-16]);}
+    spoly(g,rays,'#f5bf58');g.fillStyle='#fff2c1';g.beginPath();g.ellipse(0,-16,rr*.38,rr*.5,0,0,7);g.fill();
+  }
+  g.restore();
+}
+function drawMoleBurrow(g,p){
+  if(!p||p.dead>0||p.type!=='mole'||p.state!=='down'||!p.burrow)return;
+  const b=p.burrow,u=Math.min(1,b.elapsed/b.duration);
+  g.save();g.lineWidth=1.5;g.strokeStyle='#977b52';g.globalAlpha=.45;g.setLineDash([3,7]);
+  g.beginPath();g.moveTo(b.from.x,b.from.y);g.lineTo(b.to.x,b.to.y);g.stroke();
+  g.globalAlpha=.95;g.lineWidth=2;g.setLineDash([4,4]);g.lineDashOffset=-u*12;
+  const pulse=u>.72?Math.sin(u*50)*1.5:0;
+  g.beginPath();g.ellipse(b.to.x,b.to.y,21+pulse,13+pulse*.5,0,0,Math.PI*2);g.stroke();
+  g.setLineDash([]);g.strokeStyle='#b59668';g.lineWidth=1.4;
+  sline(g,b.to.x-5,b.to.y,b.to.x+5,b.to.y);sline(g,b.to.x,b.to.y-4,b.to.x,b.to.y+4);
+  const count=Math.min(20,Math.floor(Math.hypot(b.to.x-b.from.x,b.to.y-b.from.y)/14));
+  g.fillStyle='#ac8d60';g.globalAlpha=.5;
+  for(let i=1;i<=count;i++){const f=i/(count+1);if(f>u)break;g.beginPath();g.ellipse(b.from.x+(b.to.x-b.from.x)*f,b.from.y+(b.to.y-b.from.y)*f,2.4,1.5,0,0,7);g.fill();}
+  g.restore();
+}
 function drawPet(g, x, y, type, lvl, face, phase, p) {
   g.save(); g.translate(x, y); g.lineCap = "round"; g.lineJoin = "round";
   g.strokeStyle = INK; g.lineWidth = 2.2;
@@ -47,7 +86,7 @@ function drawPet(g, x, y, type, lvl, face, phase, p) {
     spoly(g, [[9, -20], [10, -25], [13, -20]], "#8c959d");
     spoly(g, [[13, -20], [16, -25], [16, -19]], "#8c959d");
     g.restore();
-    g.save(); g.translate(0, -14); g.rotate(face > 0 ? (p ? p.aim : 0) : Math.PI - (p ? p.aim : 0)); g.scale(face, 1);
+    g.save(); g.translate(0, -14); g.rotate(p ? p.aim : (face > 0 ? 0 : Math.PI));
     spoly(g, [[-4, -4], [6, -4], [6, 1], [-4, 1]], col);
     spoly(g, [[6, -3], [16 + lvl, -3], [16 + lvl, -.6], [6, -.6]], col);
     g.restore();
@@ -66,7 +105,17 @@ function drawPet(g, x, y, type, lvl, face, phase, p) {
     g.beginPath(); g.ellipse(0, 12, 9, 3, 0, 0, 7); g.fill(); g.globalAlpha = 1;
 
   } else if (type === "boar") {
+    if(p?.fuse>0){
+      g.save();g.globalAlpha=.4;g.strokeStyle='#c57d35';g.lineWidth=1.5;g.setLineDash([4,5]);
+      g.beginPath();g.ellipse(0,3,23,9,0,0,7);g.stroke();g.restore();
+    }
     g.save(); g.scale(face, 1);
+    if(p?.fuse>0){
+      g.translate(p.fuse<320?-Math.sin(p.fuse/45)*1.5:2,p.fuse<320?2:Math.sin(phase*2)*1.4);
+      g.rotate(p.fuse<320?-.04:.07);
+      if(p.fuse>320){g.save();g.strokeStyle='#b19468';g.globalAlpha=.55;g.lineWidth=1.6;
+        for(let i=0;i<3;i++)sline(g,-21-i*5,-4-i*7,-32-i*7,-4-i*7);g.restore();}
+    }
     spoly(g, [[-15, -18], [8, -20], [12, -6], [-14, -5]], "#6f5b4a");     // туша
     sline(g, -9, -5, -10 + sw * 4, 3); sline(g, -5, -5, -6 - sw * 4, 3);
     sline(g, 5, -6, 6 - sw * 4, 3); sline(g, 9, -6, 10 + sw * 4, 3);
@@ -114,7 +163,9 @@ function drawPet(g, x, y, type, lvl, face, phase, p) {
     g.restore();
 
   } else if (type === "mole") {
+    if(p?.emergeT>0)g.translate(0,-Math.sin((1-p.emergeT/420)*Math.PI)*12);
     if (p && p.state === "down") {
+      g.translate(0,Math.sin(phase*1.7)*1.1);
       spoly(g, [[-17, 3], [-9, -9], [9, -9], [17, 3]], "#a98055");     // холмик земли
       g.lineWidth = 1.6;
       sline(g, -8, 1, -4, -4); sline(g, 2, 1, 6, -4); sline(g, -1, 2, 0, -6);
@@ -167,15 +218,14 @@ function drawItemIcon(g, key, x, y, sc) {
     g.beginPath(); g.arc(0, 0, 7.5, 0, 7);
     g.fillStyle = "#c8402c"; g.fill(); g.stroke();
     g.fillStyle = "#ffe0b0"; g.beginPath(); g.arc(0, 0, 2.6, 0, 7); g.fill();
-  } else if (key === "ice") {                             // снежинка
-    g.strokeStyle = "#3f97bd"; g.lineWidth = 2.4;
-    for (let i = 0; i < 3; i++) {
-      const a = i * Math.PI / 3;
-      sline(g, -Math.cos(a) * 10, -Math.sin(a) * 10, Math.cos(a) * 10, Math.sin(a) * 10);
-      sline(g, Math.cos(a) * 6, Math.sin(a) * 6, Math.cos(a) * 6 + Math.cos(a + 1) * 4.5, Math.sin(a) * 6 + Math.sin(a + 1) * 4.5);
-      sline(g, -Math.cos(a) * 6, -Math.sin(a) * 6, -Math.cos(a) * 6 - Math.cos(a + 1) * 4.5, -Math.sin(a) * 6 - Math.sin(a + 1) * 4.5);
-    }
-    g.strokeStyle = INK;
+  } else if (key === "ice") {                             // огранённый морозный кристалл
+    g.strokeStyle="#367e99";g.lineWidth=1.5;
+    spoly(g,[[-11,4],[-10,-5],[-5,-9],[0,3],[-4,11]],"#8dd4e0");
+    spoly(g,[[3,9],[5,-5],[11,-8],[12,4],[7,11]],"#b5e9ef");
+    spoly(g,[[0,-14],[6,-6],[5,7],[0,13],[-5,7],[-6,-6]],"#c8f3f5");
+    g.lineWidth=1;g.strokeStyle="#62adc7";sline(g,0,-14,-1,5);sline(g,-1,5,0,13);sline(g,-6,-6,-1,5);sline(g,6,-6,-1,5);
+    g.strokeStyle="#fffdf4";g.lineWidth=1.6;sline(g,1,-10,4,-6);sline(g,4,-6,3,0);
+    sline(g,-12,-11,-8,-11);sline(g,-10,-13,-10,-9);
   } else {                                                // кристалл опыта
     spoly(g, [[0, -11], [7, -2], [4, 9], [-4, 9], [-7, -2]], "#e8c247");
     g.lineWidth = 1.4;
