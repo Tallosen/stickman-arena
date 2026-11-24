@@ -5,25 +5,82 @@ let homeTab="incubator",homeSelected=null,homeReveal=null,homeHatching=0,homeRaf
 let homeAdmin=false,homePage=0,homeGridKey="",homeThumbJobs=[],homeNeedsPaint=true,homeCanvasVisible=true;
 let homeDrawerOpen=false,homeShelfVisible=true,homeAnimTime=0;
 let homeThumbSlots=[];
-const HOME_IDLE_FRAMES=12,HOME_IDLE_CACHE_LIMIT=12;
+const HOME_IDLE_FRAMES=1,HOME_IDLE_CACHE_LIMIT=12;
 const homeThumbCache=new Map(),homeTouches=new Map(),homeView={yaw:.85,pitch:.35,distance:1};
 function dragonHomeOpen(){return !dragonHome.classList.contains("hidden");}
 function homeMessage(s){document.getElementById("homeMessage").textContent=s||"";}
 function setHomeDrawer(){homeDrawerOpen=false;}
-function inspectHomeDragon(id){
-  if(!homeCanView(id))return;
-  homeSelected=id;caveHeld=id;caveRelease=null;cavePickup=null;
-  Object.assign(homeView,{yaw:.85,pitch:.35,distance:1});
-  refreshDragonHome();homeCanvas.focus({preventScroll:true});
-}
-function returnHomeShelf(){
-  const id=caveHeld;caveHeld=null;caveRelease=null;cavePickup=null;refreshDragonHome();
-  const grid=document.getElementById("exclusiveGrid");
-  while(homeThumbCache.size>HOME_IDLE_CACHE_LIMIT)homeThumbCache.delete(homeThumbCache.keys().next().value);
-  for(const b of grid.querySelectorAll("button"))if(b.dataset.dragon===String(id))b.focus();
-}
 function homeIsTap(tap,count,now){return !!tap&&!tap.moved&&count===1&&now-tap.start<600;}
-function handleHomeCanvasTap(){if(homeTab==="warehouse"&&caveHeld!==null)returnHomeShelf();}
+let homeInspectCare=null;
+const HOME_OBJECT_HINTS={nest:['Лежанка — отдохнуть','N'],toy:['Мяч — поиграть носом','B'],tree:['Растения — понюхать листочек','L'],water:['Вода — поплескаться','W']};
+const HOME_TOUCH_HINTS={head:'Голова — погладить',belly:'Живот — пощекотать',tail:'Хвост — посмотреть реакцию'};
+const HOME_CAMERA_HINT='Коснись питомца или предмета · потяни — повернуть · два пальца — приблизить';
+const homeHintSeen=new Set();
+let homeHintObjects=[],homeHintIntro=false,homeHintTarget=null,homeHintUntil=0,homeHintLastPick=-Infinity;
+function beginHomeHints(id){
+ homeHintObjects=typeof buildCollectionHabitat==='function'?buildCollectionHabitat(prepareRestingDragon(homeDragonDisplayMesh(id)),dragonPersonality(id)).objects.filter(key=>HOME_OBJECT_HINTS[key]):['nest','toy'];
+ const key=[...homeHintObjects].sort().join(',');homeHintIntro=!homeHintSeen.has(key);homeHintSeen.add(key);
+ homeHintTarget=null;homeHintLastPick=-Infinity;
+ homeCanvas.setAttribute('aria-describedby','homeSceneHint');
+ homeCanvas.setAttribute('aria-keyshortcuts',[...homeHintObjects.map(key=>HOME_OBJECT_HINTS[key][1]),'Enter'].join(' '));
+}
+function refreshHomeHint(){
+ if(!dragonHomeOpen()||homeTab!=='warehouse'||caveHeld===null)return;
+ const object=homeHintTarget?.startsWith('object:')?homeHintTarget.slice(7):null;
+ const targetText=object&&homeHintObjects.includes(object)?HOME_OBJECT_HINTS[object].join(' · '):HOME_TOUCH_HINTS[homeHintTarget];
+ const intro=homeHintObjects.map(key=>HOME_OBJECT_HINTS[key][0]).join(' · ');
+ const text=targetText||(homeHintIntro?'Попробуй коснуться: '+intro:HOME_CAMERA_HINT),el=document.getElementById('homeSceneHint');
+ if(el.textContent!==text)el.textContent=text;
+ homeCanvas.title=targetText||homeHintObjects.map(key=>HOME_OBJECT_HINTS[key].join(' · ')).join('. ');
+ homeCanvas.style.cursor=targetText?'pointer':'grab';
+}
+function clearHomeHover(dismiss=false){homeHintTarget=null;if(dismiss)homeHintIntro=false;refreshHomeHint();}
+function hoverHomeInspection(e){
+ if(e.pointerType!=='mouse'||!dragonHomeOpen()||homeTab!=='warehouse'||caveHeld===null||homeTouches.size||(typeof Playables!=='undefined'&&Playables.blocked)||typeof collectionInspectionTarget!=='function')return;
+ const now=performance.now();if(now-homeHintLastPick<100)return;homeHintLastPick=now;
+ const r=homeCanvas.getBoundingClientRect();if(!r.width||!r.height)return;
+ homeHintTarget=collectionInspectionTarget(homeCanvas,(e.clientX-r.left)*homeCanvas.width/r.width,(e.clientY-r.top)*homeCanvas.height/r.height);
+ homeHintUntil=homeAnimTime+1.2;refreshHomeHint();
+}
+const homeGaze={x:0,y:0,eyeStrength:0,headStrength:0,until:0,last:0};
+function resetHomeGaze(){Object.assign(homeGaze,{x:0,y:0,eyeStrength:0,headStrength:0,until:0,last:homeAnimTime});}
+function aimHomeGaze(e){
+ if(homeReduced||!dragonHomeOpen()||homeTab!=="warehouse"||caveHeld===null||(typeof Playables!=="undefined"&&Playables.blocked))return;
+ const r=homeCanvas.getBoundingClientRect();
+ homeGaze.x=Math.max(-1,Math.min(1,(e.clientX-r.left)/Math.max(1,r.width)*2-1));homeGaze.y=Math.max(-1,Math.min(1,(e.clientY-r.top)/Math.max(1,r.height)*2-1));
+ homeGaze.until=homeAnimTime+2.5;homeNeedsPaint=true;wakeDragonHome();
+}
+function homeAttentionView(view){
+ if(homeReduced||homeTab!=="warehouse"||caveHeld===null)return view;
+ const dt=Math.max(0,Math.min(.1,homeAnimTime-homeGaze.last));homeGaze.last=homeAnimTime;
+ const goal=homeAnimTime<homeGaze.until?1:0;
+ homeGaze.eyeStrength+=(goal-homeGaze.eyeStrength)*(1-Math.exp(-dt*12));homeGaze.headStrength+=(goal-homeGaze.headStrength)*(1-Math.exp(-dt*3));
+ return {...view,gaze:{...homeGaze}};
+}
+function inspectHomeDragon(id){
+ if(!dragonHomeOpen()||homeTab!=="warehouse"||!homeCanView(id)||(typeof Playables!=="undefined"&&Playables.blocked))return;
+ cancelCellGestures();stopDragonCare();homeTouches.clear();caveHeld=id;homeSelected=id;Object.assign(homeView,cellView(id));
+ resetHomeGaze();homeGaze.until=homeAnimTime+2;
+ beginHomeLife(id);
+ beginHomeHints(id);
+ homeInspectCare=createCareControls(id);document.getElementById("homeInspectCare").replaceChildren(homeInspectCare.box);
+ homeCanvasVisible=true;refreshDragonHome();homeCanvas.focus({preventScroll:true});homeCanvas.scrollIntoView({block:"nearest"});
+}
+function returnHomeCollection(){
+ clearHomeHover(true);homeCanvas.style.cursor='';homeCanvas.title='';homeCanvas.setAttribute('aria-keyshortcuts','');
+ const id=caveHeld;stopDragonCare();homeTouches.clear();caveHeld=null;homeInspectCare=null;
+ resetHomeGaze();
+ endHomeLife();
+ document.getElementById("homeInspectCare").replaceChildren();homeShelfVisible=true;refreshDragonHome();
+ homeThumbSlots.find(s=>s.id===id)?.c.focus({preventScroll:true});
+}
+function handleHomeCanvasTap(x,y){
+ if(caveHeld===null)return;
+ let acted=false;
+ if(typeof collectionDragonTouchZone==='function'){const zone=collectionDragonTouchZone(homeCanvas,x,y);if(zone)acted=touchHomeDragon(zone);else if(typeof collectionIslandObjectAt==='function'){const object=collectionIslandObjectAt(homeCanvas,x,y);if(object)acted=beginHomeObjectAction(object);}}
+ else if(collectionHitDragon(homeCanvas,x,y))acted=touchHomeDragon();
+ if(acted)clearHomeHover(true);return acted;
+}
 function homeOwnedIds(){return Object.keys(dragonProfile.exclusives).map(Number).filter(id=>dragonProfile.exclusives[id]>0);}
 function homeCatalogIds(){
   if(!homeAdmin)return homeOwnedIds();
@@ -46,9 +103,15 @@ function openDragonHome(destination="incubator"){
   resetCaveVisit();Object.assign(homeView,{yaw:.85,pitch:.35,distance:1});
   setHomeDrawer(false);
   document.getElementById("homeAdminTools").open=false;dragonHome.classList.remove("hidden");
+  if(homeTab==="warehouse")ensureDragonPersonalities();
   homeMessage("");refreshDragonHome();document.getElementById("btnCloseHome").focus();resizeHomeCanvas();wakeDragonHome();
 }
 function closeDragonHome(){
+  homeHintTarget=null;homeHintIntro=false;homeCanvas.style.cursor='';homeCanvas.title='';homeCanvas.setAttribute('aria-keyshortcuts','');
+  endHomeLife();resetHomeGaze();
+  cancelCellGestures();
+  disconnectCellQuality();
+  stopDragonCare();
   dragonHome.classList.add("hidden");homeTouches.clear();homeHatching=0;homeAdmin=false;homeThumbJobs=[];homeThumbSlots=[];
   (typeof Playables==="undefined"?cancelAnimationFrame:Playables.cancelFrame)(homeRaf);homeRaf=0;pointer.active=false;
   if(running&&!userPaused&&!levelOpen()&&!dragonBookOpen())paused=false;
@@ -58,8 +121,8 @@ function setDragonHomeTab(tab){if(!["incubator","warehouse"].includes(tab))retur
 function refreshDragonHome(){
   if(!dragonHomeOpen())return;
   homeNeedsPaint=true;
-  document.getElementById("homeTitle").textContent=homeTab==="incubator"?"Яйцо в гнезде":"Моя коллекция";
-  document.getElementById("btnCloseHome").textContent="Закрыть ✕";
+  document.getElementById("homeTitle").textContent=typeof uiLabel==="function"?uiLabel(homeTab==="incubator"?"hatch":"pets"):homeTab==="incubator"?"Вылупить питомца":"Мои питомцы";
+  document.getElementById("btnCloseHome").textContent=typeof uiLabel==="function"?uiLabel("close"):"Закрыть ✕";
   const p=dragonProfile,fed=p.egg?.fed||0,owned=homeOwnedIds(),total=[...Object.values(p.counts),...Object.values(p.exclusives)].reduce((a,b)=>a+b,0);
   const collectionTotal=owned.reduce((n,id)=>n+p.exclusives[id],0);
   document.getElementById("homeWallet").textContent=`${homeTab==="warehouse"?collectionTotal:total} драконов · ${owned.length} / 100 видов`;
@@ -68,7 +131,8 @@ function refreshDragonHome(){
   document.getElementById("incubatorPanel").classList.toggle("hidden",homeTab!=="incubator");
   dragonHome.classList.toggle("view-warehouse",homeTab==="warehouse");
   dragonHome.classList.toggle("inspecting",caveHeld!==null);
-  document.getElementById("btnCaveCollection").classList.toggle("hidden",homeTab!=="warehouse"||caveHeld===null);
+  document.getElementById("btnBackToCollection").classList.toggle("hidden",caveHeld===null);
+  document.getElementById("homeInspectCare").classList.toggle("hidden",caveHeld===null);
   document.getElementById("warehousePanel").classList.toggle("hidden",homeTab!=="warehouse"||caveHeld!==null);
   setHomeDrawer(homeDrawerOpen);
   document.getElementById("homeAdminTools").classList.toggle("hidden",!DRAGON_ADMIN_ENABLED);
@@ -85,9 +149,8 @@ function refreshDragonHome(){
   }else if(homeTab==="warehouse"){
     const ids=homeCatalogIds();if(!ids.includes(homeSelected))homeSelected=ids[0]??null;
     document.getElementById("homeSceneTitle").textContent=caveHeld!==null?homeEntry(caveHeld).name:"Гнёзда драконов";
-    document.getElementById("homeSceneHint").textContent=caveHeld!==null?"Потяни, чтобы повернуть · два пальца — приблизить":"";
+    if(caveHeld!==null)refreshHomeHint();else document.getElementById("homeSceneHint").textContent='';
     document.getElementById("warehouseCount").textContent=homeAdmin?"107 моделей · тест":`${owned.length} видов · ${owned.reduce((n,id)=>n+p.exclusives[id],0)} драконов`;
-    document.getElementById("caveCollectionCount").textContent=String(ids.length);
     renderHomeShelf(ids);
   }
   if(dragonStorageError)homeMessage(dragonStorageError);
@@ -101,28 +164,32 @@ function renderHomeShelf(ids){
   document.getElementById("homePrev").disabled=homePage===0;document.getElementById("homeNext").disabled=homePage===pages-1;
   const visible=ids.slice(homePage*HOME_PAGE_SIZE,(homePage+1)*HOME_PAGE_SIZE),key=JSON.stringify([homeAdmin,homePage,ids,visible.map(homeCount)]),grid=document.getElementById("exclusiveGrid");
   if(key!==homeGridKey){
+    disconnectCellQuality();
     homeGridKey=key;grid.replaceChildren();homeThumbJobs=[];homeThumbSlots=[];
     if(!ids.length){const p=document.createElement("p");p.textContent="Неоткрытых драконов здесь не видно. Коллекция появится после первого вылупления.";grid.appendChild(p);}
     for(const id of visible){
-      const b=document.createElement("button");b.className="exclusive-card";b.dataset.dragon=String(id);b.setAttribute("aria-label",homeEntry(id).name+", в коллекции: "+homeCount(id));
-      const c=document.createElement("canvas");c.width=164;c.height=112;b.appendChild(c);
+      const cell=document.createElement("article");cell.className="exclusive-cell";
+      const b=document.createElement("div");b.className="exclusive-card";b.dataset.dragon=String(id);b.setAttribute("aria-label",homeEntry(id).name+", в коллекции: "+homeCount(id));
+      const c=document.createElement("canvas");c.width=328;c.height=224;b.appendChild(c);
       const s=document.createElement("span");s.textContent=homeEntry(id).name;b.appendChild(s);
       const n=document.createElement("b");n.textContent=homeAdmin&&!homeCount(id)?"ПРОСМОТР":"×"+homeCount(id);b.appendChild(n);
-      b.onclick=()=>inspectHomeDragon(id);grid.appendChild(b);
+      cell.appendChild(b);
+      const care=createCareControls(id);cell.appendChild(care.box);grid.appendChild(cell);
       let cached=homeThumbCache.get(id);
       if(!cached){cached=[];homeThumbCache.set(id,cached);}
-      homeThumbSlots.push({id,c,frames:cached});
-      if(cached[0])c.getContext("2d").drawImage(cached[0],0,0);
-      if(cached.length<(homeReduced?1:HOME_IDLE_FRAMES))homeThumbJobs.push({id,c,frames:cached});
+      const slot={id,c,frames:cached,care,view:cellView(id),dirty:false,gesture:null,visible:true,hasImage:cached.length>0};homeThumbSlots.push(slot);attachCellCamera(slot);
+      if(cached[0])c.getContext("2d").drawImage(cached[0],0,0,c.width,c.height);
+      if(cached.length<(homeReduced?1:HOME_IDLE_FRAMES))homeThumbJobs.push({id,c,frames:cached,view:{...slot.view}});
       // Keep the current page most recent so all its animated frames remain cached.
       homeThumbCache.delete(id);homeThumbCache.set(id,cached);
+      observeCellQuality(slot);
     }
     while(homeThumbCache.size>HOME_IDLE_CACHE_LIMIT)homeThumbCache.delete(homeThumbCache.keys().next().value);
   }
-  for(const b of grid.querySelectorAll("button")){const active=caveHeld!==null&&b.dataset.dragon===String(caveHeld);b.classList.toggle("selected",active);b.setAttribute("aria-pressed",String(active));}
 }
-function drawHomeModel(canvas,id,time,view=homeView){
-  drawCollectionDragon(canvas,id,view,time);
+function drawHomeModel(canvas,id,time,view=homeView,care=null){
+  const life=canvas===homeCanvas&&homeTab==='warehouse'&&caveHeld===id?homeLifeFor(id):null;
+  drawCollectionDragon(canvas,id,canvas===homeCanvas?homeAttentionView(view):view,time,care||life);
 }
 function beginHomeHatch(){
   if(homeHatching||dragonProfile.egg?.fed!==5)return;
@@ -182,31 +249,38 @@ function paintDragonHome(now){
   if(!dragonHomeOpen()||(typeof Playables!=="undefined"&&Playables.blocked))return;
   const id=homeTab==="warehouse"?caveHeld:homeReveal;
   if(homeTab==="warehouse"&&id===null)return;
-  if(homeCanView(id))drawHomeModel(homeCanvas,id,homeReduced?0:homeAnimTime);
+  if(homeCanView(id)){const care=homeCareFor(id);drawHomeModel(homeCanvas,id,homeReduced?0:homeAnimTime,homeView,care&&homeReduced?{...care,t:.8}:care);}
   else drawIncubator(homeReduced&&!homeHatching?0:now/1000);
   homeNeedsPaint=false;
 }
 function animateDragonHome(now){
   homeRaf=0;if(!dragonHomeOpen()||homePageHidden())return;
-  if(now-homeLastFrame<1000/30){wakeDragonHome();return;}
+  if(homeTab==="warehouse"&&caveHeld===null&&!homeShelfVisible){updateDragonCare();return;}
+  const restingShelf=homeTab==="warehouse"&&caveHeld===null&&!homeCareActive&&!homeThumbSlots.some(s=>s.gesture?.moved);
+  if(now-homeLastFrame<1000/(restingShelf?20:30)){wakeDragonHome();return;}
   const dt=Math.min(.06,(now-homeLastFrame)/1000);homeLastFrame=now;
   homeAnimTime+=dt;
+  if(homeHintTarget&&homeAnimTime>=homeHintUntil)clearHomeHover();
+  updateDragonCare();
   const shelf=homeTab==="warehouse"&&caveHeld===null&&homeShelfVisible;
-  if(shelf&&homeThumbJobs.length&&!homeHatching){
+  const interacting=homeCareActive||homeThumbSlots.some(s=>s.gesture?.moved);
+  if(shelf&&homeThumbJobs.length&&!homeHatching&&!interacting){
     const job=homeThumbJobs.shift();
     if(job.c.isConnected){
-      const frame=document.createElement("canvas");frame.width=164;frame.height=112;
-      drawHomeModel(frame,job.id,job.frames.length*COLLECTION_IDLE_PERIOD/HOME_IDLE_FRAMES,{yaw:.85,pitch:.35,distance:1.06});
-      job.frames.push(frame);
-      if(job.frames.length<(homeReduced?1:HOME_IDLE_FRAMES))homeThumbJobs.push(job);
+      if(!job.work){
+        const frame=document.createElement("canvas");frame.width=job.width||220;frame.height=job.height||150;
+        job.work=beginCellRestFrame(frame,job.id,job.view);homeThumbJobs.unshift(job);
+      }else if(stepCellRestFrame(job.work,256)){
+        job.frames.width=job.work.frame.width;job.frames.layers=job.work.layers;job.frames.push(job.work.frame);
+      }else homeThumbJobs.unshift(job);
     }
   }
   if(shelf)for(const slot of homeThumbSlots){
-    if(!slot.c.isConnected||!slot.frames.length)continue;
-    const phase=homeReduced||slot.frames.length<HOME_IDLE_FRAMES?0:homeAnimTime/COLLECTION_IDLE_PERIOD*HOME_IDLE_FRAMES;
-    const index=Math.floor(phase)%slot.frames.length,next=(index+1)%slot.frames.length,blend=phase%1;
-    const g=slot.c.getContext("2d");g.globalAlpha=1;g.drawImage(slot.frames[index],0,0);
-    if(!homeReduced&&slot.frames.length===HOME_IDLE_FRAMES){g.globalAlpha=blend;g.drawImage(slot.frames[next],0,0);g.globalAlpha=1;}
+    if(!slot.c.isConnected||!slot.visible)continue;
+    const care=homeCareFor(slot.id);
+    if(care||slot.gesture?.moved){drawHomeModel(slot.c,slot.id,homeReduced?0:homeAnimTime,slot.view,care&&homeReduced?{...care,t:.8}:care);slot.hasImage=true;continue;}
+    if(!slot.frames.length)continue;slot.dirty=false;
+    paintCellRest(slot,homeAnimTime,homeReduced);
   }
   if(homeHatching&&now-homeHatching>=HOME_HATCH_MS){
     const r=hatchDragonEgg();homeHatching=0;
@@ -215,11 +289,11 @@ function animateDragonHome(now){
   }
   if(homeCanvasVisible||homeHatching)paintDragonHome(now);
   // Only visible cells animate, using bounded cached frames rather than live meshes.
-  if((shelf&&(homeThumbJobs.length||!homeReduced))||homeHatching||(!homeReduced&&homeCanvasVisible&&(homeTab!=="warehouse"||caveHeld!==null)))wakeDragonHome();
+  if(homeCareActive||(shelf&&(homeThumbJobs.length||!homeReduced&&homeThumbSlots.some(s=>s.visible)))||homeHatching||(!homeReduced&&homeCanvasVisible&&(homeTab!=="warehouse"||caveHeld!==null)))wakeDragonHome();
 }
 if(typeof Playables==="undefined"||!Playables.cloud)document.addEventListener("visibilitychange",()=>{if(document.hidden){(typeof Playables==="undefined"?cancelAnimationFrame:Playables.cancelFrame)(homeRaf);homeRaf=0;}else wakeDragonHome();});
 document.getElementById("btnCloseHome").onclick=closeDragonHome;
-document.getElementById("btnCaveCollection").onclick=returnHomeShelf;
+document.getElementById("btnBackToCollection").onclick=returnHomeCollection;
 document.getElementById("btnFeedEgg").onclick=feedHomeEgg;
 for(const b of document.querySelectorAll("[data-open-home]")){
   b.onclick=()=>openDragonHome(b.dataset.openHome);
@@ -238,10 +312,11 @@ document.getElementById("adminFamily").onchange=()=>{homePage=0;homeSelected=nul
 document.getElementById("homePrev").onclick=()=>{homePage=Math.max(0,homePage-1);resetCaveVisit();refreshDragonHome();};
 document.getElementById("homeNext").onclick=()=>{homePage++;resetCaveVisit();refreshDragonHome();};
 let homeTap=null;
-homeCanvas.addEventListener("pointerdown",e=>{if(e.button!==0)return;homeTouches.set(e.pointerId,[e.clientX,e.clientY]);homeTap=homeTouches.size===1?{x:e.clientX,y:e.clientY,moved:false,start:performance.now()}:null;homeCanvas.setPointerCapture(e.pointerId);});
+homeCanvas.addEventListener("pointerdown",e=>{if(e.button!==0||!dragonHomeOpen())return;clearHomeHover();homeTouches.set(e.pointerId,[e.clientX,e.clientY]);homeTap=homeTouches.size===1?{x:e.clientX,y:e.clientY,moved:false,start:performance.now()}:null;if(homeTouches.size===1)aimHomeGaze(e);else resetHomeGaze();homeCanvas.setPointerCapture(e.pointerId);});
 homeCanvas.addEventListener("pointermove",e=>{
-  const prev=homeTouches.get(e.pointerId);if(!prev)return;homeNeedsPaint=true;
+  const prev=homeTouches.get(e.pointerId);if(!prev){if(e.pointerType==='mouse'){aimHomeGaze(e);hoverHomeInspection(e);}return;}homeNeedsPaint=true;
   if(homeTap&&Math.hypot(e.clientX-homeTap.x,e.clientY-homeTap.y)>7)homeTap.moved=true;
+  if(homeTap?.moved||homeTouches.size>1){resetHomeGaze();clearHomeHover(true);}
   if(homeTouches.size===2){const other=[...homeTouches.entries()].find(([id])=>id!==e.pointerId)[1];
     const before=Math.hypot(prev[0]-other[0],prev[1]-other[1]),after=Math.hypot(e.clientX-other[0],e.clientY-other[1]);
     if(before>3)homeView.distance=Math.max(.62,Math.min(2.5,homeView.distance*before/Math.max(3,after)));
@@ -256,17 +331,19 @@ homeCanvas.addEventListener("pointerup",e=>{
   homeTap=null;
 });
 for(const type of ["pointerup","pointercancel","lostpointercapture"])homeCanvas.addEventListener(type,e=>{homeTouches.delete(e.pointerId);if(type!=="pointerup")homeTap=null;});
-homeCanvas.addEventListener("wheel",e=>{e.preventDefault();homeNeedsPaint=true;homeView.distance=Math.max(.62,Math.min(2.5,homeView.distance*Math.exp(e.deltaY*.001)));paintDragonHome(performance.now());},{passive:false});
+homeCanvas.addEventListener('pointerleave',()=>{homeGaze.until=0;clearHomeHover();});
+homeCanvas.addEventListener("wheel",e=>{e.preventDefault();clearHomeHover(true);homeNeedsPaint=true;homeView.distance=Math.max(.62,Math.min(2.5,homeView.distance*Math.exp(e.deltaY*.001)));paintDragonHome(performance.now());},{passive:false});
 dragonHome.addEventListener("keydown",e=>{
   if(e.key==="Escape"){
-    if(homeDrawerOpen){e.preventDefault();e.stopPropagation();setHomeDrawer(false,true);}
-    else if(caveHeld!==null){e.preventDefault();e.stopPropagation();returnHomeShelf();}
+    e.preventDefault();e.stopPropagation();if(caveHeld!==null)returnHomeCollection();else closeDragonHome();
     return;
   }
   if(e.target===homeCanvas){
-    if(e.key==="Enter"||e.key===" "){e.preventDefault();if(caveHeld!==null)returnHomeShelf();return;}
+    const object={n:'nest',b:'toy',w:'water',l:'tree'}[e.key.toLowerCase()];
+    if(object){e.preventDefault();if(beginHomeObjectAction(object))clearHomeHover(true);return;}
+    if(e.key==="Enter"||e.key===" "){e.preventDefault();if(touchHomeDragon())clearHomeHover(true);return;}
     const changes={ArrowLeft:[-.12,0,0],ArrowRight:[.12,0,0],ArrowUp:[0,-.06,0],ArrowDown:[0,.06,0],"+":[0,0,-.12],"=":[0,0,-.12],"-":[0,0,.12]};
-    if(changes[e.key]){e.preventDefault();const [yaw,pitch,distance]=changes[e.key];homeView.yaw+=yaw;homeView.pitch=Math.max(.12,Math.min(1.12,homeView.pitch+pitch));homeView.distance=Math.max(.62,Math.min(2.5,homeView.distance+distance));paintDragonHome(performance.now());return;}
+    if(changes[e.key]){e.preventDefault();clearHomeHover(true);const [yaw,pitch,distance]=changes[e.key];homeView.yaw+=yaw;homeView.pitch=Math.max(.12,Math.min(1.12,homeView.pitch+pitch));homeView.distance=Math.max(.62,Math.min(2.5,homeView.distance+distance));paintDragonHome(performance.now());return;}
   }
   if(e.key!=="Tab")return;
   const focusable=[...dragonHome.querySelectorAll("button:not(:disabled),summary,select:not(:disabled),canvas[tabindex]")].filter(el=>el.getClientRects().length);

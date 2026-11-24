@@ -13,7 +13,8 @@ function card(box, icon, title, sub, cb, rarity) {
   let gesture=null,suppressClick=false;
   const activate=()=>{
     if(choice.accepted||box.cardChoice!==choice)return;
-    choice.accepted=true;el.disabled=true;pointer.active=false;cb();
+    choice.accepted=true;el.disabled=true;pointer.active=false;
+    if(typeof runSaveAction==='function')runSaveAction(cb,true);else cb();
   };
   el.addEventListener('pointerdown',e=>{
     if(e.isPrimary===false){gesture=null;suppressClick=true;return;}
@@ -40,57 +41,53 @@ function card(box, icon, title, sub, cb, rarity) {
   box.appendChild(el);
 }
 const heroIcon = gear => g => drawHero(g, 18, 50, 1, 0, gear, .62, -.2, 0);
-const petIcon = (type, lvl) => g => drawPet(g, 15, 42, type, lvl, 1, 0, { saw: .6, aim: -.3, state: "up", bite: 0 });
+const petIcon = (type, lvl) => g => {
+  // The boar's tail and new snout must both fit the 40px choice illustration.
+  if(type==='boar'){g.save();g.translate(18,38);g.scale(.64,.64);drawPet(g,0,0,type,lvl,1,0,{menuScene:true});g.restore();}
+  else drawPet(g,15,42,type,lvl,1,0,{saw:.6,aim:-.3,state:"up",bite:0});
+};
 function rollPet() {
   const all = Object.keys(PETS);
   const common = all.filter(x => !PETS[x].rare && x !== lastPetRoll);
   const rares  = all.filter(x =>  PETS[x].rare && x !== lastPetRoll);
-  // редкий питомец выпадает нечасто, как и редкий ствол
+  // One 4% rare roll per new pet offer, not per card. Owned pets only upgrade.
   const pool = (rares.length && Math.random() < RARE_PET_CHANCE) ? rares : common;
   const ty = pool[Math.random() * pool.length | 0] || all[0];
   lastPetRoll = ty;
   return ty;
 }
 
-function offerCards() {
+function offerCards(savedOffer=null) {
+  if(typeof bossRewardPending!=='undefined'&&bossRewardPending)return;
   if(heroBuildComplete()){
     queuedLevels=0;P.xp=P.xpNext;return;
   }
   paused = true;pointer.active=false;
   const title = document.getElementById("levelTitle");
   if (title) title.textContent = "УРОВЕНЬ " + P.lvl;
-  const pool = GK.filter(k => P.gear[k] < GEAR[k].max);
+  const pool = GK.filter(upgradeableGear);
   const pick = [];
   while (pick.length < Math.min(3, pool.length)) {
     const c = pool[Math.random() * pool.length | 0];
     if (!pick.includes(c)) pick.push(c);
   }
-  // Золотая снайперка роллится отдельно и значительно реже фиолетовых стволов.
-  const currentPower = weaponCombatRating(P.wtype);
-  const notOwned = RARE_KEYS.filter(w => w !== P.wtype);
-  const goldWeapons = notOwned.filter(w => WEAPONS[w].rarity === "gold");
-  // Фиолетовая пушка появляется только если прямо сейчас сильнее текущей.
-  // Золотая остаётся исключением и может выпасть на любой стадии.
-  const rareWeapons = notOwned.filter(w => WEAPONS[w].rarity !== "gold" &&
-    weaponCombatRating(w) >= currentPower * 1.04);
-  if (goldWeapons.length && Math.random() < GOLD_WEAPON_CHANCE) {
-    pendingRare = goldWeapons[Math.random() * goldWeapons.length | 0];
-    pick[Math.random() * pick.length | 0] = "@rare";
-  } else if (rareWeapons.length && Math.random() < RARE_CHANCE) {
-    pendingRare = rareWeapons[Math.random() * rareWeapons.length | 0];
-    pick[Math.random() * pick.length | 0] = "@rare";
-  }
+  // Exclusive firearms only arrive in the once-per-run air delivery.
+  pendingRare=null;
 
   // четвёртая строка всегда отдана питомцу
   const petRow = !P.pet || P.pet.lvl < PET_MAX;
-  if (!P.pet) pendingPet = rollPet();
+  if (!P.pet) pendingPet = savedOffer?.pet||rollPet();
   if (petRow) pick.push("@pet");
   else {                                          // питомец на максимуме — добираем вещью
     const rest = pool.filter(c => !pick.includes(c));
     if (rest.length) pick.push(rest[Math.random() * rest.length | 0]);
   }
 
+  if(savedOffer){pick.length=0;pick.push(...savedOffer.pick);}
+  if(typeof activeLevelOffer!=='undefined')activeLevelOffer={pick:[...pick],pet:pendingPet};
+  if(typeof requestRunCheckpoint==='function')requestRunCheckpoint();
   const close = () => {
+    if(typeof activeLevelOffer!=='undefined')activeLevelOffer=null;
     queuedLevels = Math.max(0, queuedLevels - 1);
     document.getElementById("levelup").classList.add("hidden");
     if (heroBuildComplete()) {
@@ -103,11 +100,12 @@ function offerCards() {
   for (const key of pick) {
     if (key === "@rare") {
       const w = pendingRare, W2 = WEAPONS[w];
-      const isGold = W2.rarity === "gold";
+      const isGold = W2.rarity === "gold"&&P.gear.gun>=3;
       const gain=Math.round((weaponCombatRating(w)/Math.max(.01,weaponCombatRating(P.wtype))-1)*100);
       card(box, heroIcon({ ...P.gear, _w: w }),
-        `${W2.name} <span class="rr">${isGold ? "ЗОЛОТОЕ" : "РЕДКОЕ"}</span>`,
+        `${weaponFormName(w,P.gear.gun)} <span class="rr">${isGold ? "ЗОЛОТОЕ" : "РЕДКОЕ"}</span>`,
         W2.desc+(isGold?" · высший класс":` · сейчас сильнее на ${Math.max(4,gain)}%`), () => {
+          if(P.campRun&&w!=='shotgun')P.campRun.shotgunOnly=false;
           P.wtype = w; applyGear();
           ult.bag = []; // новый тип оружия сразу получает правильный набор ульт
           SFX.chest(); (typeof Playables==='undefined'?setTimeout:Playables.delay)(() => SFX.level(), 160);
@@ -130,7 +128,7 @@ function offerCards() {
       continue;
     }
     const g = { ...P.gear, _w: P.wtype }; g[key]++;
-    const nm = key === "gun" ? WEAPONS[P.wtype].name : GEAR[key].name;
+    const nm = key === "gun" ? weaponFormName(P.wtype,g.gun) : GEAR[key].name;
     card(box, heroIcon(g), `${nm} ${"★".repeat(g[key])}`, GEAR[key].desc, () => {
       P.gear[key]++; applyGear(); P.hp = Math.min(P.hpMax, P.hp + 1); close();
     });
@@ -141,12 +139,3 @@ function offerCards() {
   document.getElementById("levelup").classList.remove("hidden");
 }
 
-function offerPerks() {
-  const keys = Object.keys(PERKS), pick = [];
-  while (pick.length < 3) { const c = keys[Math.random() * keys.length | 0]; if (!pick.includes(c)) pick.push(c); }
-  const box = document.getElementById("perks"); box.innerHTML = "";box.cardChoice={accepted:false};box.scrollTop=0;
-  for (const key of pick)
-    card(box, heroIcon(P.gear), `${PERKS[key].name} ${"◆".repeat(meta[key] + 1)}`, PERKS[key].desc, () => {
-      meta[key]++; saveMeta(); document.getElementById("over").classList.add("hidden"); start();
-    });
-}

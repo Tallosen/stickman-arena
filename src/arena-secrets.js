@@ -1,7 +1,76 @@
 "use strict";
 // Three discoveries unlock one supply delivery, never an early campaign ending.
 let arenaSecrets=[],arenaSecretComplete=false,arenaSecretTime=0,arenaSecretDropIssued=false,compassStorm=null;
+let weaponDelivery=null;
+function resetWeaponDelivery(){weaponDelivery={rolled:false,eligible:false,stage:0,state:'waiting',age:0,weapon:null};}
+function launchWeaponDelivery(forcedWeapon=null){
+ const d=weaponDelivery;if(!d||d.state!=='waiting'||!running||paused||ult.on||P.runWon)return false;
+ if(forcedWeapon&&!DROP_WEAPONS.includes(forcedWeapon))return false;
+ d.rolled=true;d.eligible=true;d.weapon=forcedWeapon||d.weapon||DROP_WEAPONS[Math.floor(Math.random()*3)];
+ let point={x:P.x,y:P.y};
+ for(let i=0;i<24;i++){const a=i*Math.PI/12,x=P.x+Math.cos(a)*210,y=P.y+Math.sin(a)*210;
+  if(x>60&&y>60&&x<WORLD-60&&y<WORLD-60&&petPathClear(P.x,P.y,x,y,32)){point={x,y};break;}}
+ Object.assign(d,point,{state:'flying',age:0});
+ pops.push({x:P.x,y:P.y-80,txt:bossText('САМОЛЁТ СНАБЖЕНИЯ','SUPPLY PLANE'),life:2.5,col:'#ab792f'});SFX.build?.();return true;
+}
+function weaponDeliveryNotice(title,impact){
+ const icon=document.createElement('canvas');icon.width=icon.height=96;drawBossRewardIcon(icon.getContext('2d'),{kind:'gear',key:'gun',level:P.gear.gun},96);
+ bossLootNotices.push({header:bossText('ОРУЖИЕ АВИАДРОПА','AIRDROP WEAPON'),title,impact,category:bossText('Улучшение каждые 75 с боя · только этот забег','Upgrade every 75s of combat · this run'),icon,age:0});
+}
+function collectWeaponDelivery(){
+ const d=weaponDelivery;if(!d||d.state!=='ground'||!running||paused||ult.on||P.runWon||dist(d,P)>40)return false;
+ d.state='collected';P.storedGunLevel=P.gear.gun;P.wtype=d.weapon;P.dropWeapon=d.weapon;P.dropWeaponMs=0;P.gear.gun=0;
+ P.laserBeam=null;P.laserTick=0;P.backpackQueue=[];shotT=0;ult.bag=[];ult.weaponBag=null;
+ if(P.campRun)P.campRun.shotgunOnly=false;
+ if(typeof requestRunCheckpoint==='function')requestRunCheckpoint();
+ applyGear();SFX.chest?.();weaponDeliveryNotice(weaponFormName(P.wtype,0),bossText('Получено · уровень 1/5','Acquired · level 1/5'));return true;
+}
+function updateWeaponDelivery(dt){
+ if(!running||paused||ult.on||P.runWon||(typeof Playables!=='undefined'&&Playables.blocked)||bossLootLocked())return;
+ const d=weaponDelivery;if(!d)return;
+ // Exactly one probability check per run; later stages cannot retry a failed roll.
+ if(!d.rolled){d.rolled=true;d.eligible=Math.random()<.33;
+  if(typeof requestRunCheckpoint==='function')requestRunCheckpoint();
+  if(d.eligible){d.stage=6+Math.floor(Math.random()*4);d.weapon=DROP_WEAPONS[Math.floor(Math.random()*3)];}}
+ if(d.eligible&&d.state==='waiting'&&P.stage>=d.stage&&P.stage<20&&!isBossStage(P.stage))launchWeaponDelivery();
+ if(d.state==='flying'){d.age+=dt;if(d.age>=6500){d.state='ground';SFX.crateLand?.(d.x);}}
+ if(d.state==='ground')collectWeaponDelivery();
+ if(P.dropWeapon===P.wtype&&isDropWeapon(P.wtype)&&P.gear.gun<4&&enemies.some(e=>e.hp>0&&dist(e,P)<P.range)){
+  P.dropWeaponMs+=Math.max(0,dt);
+  const lv=Math.min(4,Math.floor(P.dropWeaponMs/DROP_UPGRADE_MS));
+  if(lv>P.gear.gun){P.gear.gun=lv;applyGear();if(typeof requestRunCheckpoint==='function')requestRunCheckpoint();SFX.level?.();weaponDeliveryNotice(weaponFormName(P.wtype,lv),bossText('Улучшено · уровень ','Upgraded · level ')+(lv+1)+'/5');}
+ }
+}
+function drawWeaponDelivery(g){
+ const d=weaponDelivery;if(!d||!['flying','ground'].includes(d.state))return;
+ g.save();g.translate(d.x,d.y);g.strokeStyle=INK;g.lineWidth=2;g.lineJoin='round';
+ g.fillStyle='#70583422';g.beginPath();g.ellipse(0,5,28,11,0,0,7);g.fill();
+ g.strokeStyle='#c49942';g.setLineDash([5,5]);g.beginPath();g.ellipse(0,6,43,22,0,0,7);g.stroke();g.setLineDash([]);
+ if(d.age>2000||d.state==='ground'){
+  const lift=d.state==='ground'?0:Math.max(0,1-(d.age-2000)/4500)*210;
+  g.save();g.translate(0,-lift);g.strokeStyle='#66563f';
+  if(lift>0){g.fillStyle='#e7d2a1';g.beginPath();g.arc(0,-68,42,Math.PI,Math.PI*2);g.closePath();g.fill();g.stroke();sline(g,-42,-68,-17,-20);sline(g,42,-68,17,-20);sline(g,0,-108,0,-20);}
+  spoly(g,[[-23,-34],[23,-34],[23,0],[-23,0]],'#697b71');spoly(g,[[-26,-39],[26,-39],[26,-30],[-26,-30]],'#a1ae90');
+  g.strokeStyle='#efc661';g.lineWidth=4;sline(g,-12,-35,-12,-2);sline(g,12,-35,12,-2);
+  g.fillStyle='#f5df95';g.font='bold 15px system-ui';g.textAlign='center';g.fillText('★',0,-12);g.restore();
+ }
+ if(d.state==='flying'){
+  const x=-900+d.age*.45;g.save();g.translate(x,-220);g.strokeStyle='#394d55';g.lineWidth=3;
+  spoly(g,[[-55,-7],[4,-7],[38,-47],[48,-44],[25,-5],[77,0],[25,5],[48,44],[38,47],[4,7],[-55,7],[-69,22],[-75,19],[-63,0],[-75,-19],[-69,-22]],'#849899');
+  spoly(g,[[38,-4],[59,-3],[67,0],[38,3]],'#c9e1db');g.restore();
+ }
+ g.restore();
+}
+function drawWeaponDeliveryHUD(g){
+ const d=weaponDelivery;
+ // Delivery guidance disappears on pickup. Mastery only uses short upgrade notices.
+ if(!running||!['flying','ground'].includes(d?.state))return;
+ const title=bossText('АВИАДРОП','AIRDROP');
+ const sub=d.state==='flying'?bossText('Доставка · отметка на карте','Incoming · marked on map'):bossText('Забери ящик · ','Collect crate · ')+Math.round(dist(d,P))+bossText(' м',' m');
+ g.save();g.fillStyle='#fff3dae8';g.strokeStyle='#bb9655';g.lineWidth=1;g.beginPath();g.roundRect(10,118,194,43,8);g.fill();g.stroke();g.fillStyle='#76502b';g.textAlign='left';g.font='bold 10px system-ui';g.fillText(title,19,135,176);g.font='10px system-ui';g.fillText(sub,19,151,176);g.restore();
+}
 function resetArenaSecrets(){
+  resetWeaponDelivery();
   arenaSecretComplete=false;arenaSecretTime=0;arenaSecretDropIssued=false;compassStorm=null;
   arenaSecrets=[{kind:'mine',x:WORLD/2,y:WORLD/2,r:105,lit:false,age:0}];
   const free=(x,y)=>x>120&&y>120&&x<WORLD-120&&y<WORLD-120&&
@@ -22,7 +91,7 @@ function triggerArenaSecret(kind,x,y,r=0){
   const count=arenaSecrets.filter(s=>s.lit).length;
   const name={mine:'СОЛНЕЧНЫЙ КОМПАС',nade:'КОРОЛЬ ТАЙНИКА',ice:'ЛУННЫЙ ИСТОЧНИК'}[kind];
   pops.push({x:s.x,y:s.y-65,txt:name+' · '+count+'/3',life:2.5,col:kind==='ice'?'#438fa7':'#aa7a27'});
-  chain(kind==='ice'?[710,950,1420]:[520,780,1040],'sine',.065);
+  if(kind==='ice')SFX.ice();else SFX.chest();
   if(count===3){arenaSecretComplete=true;arenaSecretTime=0;
     queueCompassDrop();
     pops.push({x:P.x,y:P.y-85,txt:'ЭЛИТНЫЙ ДРОП · В ЦЕНТР КОМПАСА',life:3.5,col:'#8650b1'});}
@@ -42,7 +111,7 @@ function updateCompassStorm(dt){
   if(ult.on)return; // Do not fight cinematic enemy choreography.
   const storm=compassStorm;storm.age+=dt;
   for(const e of enemies){
-    if(e.hp<=0||e.rewarded)continue;
+    if(e.hp<=0||e.rewarded||e.boss)continue;
     if(!e.stormCaught){const seed=hash(e.x+17,e.y-13);
       e.stormCaught={x:e.x,y:e.y,age:0,delay:seed*1400,duration:950+seed*550,seed};
       e.attackState='chase';e.attackT=0;

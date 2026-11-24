@@ -4,7 +4,7 @@ const element=()=>({style:{},classList:{add:noop,remove:noop,contains:()=>true},
 const box={console,assert,document:{body:element(),getElementById:()=>element(),createElement:element,addEventListener:noop},
  innerWidth:390,innerHeight:844,devicePixelRatio:1,addEventListener:noop,requestAnimationFrame:noop,setTimeout:noop,
  localStorage:{getItem:()=>null,setItem:noop},hud:noop};box.window=box;vm.createContext(box);
-for(const f of ['core.js','config.js','map-art.js','arena-secrets.js','pets.js','draw-pets.js','ult.js','state.js','progression.js','world.js','enemy-hazards.js','combat.js','abilities.js','dragon-economy.js','dragons.js','update.js'])
+for(const f of ['core.js','config.js','map-art.js','arena-secrets.js','pets.js','draw-pets.js','ult.js','state.js','progression.js','world.js','enemy-hazards.js','combat.js','abilities.js','dragon-economy.js','dragons.js','bosses.js','boss-loot.js','update.js'])
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',f),'utf8'),box,{filename:f});
 vm.runInContext(`
 function offerCards(){paused=false;}

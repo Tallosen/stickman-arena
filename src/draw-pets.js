@@ -2,27 +2,137 @@
 /* draw-pets.js — рисование питомцев, предметов, яиц, турелей */
 
 /* ── рисование питомцев ───────────────────────────────────── */
+// Read-only rig: movement, damage and the impact trigger belong to pets.js.
+function boarAttackPose(p,phase=0){
+  const clamp=v=>Math.max(0,Math.min(1,v));
+  const attacking=!!p&&!p.menuScene&&!(p.dead>0)&&!(p.recall>0)&&!!p.chargeTarget&&p.fuse>0;
+  const windup=attacking&&p.fuse<=320,charge=attacking&&!windup;
+  const ready=windup?clamp(p.fuse/320):0;
+  const moving=!!p&&!p.menuScene&&!(p.dead>0)&&!windup;
+  const run=moving?clamp(Number.isFinite(p.boarRun)?p.boarRun:0)*(charge?1:.45):0;
+  const stride=Number.isFinite(p?.boarStride)?p.boarStride:phase;
+  const gait=stride*1.3;
+  let approach=0;
+  if(charge&&run>.04&&Number.isFinite(p.x+p.y+p.chargeTarget.x+p.chargeTarget.y)){
+    const distance=Math.hypot(p.chargeTarget.x-p.x,p.chargeTarget.y-p.y),contact=(p.chargeTarget.r||0)+22;
+    approach=clamp(1-(distance-contact)/58);approach*=approach;
+  }
+  const push=Math.sin(ready*Math.PI),lift=run*Math.max(0,Math.sin(gait))*(2.6+approach*2.5);
+  return {attacking,windup,charge,ready,run,gait,approach,
+    crouch:ready*.85+approach*.20,
+    x:windup?-2.6*push:approach*1.8,
+    y:ready*3.5-lift-approach*2,
+    sx:1+ready*.13+run*.065*Math.cos(gait)-approach*.045,
+    sy:1-ready*.16-run*.055*Math.cos(gait)+approach*.025,
+    tilt:ready*.035+run*.065+approach*.085,
+    headTilt:ready*.13+run*.13+approach*.17,
+    earFold:ready*.7+run*.5+approach*.25};
+}
+function drawBoarPet(g,lvl,face,phase,p){
+  const a=boarAttackPose(p,phase),low=visualFX('lowFX'),soft=visualFX('reduceFlash');
+  g.save();g.scale(face<0?-1:1,1);
+  if(!p?.menuScene){
+    g.save();g.globalAlpha=.13;g.fillStyle=INK;g.beginPath();g.ellipse(0,4,20-a.approach*2,4,0,0,7);g.fill();g.restore();
+  }
+  // A few procedural ground curls; no per-frame particle allocations or random flicker.
+  if(a.windup||a.run>.1){
+    const count=low?1:4;
+    for(let i=0;i<count;i++){
+      const u=((a.windup?a.ready*2.8:a.gait*.13)+i/count)%1;
+      const speed=a.windup?.65:a.run,x=-13-u*(a.windup?16:35),y=3-u*(4+a.run*5);
+      g.save();g.globalAlpha=(1-u)*.44*speed;g.strokeStyle='#ab895b';g.lineWidth=1.5;
+      g.beginPath();g.arc(x,y,1.8+u*4.4,.2,Math.PI*1.75);g.stroke();
+      if(!low){sline(g,x-3,y+3,x+3,y+3);g.fillStyle='#ad8957';g.fillRect(x-6,y+2,2,1.7);}g.restore();
+    }
+  }
+  if(a.windup){
+    g.save();g.strokeStyle='#a97b43';g.globalAlpha=.45;g.lineWidth=1.4;
+    const scrape=Math.sin(a.ready*Math.PI*4)*3;
+    sline(g,-15+scrape,6,-23+scrape,6);sline(g,-10+scrape,8,-17+scrape,8);g.restore();
+  }
+  g.translate(a.x,a.y);g.rotate(a.tilt);g.scale(a.sx,a.sy);
+  const foot=(front,far)=>{
+    const x=front?8:-10,offset=far?Math.PI:0;
+    const swing=Math.sin(a.gait+(front?Math.PI:0)+offset)*7*a.run;
+    const scratch=a.windup&&!front&&!far?Math.sin(a.ready*Math.PI*4)*4:0;
+    const tuck=a.approach*(front?-5:4),heel=x+swing+scratch+tuck;
+    const y=3-Math.max(0,Math.cos(a.gait+(front?Math.PI:0)+offset))*5*a.run-a.approach*2;
+    g.strokeStyle=far?'#655343':INK;g.lineWidth=far?2.1:2.4;
+    g.beginPath();g.moveTo(x,-9);g.lineTo(x+swing*.35+(front?2:-2),-2-a.crouch*2);g.lineTo(heel,y);g.stroke();
+    g.fillStyle=far?'#655343':'#3d342c';g.fillRect(heel-2,y-1,5,2.6);
+  };
+  foot(false,true);foot(true,true);
+  // Curled tail and a broad, springy body keep the silhouette readable at game scale.
+  g.strokeStyle=INK;g.lineWidth=1.9;
+  g.beginPath();g.moveTo(-15,-15);g.quadraticCurveTo(-25,-20-a.run*2,-23,-13);g.quadraticCurveTo(-21,-10,-19,-14);g.stroke();
+  g.lineWidth=2.2;g.beginPath();g.moveTo(-15,-6);g.quadraticCurveTo(-23,-22,-7,-24);
+  g.bezierCurveTo(5,-28,14,-20,13,-8);g.quadraticCurveTo(2,-2,-15,-6);g.closePath();g.fillStyle='#80654d';g.fill();g.stroke();
+  g.save();g.strokeStyle='#b4946a';g.globalAlpha=.6;g.lineWidth=1.5;sline(g,-13,-19,-5,-21);g.restore();
+  for(let i=0;i<4;i++){g.strokeStyle=INK;sline(g,-9+i*4,-23,-11+i*4,-28-a.ready*2-i%2*2);}
+  foot(false,false);foot(true,false);
+  // Head drops into the charge; ear, eyebrow and tusk move as one small rig.
+  g.save();g.translate(11,-18+a.ready*2);g.rotate(a.headTilt);
+  spoly(g,[[-3,-6],[-5-a.earFold*5,-14+a.earFold*6],[4,-8]],'#65503f');
+  g.beginPath();g.ellipse(3,-1,9,8.5,-.15,0,7);g.fillStyle='#997759';g.fill();g.stroke();
+  g.beginPath();g.ellipse(13,1,7,5.6,-.1,0,7);g.fillStyle='#b58a66';g.fill();g.stroke();
+  g.fillStyle='#554133';g.beginPath();g.ellipse(16,0,1.1,1.7,0,0,7);g.fill();g.beginPath();g.ellipse(12,-.1,.8,1.2,0,0,7);g.fill();
+  g.lineWidth=1.3;g.beginPath();g.moveTo(8,5);g.quadraticCurveTo(12,4,14,-5);
+  g.quadraticCurveTo(17,5,9,7);g.closePath();g.fillStyle='#f3e7c7';g.fill();g.stroke();
+  g.fillStyle=INK;g.beginPath();g.arc(5,-4,1.1,0,7);g.fill();
+  g.lineWidth=1.7;sline(g,1,-7-a.ready,7,-5.7+a.ready*.3);
+  if(a.windup&&!low){g.save();g.globalAlpha=.45*Math.sin(a.ready*Math.PI);g.strokeStyle='#bd9b73';sline(g,21,1,25,0);sline(g,22,4,27,5);g.restore();}
+  g.restore();
+  // Strapped charge bounces a little behind the body, and burns only during an attack.
+  const bounce=a.run*Math.sin(a.gait-.8)*1.4;
+  g.save();g.translate(-5,-23+bounce);g.rotate(-a.run*.055*Math.sin(a.gait));
+  g.strokeStyle=INK;g.lineWidth=1.6;
+  spoly(g,[[-8,-4],[5,-6],[7,2],[-6,5]],'#ad4934');
+  for(let i=0;i<3;i++){g.strokeStyle='#672e27';sline(g,-6+i*4,-2-i*.5,-4+i*4,3-i*.5);}
+  g.strokeStyle='#d7b978';g.lineWidth=2.6;sline(g,-1,-5,1,4);g.strokeStyle=INK;g.lineWidth=1.5;
+  const burn=a.attacking?Math.min(1,a.ready+a.run*.5+a.approach*.5):0;
+  const fx=-13+burn*3,fy=-4;
+  g.strokeStyle='#79644b';g.beginPath();g.moveTo(-5,-4);g.quadraticCurveTo(-9,-9,fx,fy);g.stroke();
+  if(a.attacking){
+    const r=soft?2:2.2+a.approach*1.1;
+    g.strokeStyle='#b96229';g.lineWidth=1.2;spoly(g,[[fx-r,fy],[fx,fy-r*1.6],[fx+r,fy],[fx,fy+r]],'#f1bc50');
+    if(!low&&!soft){g.strokeStyle='#d58c32';sline(g,fx-4,fy-3,fx-7,fy-5);sline(g,fx-4,fy+2,fx-7,fy+3);}
+  }
+  g.restore();g.restore();
+}
 function drawBoarBlast(g,b){
   const t=Math.max(0,Math.min(1,1-b.life)),fade=1-t,R=b.max;
+  const low=visualFX('lowFX'),soft=visualFX('reduceFlash');
   g.save();g.translate(b.x,b.y);g.lineCap='round';
   // Low ground shockwave, short bright core, then separate dust curls and debris.
   g.globalAlpha=fade*.8;g.strokeStyle='#b6662f';g.lineWidth=2+fade*4;
   g.beginPath();g.ellipse(0,5,R*(.15+.85*Math.sqrt(t)),R*(.09+.46*Math.sqrt(t)),0,0,7);g.stroke();
   g.globalAlpha=fade*.5;g.strokeStyle='#efbb60';g.lineWidth=9*fade;
   g.beginPath();g.ellipse(0,5,R*(.12+.69*Math.sqrt(t)),R*(.07+.37*Math.sqrt(t)),0,0,7);g.stroke();
-  for(let i=0;i<9;i++){
-    const a=i*Math.PI*2/9+(b.seed||0)*.05,d=R*(.2+t*.6),x=Math.cos(a)*d,y=Math.sin(a)*d*.50-15*Math.sin(t*Math.PI);
+  const count=low?4:9;
+  for(let i=0;i<count;i++){
+    const a=i*Math.PI*2/count+(b.seed||0)*.05,d=R*(.2+t*.6),x=Math.cos(a)*d,y=Math.sin(a)*d*.50-15*Math.sin(t*Math.PI);
     g.globalAlpha=Math.sin(t*Math.PI)*.48;g.fillStyle=i%2?'#d8b98a':'#bba17b';
     g.beginPath();g.ellipse(x,y,5+t*14,4+t*9,a,0,7);g.fill();
     const dx=Math.cos(a)*R*t*.96,dy=Math.sin(a)*R*t*.53-Math.sin(t*Math.PI)*(22+i%3*8);
     g.globalAlpha=fade;g.strokeStyle=i%2?'#f2bd59':'#826347';g.lineWidth=2.4;
     sline(g,dx,dy,dx-Math.cos(a)*9*fade,dy+5*fade);
   }
+  // A directional punch follows the actual last charge, not the screen's right edge.
+  if(!low&&t<.7){
+    g.save();g.rotate(Number.isFinite(b.boarHeading)?b.boarHeading:(b.boarFace<0?Math.PI:0));
+    g.strokeStyle='#b8773b';g.globalAlpha=fade*.65;g.lineWidth=2;
+    for(let i=-1;i<=1;i++){
+      const x=R*(.12+t*.7),y=i*(8+t*20);
+      g.beginPath();g.moveTo(x-12,y-4);g.quadraticCurveTo(x+10,y,x-10,y+5);g.stroke();
+    }
+    g.restore();
+  }
   if(t<.5){
     const u=t/.5,rr=(18+Math.sin(u*Math.PI)*29)*(R/130);
     g.globalAlpha=1-u;g.strokeStyle='#a95a2b';g.lineWidth=2;
     const rays=[];for(let i=0;i<20;i++){const a=i*Math.PI/10,r=rr*(i%2?.48:1);rays.push([Math.cos(a)*r,Math.sin(a)*r-16]);}
-    spoly(g,rays,'#f5bf58');g.fillStyle='#fff2c1';g.beginPath();g.ellipse(0,-16,rr*.38,rr*.5,0,0,7);g.fill();
+    spoly(g,rays,soft?'#d5a65c':'#f5bf58');
+    if(!soft){g.fillStyle='#fff2c1';g.beginPath();g.ellipse(0,-16,rr*.38,rr*.5,0,0,7);g.fill();}
   }
   g.restore();
 }
@@ -49,7 +159,7 @@ function drawPet(g, x, y, type, lvl, face, phase, p) {
 
   if (type === "dog") {
     g.save(); g.scale(face, 1);
-    const wag = Math.sin(phase * 2) * 5;
+    const wag = Math.sin(p&&Number.isFinite(p.menuTime)?p.menuTime*5+(p.menuHappy||0)*4:phase*2) * (5+(p?.menuHappy||0)*3);
     sline(g, -13, -15, -21, -23 + wag);                    // хвост
     sline(g, -9, -6, -10 + sw * 5, 2);                     // задние лапы
     sline(g, -6, -6, -7 - sw * 5, 2);
@@ -93,45 +203,20 @@ function drawPet(g, x, y, type, lvl, face, phase, p) {
 
   } else if (type === "parrot") {
     g.save(); g.scale(face, 1);
-    const fl = Math.sin(phase * 2.4) * 7;
+    const perched=p?.menuPerch||0,fl = Math.sin(phase * 2.4) * 7*(1-perched);
     spoly(g, [[-8, -14], [6, -16], [7, -7], [-7, -6]], col);
-    sline(g, -8, -14, -18, -20 - fl);
-    sline(g, -8, -12, -17, -12 + fl);
+    sline(g, -8, -14, -18+15*perched, -20-fl+12*perched);
+    sline(g, -8, -12, -17+13*perched, -12+fl+5*perched);
     scircle(g, 9, -19, 4.6, "#f0d98a");
     spoly(g, [[12, -20], [17, -18], [12, -16]], "#e08a2a");
     sline(g, -7, -9, -15, -4);
+    if(perched>0){g.save();g.globalAlpha=perched;g.lineWidth=1.5;g.strokeStyle='#b28343';sline(g,-3,-7,-3,0);sline(g,3,-7,3,0);sline(g,-5,0,-1,0);sline(g,1,0,5,0);g.restore();}
     g.restore();
-    g.globalAlpha = .18; g.fillStyle = INK;
-    g.beginPath(); g.ellipse(0, 12, 9, 3, 0, 0, 7); g.fill(); g.globalAlpha = 1;
+    if(!p?.menuScene){g.globalAlpha = .18; g.fillStyle = INK;
+    g.beginPath(); g.ellipse(0, 12, 9, 3, 0, 0, 7); g.fill(); g.globalAlpha = 1;}
 
   } else if (type === "boar") {
-    if(p?.fuse>0){
-      g.save();g.globalAlpha=.4;g.strokeStyle='#c57d35';g.lineWidth=1.5;g.setLineDash([4,5]);
-      g.beginPath();g.ellipse(0,3,23,9,0,0,7);g.stroke();g.restore();
-    }
-    g.save(); g.scale(face, 1);
-    if(p?.fuse>0){
-      g.translate(p.fuse<320?-Math.sin(p.fuse/45)*1.5:2,p.fuse<320?2:Math.sin(phase*2)*1.4);
-      g.rotate(p.fuse<320?-.04:.07);
-      if(p.fuse>320){g.save();g.strokeStyle='#b19468';g.globalAlpha=.55;g.lineWidth=1.6;
-        for(let i=0;i<3;i++)sline(g,-21-i*5,-4-i*7,-32-i*7,-4-i*7);g.restore();}
-    }
-    spoly(g, [[-15, -18], [8, -20], [12, -6], [-14, -5]], "#6f5b4a");     // туша
-    sline(g, -9, -5, -10 + sw * 4, 3); sline(g, -5, -5, -6 - sw * 4, 3);
-    sline(g, 5, -6, 6 - sw * 4, 3); sline(g, 9, -6, 10 + sw * 4, 3);
-    scircle(g, 15, -20, 6, "#7d6754");                                     // голова
-    spoly(g, [[19, -22], [27, -19], [19, -15]], "#5a4839");                // рыло
-    spoly(g, [[20, -18], [25, -25], [21, -16]], "#efe6d2");                // клык
-    spoly(g, [[11, -25], [13, -31], [17, -25]], "#5a4839");                // ухо
-    g.fillStyle = INK; g.beginPath(); g.arc(17, -22, .9, 0, 7); g.fill();
-    spoly(g, [[-10, -24], [0, -26], [1, -18], [-9, -16]], "#c8402c");      // динамит
-    for (let i = 0; i < 2; i++) sline(g, -8 + i * 4, -25, -8 + i * 4, -17);
-    g.strokeStyle = "#8a7355"; sline(g, -5, -26, -9, -33);                 // фитиль
-    const spark = 2 + Math.abs(Math.sin(phase * 3)) * (1.6 + lvl * .5);
-    g.fillStyle = "#e08a2a";
-    g.beginPath(); g.arc(-9, -33, spark, 0, 7); g.fill();
-    g.strokeStyle = INK;
-    g.restore();
+    drawBoarPet(g,lvl,face,phase,p);
 
   } else if (type === "chicken") {
     g.save(); g.scale(face, 1);

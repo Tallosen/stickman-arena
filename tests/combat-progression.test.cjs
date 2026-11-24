@@ -7,7 +7,7 @@ const SFX={shot:noop},ult={on:false},WORLD=2800,hash=()=>.5;
 const resetAbilities=noop,resetDragonFinale=noop,ultPointerUp=noop;
 let dragonFinale=null;function unlockDragonAltar(){}
 `,box);
-for(const file of ['config.js','state.js','combat.js','update.js'])vm.runInContext(fs.readFileSync(path.join(root,'src',file),'utf8'),box,{filename:file});
+for(const file of ['config.js','state.js','draw-hero.js','combat.js','update.js'])vm.runInContext(fs.readFileSync(path.join(root,'src',file),'utf8'),box,{filename:file});
 vm.runInContext(`
 function init(w='basic',clip=0){
  Object.assign(P,{x:1400,y:1400,face:1,phase:0,run:0,lvl:1,hp:5,xp:0,gear:Object.fromEntries(GK.map(k=>[k,0])),wtype:w,pet:null,
@@ -17,7 +17,7 @@ function init(w='basic',clip=0){
 for(const weapon of Object.keys(WEAPONS))for(let clip=0;clip<=3;clip++)for(const face of [-1,1]){
  init(weapon,clip);enemies=Array.from({length:4},(_,i)=>({x:P.x+face*(95+i*13),y:P.y+i*20,hp:1000}));
  updateHeroFire(0);
- const hand=shots.filter(s=>s.source==='hand');assert.equal(hand.length,weapon==='shotgun'?P.pellets:1);
+ const hand=shots.filter(s=>s.source==='hand');assert.equal(hand.length,P.pellets);assert(!P.laserBeam);
  const muzzle=heroGunTip();assert(hand.every(s=>Math.hypot(s.x-muzzle.x,s.y-muzzle.y)<1e-8));
  assert.equal(P.backpackQueue.length,clip);
  shotT=1e5;updateHeroFire(200);
@@ -49,14 +49,14 @@ for(const w of Object.keys(WEAPONS))for(const fast of [false,true]){
  for(let ms=0;ms<12000;ms+=10)updateHeroFire(10);
  const pack=shots.filter(s=>s.source==='backpack').length,hand=shots.filter(s=>s.source==='hand').length;
  assert(pack<=42,'Auxiliary fire exceeded 14 salvos in 12s');
- assert(pack<=hand*3*.65,'Backpack still follows every main shot');
+ if(w!=='laser')assert(pack<=hand*3*.65,'Backpack still follows every main shot');else assert(P.laserBeam&&hand===0);
  assert(P.backpackQueue.length<=3);
 }
 init('sniper',3);P.gear.scope=3;applyGear();assert(P.range>BACKPACK_RANGE_MAX);
 enemies=[{x:P.x+421,y:P.y,hp:100}];updateHeroFire(0);assert.equal(P.backpackQueue.length,0);assert(shots.some(s=>s.source==='hand'));
 init('basic',3);enemies=[{x:P.x+P.range-1,y:P.y,hp:100}];updateHeroFire(0);enemies[0].x=P.x+P.range+1;updateHeroFire(200);
 assert.equal(shots.filter(s=>s.source==='backpack').length,0,'Queued target escaped range but was fired on');
-init('sniper',1);enemies=[{x:P.x+200,y:P.y,hp:100}];updateHeroFire(0);updateHeroFire(200);
+init('sniper',1);P.gear.scope=3;applyGear();enemies=[{x:P.x+200,y:P.y,hp:100}];updateHeroFire(0);updateHeroFire(200);
 const ranged=shots.find(s=>s.source==='backpack');const anchor={...ranged.anchor};
 enemies[0].x=anchor.x+421;ranged.age=200;steerBackpackShot(ranged,16,1);assert(!ranged.target);
 enemies.push({x:anchor.x+419,y:anchor.y,hp:100});steerBackpackShot(ranged,16,1);assert.equal(ranged.target,enemies[1]);

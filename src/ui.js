@@ -2,11 +2,11 @@
 /* ui.js — интерфейс, радар, кружок питомца, кнопки, старт */
 
 /* ── интерфейс ────────────────────────────────────────────── */
-const hudHeight = () => 62;
+const hudHeight = () => 84;
 function topHUDLayout(width) {
   const margin=width<360?8:12,gap=8,rightW=width<380?122:146;
   return {left:{x:margin,y:8,w:Math.min(264,width-margin*2-gap-rightW),h:54},
-    right:{x:width-margin-rightW,y:8,w:rightW,h:54}};
+    right:{x:width-margin-rightW,y:8,w:rightW,h:76}};
 }
 function drawTopHUD(g,width,p) {
   const {left:L,right:R}=topHUDLayout(width);
@@ -27,6 +27,8 @@ function drawTopHUD(g,width,p) {
   g.fillStyle=INK;g.font='900 15px system-ui';g.fillText(String(p.lvl),bx,by+10,29);
   const x=L.x+51,edge=L.x+L.w-11,hpMax=Math.max(1,p.hpMax||1);
   const hp=Math.max(0,Math.min(hpMax,p.hp||0)),healthW=Math.max(8,edge-x-39);
+  const loss=p.damageFeedback,trail=loss&&loss.life>0?Math.min(hpMax,Math.max(hp,loss.before)):hp;
+  const lossAlpha=loss?Math.min(1,loss.life/600):0;
   g.textAlign='right';g.fillStyle=hp<=hpMax*.25?'#b33829':'#6c5440';g.font='800 10px system-ui';
   g.fillText(hp+'/'+hpMax,edge,L.y+20,37);
   const dotCount=Math.ceil(hpMax),pitch=Math.min(12,healthW/Math.max(1,dotCount));
@@ -34,6 +36,9 @@ function drawTopHUD(g,width,p) {
     for(let i=0;i<dotCount;i++){
       const cx=x+4+i*pitch,cy=L.y+16,r=Math.min(4,pitch*.36),v=Math.max(0,Math.min(1,hp-i));
       g.beginPath();g.arc(cx,cy,r,0,Math.PI*2);g.fillStyle='#e7dcc7';g.fill();
+      const lostFill=Math.max(0,Math.min(1,trail-i));
+      if(lostFill>v){g.save();g.globalAlpha=lossAlpha;g.beginPath();g.rect(cx-r+r*2*v,cy-r,r*2*(lostFill-v),r*2);g.clip();
+        g.beginPath();g.arc(cx,cy,r,0,Math.PI*2);g.fillStyle='#e6a14a';g.fill();g.restore();}
       if(v>0){g.save();g.beginPath();g.rect(cx-r,cy-r,r*2*v,r*2);g.clip();
         g.beginPath();g.arc(cx,cy,r,0,Math.PI*2);g.fillStyle=FOE;g.fill();g.restore();}
       g.beginPath();g.arc(cx,cy,r,0,Math.PI*2);g.strokeStyle='#634a3b';g.lineWidth=1.1;g.stroke();
@@ -41,6 +46,7 @@ function drawTopHUD(g,width,p) {
   }else{
     // Many hearts on a narrow phone: exact HP stays readable, none are hidden.
     round(x,L.y+11,healthW,9,4,'#e7dcc7');
+    if(trail>hp){g.save();g.globalAlpha=lossAlpha;g.fillStyle='#e6a14a';g.fillRect(x+healthW*hp/hpMax,L.y+11,healthW*(trail-hp)/hpMax,9);g.restore();}
     const fill=healthW*hp/hpMax;if(fill>0)round(x,L.y+11,fill,9,Math.min(4,fill/2),FOE);
   }
   const barX=x+18,barY=L.y+34,barW=edge-barX;
@@ -50,13 +56,24 @@ function drawTopHUD(g,width,p) {
   if(xp>0)round(barX,barY,barW*xp,8,Math.min(4,barW*xp/2),full?'#7f9c65':'#d7953b');
   g.strokeStyle=full?'#63805c':'#ac8652';g.lineWidth=.8;g.beginPath();g.roundRect(barX,barY,barW,8,4);g.stroke();
   if(full){g.fillStyle='#f8f3e7';g.textAlign='center';g.font='800 7px system-ui';g.fillText('MAX',barX+barW/2,barY+6.5);}
-  const done=campaignComplete(),cx=R.x+12;
+  const done=isBossStage(p.stage),cx=R.x+12;
   g.textAlign='left';g.fillStyle=done?'#287e94':INK;g.font='900 11px system-ui';
-  g.fillText(done?'АЛТАРЬ ОТКРЫТ':'СТАДИЯ '+p.stage+' / '+RUN_STAGES,cx,R.y+20,R.w-24);
+  g.fillText((done?'БОСС ':'СТАДИЯ ')+p.stage+' / '+RUN_STAGES,cx,R.y+20,R.w-24);
   g.fillStyle='#88735a';g.font='700 8px system-ui';
-  g.fillText(done?'ДРАКОН ЧЕРЕЗ':'СМЕНА ЧЕРЕЗ',cx,R.y+41,R.w-59);
+  const tempo=typeof stageTempo==='function'?stageTempo(p.stage,p.stageMs).phase:'steady';
+  const ru=typeof uiLanguage==='undefined'||uiLanguage==='ru';
+  const paceLabel=tempo==='breather'?(ru?'ПЕРЕДЫШКА':'BREATHER'):tempo==='surge'?(ru?'НАТИСК':'SURGE'):(ru?'СМЕНА ЧЕРЕЗ':'NEXT STAGE');
+  if(!done)g.fillStyle=tempo==='breather'?'#58704e':tempo==='surge'?'#a45429':'#88735a';
+  g.fillText(done?bossWords('defeat'):paceLabel,cx,R.y+41,done?R.w-24:R.w-59);
   g.textAlign='right';g.fillStyle=done?'#287e94':'#755426';g.font='900 12px system-ui';
-  g.fillText(formatRunTime(done?campaignRemaining():stageRemaining()),R.x+R.w-11,R.y+41,37);
+  if(!done)g.fillText(formatRunTime(stageRemaining()),R.x+R.w-11,R.y+41,37);
+  // Stage and score belong to the same run-status card, above the map.
+  g.strokeStyle='#d9c9a9';g.lineWidth=.8;g.beginPath();g.moveTo(cx,R.y+49);g.lineTo(R.x+R.w-12,R.y+49);g.stroke();
+  const unranked=p.testRun||(p.trial&&p.trial!=='normal');
+  g.textAlign='left';g.fillStyle='#8a6633';g.font='800 9px system-ui';
+  g.fillText((ru?'СЧЁТ':'SCORE')+(unranked?(ru?' · ТЕСТ':' · TEST'):''),cx,R.y+66,R.w-76);
+  g.textAlign='right';g.fillStyle='#453726';g.font='900 14px system-ui';
+  g.fillText(String(p.redKills||0),R.x+R.w-12,R.y+66,56);
   g.restore();
 }
 function hud() {
@@ -97,6 +114,11 @@ function ultGauge() {
   const cx = W / 2, cy = H - 46, R = 27;
   const f = ult.charge / ULT_FULL, ready = f >= 1;
   ctx.save();
+  if(empoweredUlt()){
+    ctx.fillStyle='#986723';ctx.font='800 9px system-ui';ctx.textAlign='center';
+    ctx.fillText(bossText('ДРАКОН · УЛЬТА','DRAGON · ULT'),cx,cy-R-12);
+    ctx.textAlign='left';
+  }
   if (ready && !ult.on) {                    // пульсирует, когда готова
     ctx.globalAlpha = .35 + Math.abs(Math.sin(t / 220)) * .45;
     ctx.beginPath(); ctx.arc(cx, cy, R + 7, 0, 7);
@@ -124,45 +146,64 @@ function ultGauge() {
   ctx.restore();
 }
 
-function radar() {
-  const S = Math.min(112, W * .28), x = W - S - 12, y = hudHeight() + 10, s = S / WORLD;
-  ctx.fillStyle = "rgba(253,246,232,.92)"; ctx.strokeStyle = INK; ctx.lineWidth = 2.4;
-  ctx.beginPath(); ctx.roundRect(x, y, S, S, 6); ctx.fill(); ctx.stroke();
-  ctx.save(); ctx.beginPath(); ctx.roundRect(x, y, S, S, 6); ctx.clip();
-  ctx.fillStyle = "rgba(120,140,100,.5)";
-  for (const o of props) ctx.fillRect(x + o.x * s - 1, y + o.y * s - 1, 2.4, 2.4);
-  ctx.fillStyle = FOE;
-  for (const e of enemies) ctx.fillRect(x + e.x * s - 1, y + e.y * s - 1, 2, 2);
-  ctx.fillStyle = "#4e8f4a";
-  for (const tu of turrets) ctx.fillRect(x + tu.x * s - 1, y + tu.y * s - 1, 3, 3);
-  ctx.fillStyle = "#3d78bd";
-  for (const q of allyTanks) ctx.fillRect(x + q.x * s - 2, y + q.y * s - 2, 4, 4);
-  if (P.pet && P.pet.dead <= 0) { ctx.fillStyle = "#3d78bd"; ctx.fillRect(x + P.pet.x * s - 1, y + P.pet.y * s - 1, 3, 3); }
-  for (const c of chests) {
-    const px=x+c.x*s, py=y+c.y*s;
-    ctx.fillStyle = c.rare ? "#8a53c4" : "#dfa128";
-    if (c.rare) { ctx.save(); ctx.translate(px,py); ctx.rotate(Math.PI/4);const sz=c.elite?5:3.5;
-      ctx.fillRect(-sz,-sz,sz*2,sz*2);if(c.elite){ctx.strokeStyle='#e2ba58';ctx.lineWidth=1.3;ctx.strokeRect(-sz,-sz,sz*2,sz*2);}ctx.restore(); }
-    else ctx.fillRect(px-2,py-2,5,5);
-  }
-  for (const h of pickups) {
-    ctx.fillStyle = BOOSTS[h.kind].col;
-    ctx.fillRect(x + h.x * s - 2, y + h.y * s - 2, 4.5, 4.5);
-  }
-  ctx.strokeStyle = "rgba(43,38,32,.4)"; ctx.lineWidth = 1;
-  ctx.strokeRect(x + cam.x * s, y + cam.y * s, W * s, H * s);
-  drawAltarRadar(ctx,x,y,s);
-  ctx.fillStyle = HERO;
-  ctx.beginPath(); ctx.arc(x + P.x * s, y + P.y * s, 3.2, 0, 7); ctx.fill();
-  ctx.restore();
+let radarNear=false;
+function radarLayout(){const size=Math.min(112,W*.28);return {x:W-size-12,y:hudHeight()+10,size,range:radarNear?680:WORLD};}
+function radarPoint(x,y){const m=radarLayout(),s=m.size/m.range;return {x:m.x+(radarNear?(x-P.x)*s+m.size/2:x*s),y:m.y+(radarNear?(y-P.y)*s+m.size/2:y*s)};}
+function radarConsumesPointer(e){const r=cv.getBoundingClientRect(),m=radarLayout(),x=e.clientX-r.left,y=e.clientY-r.top;return running&&!paused&&x>=m.x&&x<=m.x+m.size&&y>=m.y&&y<=m.y+m.size;}
+function toggleRadar(){if(!running||paused||ult.on||bossLootLocked()||(typeof Playables!=='undefined'&&Playables.blocked))return false;radarNear=!radarNear;pointer.active=false;syncRadarButton();return true;}
+function radarPointerDown(e){if(!radarConsumesPointer(e))return false;e.preventDefault?.();e.stopImmediatePropagation?.();toggleRadar();return true;}
+function syncRadarButton(){const b=document.getElementById('radarToggle');if(!b)return;b.classList.toggle('hidden',!running||paused);b.style.top=radarLayout().y+'px';b.style.borderRadius=radarNear?'50%':'6px';b.setAttribute('aria-pressed',String(radarNear));b.setAttribute('aria-label',bossText(radarNear?'Радар рядом. Нажми: вся карта':'Вся карта. Нажми: радар рядом',radarNear?'Nearby radar. Press for full map':'Full map. Press for nearby radar'));}
+const radarButton=document.getElementById('radarToggle');
+radarButton?.addEventListener('pointerdown',e=>{e.stopPropagation();pointer.active=false;});
+radarButton?.addEventListener('pointermove',e=>{e.stopPropagation();pointer.active=false;});
+if(radarButton)radarButton.onclick=e=>{e?.stopPropagation();toggleRadar();};
+function radar(){
+ const m=radarLayout(),{x,y,size:S}=m,g=ctx;
+ const outline=()=>{g.beginPath();if(radarNear)g.arc(x+S/2,y+S/2,S/2,0,Math.PI*2);else g.roundRect(x,y,S,S,7);};
+ g.save();g.fillStyle='#f8efd9';g.strokeStyle='#77664b';g.lineWidth=2.2;outline();g.fill();g.stroke();outline();g.clip();
+ const dot=(o,color,r=2,diamond=false)=>{const p=radarPoint(o.x,o.y);if(p.x<x-8||p.x>x+S+8||p.y<y-8||p.y>y+S+8)return;g.fillStyle=color;g.save();g.translate(p.x,p.y);if(diamond)g.rotate(Math.PI/4);g.fillRect(-r,-r,r*2,r*2);g.restore();};
+ for(const o of props)dot(o,'#a7ad87',radarNear?Math.max(2,o.r*S/m.range*.6):1.2);
+ if(radarNear){g.strokeStyle='#c9b98f';g.lineWidth=.7;g.beginPath();g.arc(x+S/2,y+S/2,S*.26,0,7);g.stroke();}
+ else{const p=radarPoint(cam.x,cam.y);g.strokeStyle='#bba779';g.lineWidth=1;g.strokeRect(p.x,p.y,W*S/WORLD,H*S/WORLD);}
+ for(const e of enemies)if(e.hp>0)dot(e,e.boss?'#953d8e':FOE,e.boss?4:radarNear?2.2:1.4,e.boss);
+ for(const c of chests)dot(c,c.rare?'#9c67bd':'#d9a335',c.elite?4:2.6,true);
+ if(typeof allBossLoot==='function')for(const q of allBossLoot())dot(q,'#db9b23',3.8,true);
+ if(typeof weaponDelivery!=='undefined'&&['flying','ground'].includes(weaponDelivery?.state))dot(weaponDelivery,'#567f88',4,true);
+ for(const p of pickups)dot(p,BOOSTS[p.kind].col,2);
+ for(const q of allyTanks)dot(q,'#3d78bd',2.8);
+ for(const q of turrets)dot(q,'#57945c',2);
+ if(P.pet&&P.pet.dead<=0)dot(P.pet,'#398abc',2);
+ if(!radarNear)drawAltarRadar(g,x,y,S/WORLD);
+ const p=radarPoint(P.x,P.y);g.translate(p.x,p.y);g.rotate(P.aim||0);g.fillStyle='#d97627';g.strokeStyle='#fff9e9';g.lineWidth=1.2;
+ g.beginPath();g.moveTo(5,0);g.lineTo(-3,-3.7);g.lineTo(-1,0);g.lineTo(-3,3.7);g.closePath();g.fill();g.stroke();g.restore();
 }
 const useBtn = document.getElementById("useBtn");
 const useIco = document.getElementById("useIco");
 const useName = document.getElementById("useName");
 const abilityDock = document.getElementById("abilityDock");
 const abilitySlots = [...document.querySelectorAll(".ability-slot")];
+const abilityToggle=document.getElementById('abilityToggle'),abilityPanel=document.getElementById('abilityPanel'),abilityTotal=document.getElementById('abilityTotal');
+let abilityDockInset=0;
+function refreshAbilityDockLayout(){
+  abilityDockInset=typeof getComputedStyle==='function'?Math.max(0,(parseFloat(getComputedStyle(abilityDock).bottom)||120)-120):0;
+}
+refreshAbilityDockLayout();
+function abilityMenuAvailable(){return running&&!paused&&!bossLootLocked()&&!(typeof Playables!=='undefined'&&Playables.blocked)&&!dragonFinale;}
+function setAbilityMenuOpen(open,returnFocus=false){
+  P.abilityMenuOpen=!!open&&abilityMenuAvailable();pointer.active=false;
+  abilityPanel.hidden=!P.abilityMenuOpen;abilityToggle.setAttribute('aria-expanded',String(P.abilityMenuOpen));
+  if(returnFocus)abilityToggle.focus({preventScroll:true});
+}
+abilityToggle.addEventListener('pointerdown',e=>{e.stopPropagation();pointer.active=false;});
+abilityToggle.addEventListener('pointerenter',()=>{pointer.active=false;});
+abilityToggle.onclick=e=>{e?.stopPropagation();setAbilityMenuOpen(!P.abilityMenuOpen);};
+abilityDock.addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='Enter')e.stopPropagation();});
+document.addEventListener('pointerdown',e=>{
+  if(P.abilityMenuOpen&&!abilityDock.contains(e.target))setAbilityMenuOpen(false);
+},true);
+addEventListener('resize',()=>{setAbilityMenuOpen(false);refreshAbilityDockLayout();});
 const petBadge = document.getElementById("petBadge");
-const dragonBookBtn = document.getElementById("dragonBookBtn");
+
 const petCtx = petBadge.getContext("2d");
 const REVIVE = 12000;
 
@@ -243,13 +284,28 @@ cv.addEventListener("pointerdown", e => {
 });
 // ── ВРЕМЕННО: мгновенный уровень для тестов. Удалить перед релизом ──
 const devLvl = document.getElementById("devLvl");
+// Temporary, local-only stage shortcut. A skipped boss grants no kill/XP/reward.
+const devStage=document.getElementById('devStage');
+function devNextStage(){
+  if(bossLootLocked())return false;
+  if(!DRAGON_ADMIN_ENABLED||!running||paused||ult.on||P.stage>=RUN_STAGES||P.runWon||
+    (typeof Playables!=='undefined'&&Playables.blocked))return false;
+  pointer.active=false;P.testRun=true;
+  if(isBossStage(P.stage))defeatedBossStages.add(P.stage); // Test-only progression bypass.
+  enemies=enemies.filter(e=>!e.boss);stageBoss=null;bossMarks=[];bossProjectiles=[];dragonAssist=null;dragonAssistWait=0;
+  resetEnemyHazards();enterRunStage(P.stage+1);return true;
+}
+devStage.addEventListener('pointerenter',()=>{pointer.active=false;});
+devStage.addEventListener('pointerdown',e=>{e.stopPropagation();pointer.active=false;});
+devStage.onclick=e=>{e?.stopPropagation();devNextStage();};
 devLvl.addEventListener("pointerenter", () => { pointer.active = false; });
 // ── ВРЕМЕННО: мгновенная зарядка ульты. Удалить перед релизом ──
 const devUlt = document.getElementById("devUlt");
 devUlt.addEventListener("pointerenter", () => { pointer.active = false; });
 devUlt.addEventListener("pointerdown", e => {
   e.stopPropagation(); pointer.active = false;
-  if (!running || paused) return;
+  if (!DRAGON_ADMIN_ENABLED||!running||paused||(typeof Playables!=='undefined'&&Playables.blocked))return;
+  P.testRun=true;
   if (ult.on) { ult.on = false; ult.zoom = 1; ult.rot = 0; ult.lift = 0; ult.charge = ULT_FULL; }
   else if (ult.charge >= ULT_FULL) ult.charge = 0;   // повторное нажатие сбрасывает
   else ult.charge = ULT_FULL;
@@ -259,7 +315,9 @@ devUlt.addEventListener("pointerdown", e => {
 const devRare = document.getElementById("devRare");
 devRare.addEventListener("pointerenter", () => { pointer.active = false; });
 devRare.addEventListener("pointerdown", e => {
-  e.stopPropagation(); pointer.active = false; spawnRareChestNearPlayer();
+  e.stopPropagation(); pointer.active = false;
+  if(!DRAGON_ADMIN_ENABLED||!running||paused||(typeof Playables!=='undefined'&&Playables.blocked))return;
+  P.testRun=true;spawnRareChestNearPlayer();
 });
 
 // ── ВРЕМЕННО: экипировать золото и по очереди проверить все снайперские ульты ──
@@ -268,7 +326,8 @@ let devSniperIndex = 0;
 devSniper.addEventListener("pointerenter", () => { pointer.active = false; });
 devSniper.addEventListener("pointerdown", e => {
   e.stopPropagation(); pointer.active=false;
-  if(!running || paused)return;
+  if(!DRAGON_ADMIN_ENABLED||!running||paused||(typeof Playables!=='undefined'&&Playables.blocked))return;
+  P.testRun=true;
   P.wtype="sniper"; applyGear();
   const mode=SNIPER_ULT_MODES[devSniperIndex++ % SNIPER_ULT_MODES.length];
   ult.forceMode=mode; ult.weaponBag="sniper"; ult.charge=ULT_FULL;
@@ -280,7 +339,8 @@ devSniper.addEventListener("pointerdown", e => {
 const devFull=document.getElementById("devFull");
 devFull.addEventListener("pointerenter",()=>{pointer.active=false;});
 function devLaunchFinale(forcedId=null){
-  if(!running||dragonFinale)return;
+  if(!DRAGON_ADMIN_ENABLED||!running||dragonFinale||(typeof Playables!=='undefined'&&Playables.blocked))return;
+  P.testRun=true;
   if(forcedId)forceNextDragon(forcedId);
   userPaused=false;paused=false;queuedLevels=0;
   document.getElementById("pause").classList.add("hidden");
@@ -292,9 +352,8 @@ function devLaunchFinale(forcedId=null){
   applyGear();P.hp=P.hpMax;
   const forced=forcedId&&DRAGON_TYPES.find(d=>d.id===forcedId);
   pops.push({x:P.x,y:P.y-62,txt:forced?"ТЕСТ · "+forced.name:"ФУЛЛ 33/33",life:1.2,col:forced?forced.accent:"#b88716"});
-  // +FULL проверяет обычный маршрут к алтарю; +DRG остаётся быстрым просмотром.
+  // +FULL equips the hero without skipping boss progression; +DRG previews assistance.
   if(forcedId)startDragonFinale(true);
-  else {P.runMs=RUN_MAIN_MS;updateRunProgress(0);}
 }
 devFull.addEventListener("pointerdown",e=>{
   e.stopPropagation();pointer.active=false;devLaunchFinale();
@@ -312,7 +371,8 @@ devDragon.addEventListener("pointerdown",e=>{
 
 devLvl.addEventListener("pointerdown", e => {
   e.stopPropagation(); pointer.active = false;
-  if (!running || paused) return;
+  if(!DRAGON_ADMIN_ENABLED||!running||paused||(typeof Playables!=='undefined'&&Playables.blocked))return;
+  P.testRun=true;
   P.xp = P.xpNext - 1;
   gainXP();
 });
@@ -320,14 +380,11 @@ devLvl.addEventListener("pointerdown", e => {
 // ВРЕМЕННО: награда остаётся настоящей, повторные нажатия не создают дубликаты.
 const devCompass=document.getElementById('devCompass');
 devCompass.addEventListener('pointerenter',()=>{pointer.active=false;});
-devCompass.addEventListener('pointerdown',e=>{e.stopPropagation();devTestCompass();});
+devCompass.addEventListener('pointerdown',e=>{e.stopPropagation();if(!DRAGON_ADMIN_ENABLED||!running||paused||(typeof Playables!=='undefined'&&Playables.blocked))return;P.testRun=true;devTestCompass();});
 
 document.getElementById("btnResume").onclick = resumeGame;
 document.getElementById("btnRestart").onclick = () => {
-  userPaused = false;
-  document.getElementById("pause").classList.add("hidden");
-  document.getElementById("levelup").classList.add("hidden");
-  start();
+  requestRunRestart('pause');
 };
 
 cv.addEventListener("pointerdown", e => {
@@ -341,10 +398,12 @@ useBtn.addEventListener("pointerdown", e => { e.stopPropagation(); pointer.activ
 for (const slot of abilitySlots) {
   const kind = slot.dataset.ability, ico = slot.querySelector("canvas").getContext("2d");
   ico.setTransform(2,0,0,2,0,0); ico.clearRect(0,0,44,44); drawAbilityIcon(ico,kind,22,22,1.35);
-  slot.addEventListener("pointerdown", e => { e.stopPropagation(); pointer.active=false; useAbility(kind); });
+  slot.addEventListener("pointerdown", e => { e.stopPropagation(); pointer.active=false; });
+  slot.onclick=e=>{e?.stopPropagation();if(P.abilityMenuOpen&&useAbility(kind)){setAbilityMenuOpen(false,true);syncHUD();}};
   slot.addEventListener("pointerenter", () => { pointer.active=false; });
 }
 addEventListener("keydown", e => {
+  if(e.repeat)return;
   if (e.code === "Digit1") useAbility("airstrike");
   if (e.code === "Digit2") useAbility("gas");
   if (e.code === "Digit3") useAbility("tank");
@@ -353,12 +412,7 @@ addEventListener("keydown", e => {
 for (const el of [useBtn, petBadge])
   el.addEventListener("pointerenter", () => { pointer.active = false; });
 
-dragonBookBtn.addEventListener("pointerdown", e => { e.stopPropagation(); openDragonBook(); });
-dragonBookBtn.addEventListener("pointerenter", () => { pointer.active=false; });
-document.getElementById("btnCloseBook").onclick=closeDragonBook;
-document.getElementById("btnVictoryBook").onclick=openDragonBook;
-document.getElementById("btnRetryDragonSave").onclick=retryDragonReward;
-document.getElementById("btnVictoryRestart").onclick=()=>start();
+document.getElementById("btnVictoryRestart").onclick=()=>{if(!running&&(typeof Playables==='undefined'||!Playables.blocked))start();};
 
 // клик по кружку — питомец бежит к хозяину
 petBadge.addEventListener("pointerdown", e => {
@@ -368,11 +422,12 @@ petBadge.addEventListener("pointerdown", e => {
   p.recall = 3000;
   // The mole finishes its marked tunnel before answering the recall.
   pops.push({ x: P.x, y: P.y - 60, txt: "КО МНЕ!", life: 1.2, col: HERO });
-  chain([760, 1010], "square", .045);
+  SFX.petVoice?.(p.type,p.x);
 });
 
 let lastItem = "x", lastInventory = "";
 function syncHUD() {
+  syncRadarButton();
   if (P.item !== lastItem) {
     lastItem = P.item;
     useBtn.disabled = !P.item;
@@ -382,10 +437,9 @@ function syncHUD() {
     useName.textContent = P.item ? ITEMS[P.item].name : "пусто";
   }
   pauseBtn.style.display = running ? "flex" : "none";
-  dragonBookBtn.style.display = running ? "flex" : "none";
-  document.getElementById("dragonHomeBtn").style.display=running?"flex":"none";
-  document.getElementById("dragonEggBtn").style.display=running?"flex":"none";
   devLvl.style.display = running&&DRAGON_ADMIN_ENABLED ? "block" : "none";
+  devStage.style.display=running&&DRAGON_ADMIN_ENABLED?'block':'none';
+  devStage.disabled=!running||paused||ult.on||P.stage>=RUN_STAGES||!!P.runWon;
   devUlt.style.display = running&&DRAGON_ADMIN_ENABLED ? "block" : "none";
   devRare.style.display = running&&DRAGON_ADMIN_ENABLED ? "block" : "none";
   devSniper.style.display = running&&DRAGON_ADMIN_ENABLED ? "block" : "none";
@@ -393,12 +447,21 @@ function syncHUD() {
   devDragon.style.display = running&&DRAGON_ADMIN_ENABLED ? "block" : "none";
   devCompass.style.display = running&&DRAGON_ADMIN_ENABLED ? 'block' : 'none';
   abilityDock.classList.toggle("hidden", !running);
-  const invKey = ABILITY_KEYS.map(k => inventory[k]).join(",") + ":" + running + ":" + paused;
+  const available=abilityMenuAvailable();
+  if(!available&&P.abilityMenuOpen)setAbilityMenuOpen(false);
+  abilityPanel.hidden=!P.abilityMenuOpen;abilityToggle.disabled=!available;
+  abilityToggle.setAttribute('aria-expanded',String(!!P.abilityMenuOpen));
+  const invKey = ABILITY_KEYS.map(k => inventory[k]).join(",") + ":" + running + ":" + paused+':'+available+':'+uiLanguage;
   if (invKey !== lastInventory) {
     lastInventory = invKey;
+    const total=ABILITY_KEYS.reduce((sum,k)=>sum+inventory[k],0),label=uiLanguage==='ru'?'Способности':(LANGUAGE_PACKS[uiLanguage]?.tips.inventory[0]||'Abilities');
+    abilityTotal.textContent=total>99?'99+':String(total);
+    abilityToggle.setAttribute('aria-label',label+' · '+total);abilityToggle.title=label;
+    abilityPanel.setAttribute('aria-label',label);
     for (const slot of abilitySlots) {
       const kind=slot.dataset.ability, n=inventory[kind];
-      slot.disabled = !running || paused || n <= 0;
+      slot.disabled = !available || n <= 0;
+      slot.setAttribute('aria-label',ABILITIES[kind].name+' · '+n);
       slot.querySelector("b").textContent = n > 99 ? "99+" : n;
     }
   }
@@ -416,33 +479,112 @@ document.title = "Stickman Arena v" + VERSION + " — Vacky Games";
   if (tag) tag.textContent = "v" + VERSION;
 }
 
+let menuHasRun=false;
+function refreshMenuRecord(){
+ const el=document.getElementById('menuRecord');if(!el)return;
+ el.classList.toggle('hidden',!meta.bestStage);
+ el.textContent=meta.bestStage?(typeof uiLabel==='function'?uiLabel('bestStage'):'Лучшая стадия')+': '+meta.bestStage+'/'+RUN_STAGES:'';
+}
+function syncMainMenu(){
+  document.getElementById('mainPlayLabel').dataset.i18n=menuHasRun?'resume':'play';
+  document.getElementById('btnMenuNewRun').classList.toggle('hidden',!menuHasRun);
+  if(typeof applyLanguage==='function')applyLanguage();
+  refreshMenuRecord();
+  if(typeof refreshRunCheckpointLabel==='function')refreshRunCheckpointLabel();
+}
+function returnToMainMenu(){
+  if(typeof runSaveAction==='function'&&!runSaveDepth)return runSaveAction(()=>returnToMainMenu(),true);
+  if(typeof settingsOpen==='function'&&settingsOpen())return false;
+  if(typeof runConfirmOpen==='function'&&runConfirmOpen())return false;
+  if(!running||(typeof Playables!=='undefined'&&Playables.blocked)||tutorialOpen()||gameHelpOpen())return false;
+  menuHasRun=true;userPaused=true;paused=true;pointer.active=false;
+  rememberRunStage();
+  if(typeof checkpointCamp==='function')checkpointCamp();
+  document.getElementById('pause').classList.add('hidden');
+  document.getElementById('start').classList.remove('hidden');
+  syncMainMenu();menuSceneLast=-Infinity;drawArenaMenu(performance.now(),true);
+  document.getElementById('btnStart').focus({preventScroll:true});return true;
+}
+function resumeFromMainMenu(){
+  if(typeof Playables!=='undefined'&&Playables.blocked)return;
+  menuDeparture=null;menuReaction=null;
+  document.getElementById('start').classList.add('hidden');menuHasRun=false;resumeGame();syncMainMenu();
+  if(typeof continueRunCheckpoint==='function')continueRunCheckpoint();
+}
+document.getElementById('btnMainMenu').onclick=returnToMainMenu;
+document.getElementById('btnMenuNewRun').onclick=()=>{
+  requestRunRestart('menu');
+};
+function requestMenuRun(){
+ if(typeof tutorialProgress==='undefined'||(!tutorialProgress.disabled&&!tutorialProgress.seen.move)||!menuBeginDeparture(start))start();
+}
 function start() {
+  if(typeof runSaveAction==='function'&&!runSaveDepth)return runSaveAction(()=>start(),true);
+  if(typeof rankingOpen==='function'&&rankingOpen())return;
+  if(typeof settingsOpen==='function'&&settingsOpen())return;
+  if(typeof runConfirmOpen==='function'&&runConfirmOpen())return;
+  if(typeof campDialogOpen==='function'&&campDialogOpen())return;
+  if(typeof retryRankingSave==='function')retryRankingSave();
+  if(typeof checkpointCamp==='function')checkpointCamp();
+  menuDeparture=null;menuReaction=null;rememberRunStage();
+  menuHasRun=false;userPaused=false;syncMainMenu();
   reset(); running = true;
   document.getElementById("start").classList.add("hidden");
   document.getElementById("over").classList.add("hidden");
+  // The first battle tip pauses the world in the Play handler, before the next frame.
+  if(typeof tickTutorial==="function"){tutorialCheckAt=0;tickTutorial(performance.now());}
 }
 function gameOver() {
-  running = false; meta.best = Math.max(meta.best, Math.round(P.runMs / 1000));
+  if(typeof runSaveAction==='function'&&!runSaveDepth)return runSaveAction(()=>gameOver(),true);
+  if(typeof recordRunScore==='function')recordRunScore();
+  if(typeof refreshRunScoreReceipt==='function')refreshRunScoreReceipt();
+  stopGameSounds();SFX.dead();
+  rememberRunStage();
+  running = false; if(!P.testRun)meta.best = Math.max(meta.best, Math.round(P.runMs / 1000));
   saveMeta();
   document.getElementById("stats").textContent =
     `${formatRunTime(P.runMs)} · лопнул ${score} · стадия ${P.stage}/${RUN_STAGES} · ур. ${P.lvl} · прокачка ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · рекорд ${meta.best} с`;
-  offerPerks(); document.getElementById("over").classList.remove("hidden");
+  if(typeof checkpointCamp==='function'){
+   checkpointCamp();renderCampResult('overProgress');
+   document.getElementById('overTitle').textContent=campText('over');
+   document.getElementById('btnOverRetry').textContent=campText('retry');document.getElementById('btnOverMenu').textContent=campText('menu');
+   const labels=campText('stats').split(' / ');
+   document.getElementById('stats').textContent=labels[0]+': '+P.stage+'/20 · '+labels[1]+': '+formatRunTime(P.runMs)+'\n'+bossText('Счёт','Score')+': '+(P.redKills||0)+' · '+labels[3]+': '+defeatedBossStages.size;
+   const canvas=document.getElementById('overHero');drawVictoryHero(canvas.getContext('2d'),canvas.width,canvas.height);
+  }
+  document.getElementById("over").classList.remove("hidden");document.getElementById('btnOverRetry')?.focus?.({preventScroll:true});
 }
-document.getElementById("btnStart").onclick = () => { audio(); start(); };
+document.getElementById("btnStart").onclick = () => {
+  if(typeof runConfirmOpen==='function'&&runConfirmOpen())return;
+  if(typeof Playables!=="undefined"&&Playables.blocked)return;
+  try{audio();}catch(_){}
+  if(menuHasRun){resumeFromMainMenu();return;}
+  // First movement tutorial is immediate. Later visits get a skippable 0.6s cue.
+  requestMenuRun();
+};
 reset(); running = false;
+if(typeof loadRunCheckpoint==='function')loadRunCheckpoint();
+document.addEventListener('click',event=>{
+ const button=event.target?.closest?.('button');
+ if(button&&!button.disabled&&!button.dataset.soundPreview&&!(typeof Playables!=='undefined'&&Playables.blocked))SFX.click?.();
+});
+if(typeof initCampUI==='function')initCampUI();
+if(typeof initSettingsUI==='function')initSettingsUI();
+if(typeof initAdminUI==='function')initAdminUI();
+if(typeof initRankingUI==='function')initRankingUI();
+if(typeof initLocalization==="function")initLocalization();
+syncMainMenu();
 function platformGameHooks(){
   let frozenAt=null;
   return {
-    initial(){draw();},
-    suspend(){if(frozenAt===null)frozenAt=performance.now();pointer.active=false;homeTouches.clear();homeTap=null;},
+    initial(){draw();drawArenaMenu(0,true);},
+    suspend(){if(frozenAt===null)frozenAt=performance.now();pointer.active=false;},
     resume(){
       const now=performance.now(),elapsed=frozenAt===null?0:now-frozenAt;frozenAt=null;
-      last=now;homeLastFrame=now;caveLastTime=0;
-      if(homeHatching)homeHatching+=elapsed;
-      if(cavePickup)cavePickup.start+=elapsed;if(caveRelease)caveRelease.start+=elapsed;
-      resize();homeNeedsPaint=true;if(dragonHomeOpen()){resizeHomeCanvas();wakeDragonHome();}
+      last=now;resize();
+      if(typeof refreshRunScoreReceipt==='function')refreshRunScoreReceipt();
     },
     audio:platformAudio,
-    catalogue(){if(DRAGON_ADMIN_ENABLED){openDragonHome("warehouse");document.getElementById("btnAdminCatalog").click();}},
+    catalogue(){},
   };
 }

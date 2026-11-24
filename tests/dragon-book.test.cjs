@@ -11,6 +11,20 @@ const els=Object.fromEntries(['dragonBook','dragonGrid','dragonTotal','craftMess
 const box={assert,console,document:{getElementById:id=>els[id],createElement:t=>new El(t)},localStorage:{getItem:k=>db.get(k)??null,setItem:(k,v)=>{if(fail)throw Error('storage');db.set(k,v);}},addEventListener(){},openDragonHome(){box.home=true;}};
 vm.createContext(box);for(const f of ['dragon-economy.js','dragons.js'])vm.runInContext(fs.readFileSync(path.join(root,'src',f),'utf8'),box);
 const run=s=>vm.runInContext(s,box);run('drawDragon=()=>{}');
+run(`
+const originalRandom=Math.random,beforeRoll=JSON.stringify(dragonProfile),rollCounts=Object.fromEntries(DRAGON_IDS.map(id=>[id,0]));
+try{
+ assert.equal(DRAGON_TYPES.length,7);
+ for(let i=0;i<7000;i++){Math.random=()=>(i+.5)/7000;rollCounts[rollDragon().id]++;}
+ for(const id of DRAGON_IDS)assert.equal(rollCounts[id],1000);
+ Math.random=()=>0;assert.equal(rollDragon().id,'green');
+ Math.random=()=>1-Number.EPSILON;assert.equal(rollDragon().id,'diamond');
+ for(let i=0;i<7;i++){Math.random=()=>i/7;assert.equal(rollDragon().id,DRAGON_IDS[i]);}
+ Math.random=()=>0;forceNextDragon('gold');assert.equal(rollDragon().id,'gold');assert.equal(rollDragon().id,'green');
+ assert.equal(JSON.stringify(dragonProfile),beforeRoll);
+}finally{Math.random=originalRandom;}
+`);
+console.log('PASS: all 7 victory rewards have equal intervals, 7000 stratified samples, boundaries, one-shot admin override, no save mutation');
 for(let i=0;i<6;i++){
  run(`dragonTransaction(p=>{for(const id of DRAGON_IDS)p.counts[id]=0;p.counts[DRAGON_IDS[${i}]]=3;p.rescues=90;return true;});`);
  run(`assert(craftDragon(DRAGON_IDS[${i}]).ok);assert.equal(dragonCollection[DRAGON_IDS[${i}]],0);assert.equal(dragonCollection[DRAGON_IDS[${i+1}]],1);assert.equal(dragonProfile.rescues,90);assert(!craftDragon(DRAGON_IDS[${i}]).ok);assert.equal(readDragonProfile().counts[DRAGON_IDS[${i+1}]],1);`);

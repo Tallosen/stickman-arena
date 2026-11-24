@@ -42,9 +42,7 @@ function updateEnemyHazards(dt){
     if(touchesIce(f.x,f.y,f.r)){f.life=0;extinguishFire(f.x,f.y);continue;}
     if(f.life<=0)continue;
     if(Math.hypot(P.x-f.x,P.y-f.y)<f.r+P.r&&P.hurt<=0&&P.invT<=0){
-      P.hp=Math.round((P.hp-f.damage)*2)/2;P.hurt=P.iframe;shake=Math.max(shake,9);SFX.hurt();
-      pops.push({x:P.x,y:P.y-40,txt:'-'+f.damage,life:1,col:FOE});
-      if(P.hp<=0){gameOver();return true;}
+      if(hurtHero(f.damage,{x:f.x,y:f.y,area:true},true))return true;
     }
     for(const q of allyTanks)if(!q.dead&&q.hp>0&&q.hurt<=0&&Math.hypot(q.x-f.x,q.y-f.y)<f.r+20){q.hp=Math.max(0,q.hp-8);q.hurt=600;}
   }

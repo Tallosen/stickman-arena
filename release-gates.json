@@ -1,0 +1,12 @@
+{
+  "reviewedAt": "2026-11-20",
+  "items": [
+    {"id":"platform-project","status":"pending","detail":"Create the Playgama game card; verify uploaded build in QA Tool and real host."},
+    {"id":"leaderboard","status":"pending","detail":"Configure Bridge SaaS leaderboard and public token; test higher/lower scores, retry and two player accounts."},
+    {"id":"audio-assets","status":"pending","detail":"Replace code-generated synthesis with licensed recorded/produced compressed audio, add background music and audition on actual devices. Current bank is not compliant with the current sound requirement."},
+    {"id":"localization","status":"pending","detail":"Complete and review every player-facing English string and English fallback, declare only fully verified languages."},
+    {"id":"live-storage-ads","status":"pending","detail":"Verify real Bridge save/reload, pause/audio and interstitial finish/failure; mocks do not establish host compliance."},
+    {"id":"device-playthrough","status":"pending","detail":"Full ordinary run through stage 20 and death run in current desktop/mobile browsers; check rotation, touch, low FPS and long sessions."},
+    {"id":"submission-materials","status":"pending","detail":"Prepare final icon, cover, screenshots, RU/EN descriptions and device/orientation choices from the final approved build."}
+  ]
+}

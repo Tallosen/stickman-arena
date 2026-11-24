@@ -2,10 +2,10 @@ const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('ass
 const noop=()=>{},ctx=new Proxy({},{get:(o,k)=>o[k]||noop,set:(o,k,v)=>(o[k]=v,true)});
 const element=()=>({style:{},classList:{add:noop,remove:noop,contains:()=>true},addEventListener:noop,getContext:()=>ctx,appendChild:noop});
 const storage=new Map();
-const box={assert,console,failSave:false,document:{body:element(),getElementById:()=>element(),createElement:element,addEventListener:noop},
+const box={assert,console,VACKY_DEV:true,failSave:false,document:{body:element(),getElementById:()=>element(),createElement:element,addEventListener:noop},
  innerWidth:390,innerHeight:844,devicePixelRatio:1,addEventListener:noop,requestAnimationFrame:noop,setTimeout:noop,
  localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>{if(box.failSave)throw Error('Storage denied');storage.set(k,v);}},hud:noop};box.window=box;vm.createContext(box);
-for(const f of ['core.js','config.js','map-art.js','arena-secrets.js','pets.js','draw-pets.js','ult.js','state.js','progression.js','world.js','enemy-hazards.js','combat.js','abilities.js','dragon-economy.js','dragons.js','update.js'])
+for(const f of ['core.js','config.js','map-art.js','arena-secrets.js','pets.js','draw-pets.js','ult.js','state.js','progression.js','world.js','enemy-hazards.js','combat.js','abilities.js','dragon-economy.js','dragons.js','bosses.js','boss-loot.js','update.js'])
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',f),'utf8'),box,{filename:f});
 vm.runInContext(`
 for(const key of Object.keys(SFX))SFX[key]=()=>{};
@@ -20,7 +20,7 @@ for(let i=0;i<100;i++){
 props=[{x:1400,y:1400,r:5000}];resetArenaSecrets();assert.equal(arenaSecrets.length,1);
 reset();running=true;paused=false;props=[];P.hurt=100000;spawnT=eliteT=chestT=healT=shotT=1e9;
 const mineSite=arenaSecrets[0],rock=arenaSecrets.find(s=>s.kind==='nade'),well=arenaSecrets.find(s=>s.kind==='ice');
-const saved=[P.xp,P.lvl,P.runMs,dragonTotal(),JSON.stringify(inventory)];
+const saved=[P.xp,P.lvl,P.runMs,JSON.stringify(dragonProfile),JSON.stringify(inventory)];
 P.x=mineSite.x+106;P.y=mineSite.y;P.item='mine';useItem();assert(!mineSite.lit);
 P.x=mineSite.x+104;P.item='mine';useItem();assert(mineSite.lit);assert.equal(mines.length,2);assert.equal(P.item,null);
 const notices=pops.length;assert(!triggerArenaSecret('mine',mineSite.x,mineSite.y));assert.equal(pops.length,notices);
@@ -30,7 +30,7 @@ update(16);assert(rock.lit,'Actual grenade explosion does not reveal rock');asse
 assert(booms.length>0,'Normal grenade explosion was removed');
 P.x=well.x+187;P.y=well.y;P.item='ice';useItem();assert(well.lit);assert.equal(ices.length,1);
 assert(arenaSecretComplete);assert.equal(dragonFinale,null);
-assert.equal(P.xp,saved[0]);assert.equal(P.lvl,saved[1]);assert.equal(P.runMs,16);assert.equal(dragonTotal(),saved[3]);assert.equal(JSON.stringify(inventory),saved[4]);
+assert.equal(P.xp,saved[0]);assert.equal(P.lvl,saved[1]);assert.equal(P.runMs,16);assert.equal(JSON.stringify(dragonProfile),saved[3]);assert.equal(JSON.stringify(inventory),saved[4]);
 updateArenaSecrets(500);const age=well.age;paused=true;updateArenaSecrets(500);assert.equal(well.age,age);
 reset();assert(!arenaSecretComplete);assert(arenaSecrets.every(s=>!s.lit));
 running=true;paused=true;assert(!triggerArenaSecret('mine',1400,1400));paused=false;

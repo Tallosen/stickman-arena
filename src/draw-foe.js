@@ -135,20 +135,67 @@ function drawFoe(g, x, y, face, phase, sc, col, kind, rot, flinch, detail) {
 
   } else if (kind === "elite") {
     // элита: покачивается, руки подняты, рожки
-    const sway = Math.sin(phase * .7) * .10;
+    const act=detail?.boss?bossActPose(detail):{y:0,lean:0,stance:0,raise:0};
+    if(detail?.boss){
+      g.save();g.scale(face,1);g.lineWidth=3;
+      for(const side of [-1,1]){
+        const leg=bossLegPose(detail,phase,side,face);
+        g.beginPath();g.moveTo(...leg.hip);g.lineTo(...leg.joint);g.lineTo(...leg.end);g.stroke();
+        g.beginPath();g.moveTo(leg.end[0]-1.2,leg.end[1]);g.lineTo(leg.end[0]+2,leg.end[1]);g.stroke();
+      }
+      g.restore();
+    }
+    g.translate(0,act.y);
+    const sway = Math.sin(phase * .7) * .10+act.lean;
     g.rotate(sway);
     g.lineWidth = 3;
     g.save(); g.scale(face, 1);
-    sline(g, 0, -12, sw * 9, 2); sline(g, 0, -12, -sw * 9, 2);
+    if(!detail?.boss){sline(g,0,-12,sw*9,2);sline(g,0,-12,-sw*9,2);}
     sline(g, 0, -12, 0, -26);
-    const arm = Math.sin(phase * 1.3) * 4;
-    sline(g, 0, -24, 11, -32 + arm); sline(g, 0, -24, -11, -32 - arm);
+    const arm = Math.sin(phase * 1.3) * 4-act.raise;
+    const hands=detail?.boss?[[11,-25-act.raise+Math.sin(phase)*3*act.move],[-11,-25-act.raise-Math.sin(phase)*3*act.move]]:null;
+    const hammer=detail?.boss&&detail.bossSpec.id==='bruiser'?bossHammerPose(detail):null;
+    if(hammer){hands[1]=hammer.grip;hands[0]=[11,-24+Math.sin(phase)*1.5*act.move];}
+    if(detail?.boss&&!bossFirearm(detail)){
+      for(const [i,hand] of hands.entries()){const shoulder=[i?-4:4,-24],limb=bossJoint(shoulder,hand,hammer?9.2:11,i?-1:1);hands[i]=limb.end;g.beginPath();g.moveTo(...shoulder);g.lineTo(...limb.joint);g.lineTo(...limb.end);g.stroke();}
+    }else if(!detail?.boss){sline(g,0,-24,11,-32+arm);sline(g,0,-24,-11,-32-arm);}
     g.fillStyle = PAPER; scircle(g, 0, -33, 6.6, PAPER);
     g.fillStyle = col;
     g.beginPath(); g.arc(2.4, -34, 1.1, 0, 7); g.fill();
     g.beginPath(); g.arc(-2.4, -34, 1.1, 0, 7); g.fill();
     spoly(g, [[-6, -38], [-4, -45], [-2, -38]], col);   // рожки
     spoly(g, [[6, -38], [4, -45], [2, -38]], col);
+    if(detail?.boss){
+      // Equipment shares the body's exact sway, facing and scale.
+      const tier=detail.bossSpec.stage/5;g.strokeStyle='#342b43';g.lineWidth=1.3;
+      spoly(g,[[-7,-25],[0,-28],[7,-25],[5,-14],[0,-11],[-5,-14]],detail.bossSpec.color);
+      g.strokeStyle='#e9c889';g.lineWidth=.9;sline(g,0,-25,0,-14);sline(g,-4,-23,4,-23);
+      g.strokeStyle='#342b43';spoly(g,[[-6,-39],[-8,-47],[-3,-44],[0,-50],[3,-44],[8,-47],[6,-39]],tier>=3?'#d6b06e':'#baa48a');
+      scircle(g,0,-43,1.5,tier===4?'#b9ebff':'#f5da96');
+      if(tier>=2){spoly(g,[[-8,-27],[-11,-23],[-7,-21],[-4,-24]],detail.bossSpec.color);spoly(g,[[8,-27],[11,-23],[7,-21],[4,-24]],detail.bossSpec.color);}
+      if(tier>=3&&detail.bossSpec.id==='shaman'){g.strokeStyle='#f4c97c';g.lineWidth=1;scircle(g,11,-34+arm,3,tier===4?'#adcce9':'#efb85e');}
+      const archetype=detail.bossSpec.id;
+      if(archetype==='gunner'){
+        g.strokeStyle='#e7c16e';g.lineWidth=2.5;sline(g,-5,-25,4,-14);
+      }else if(archetype==='hunter'){
+        g.strokeStyle='#253e38';g.lineWidth=1.3;spoly(g,[[-7,-35],[7,-35],[7,-30],[-7,-30]],'#728955');
+      }else if(archetype==='shaman'){
+        g.save();g.translate(hands[0][0],hands[0][1]);g.rotate(Math.sin(phase*.7)*.07-act.raise*.013);
+        g.strokeStyle='#563f64';g.lineWidth=2;sline(g,0,16,0,-20);scircle(g,0,-22,4,'#ccb0ef');
+        g.restore();
+        g.lineWidth=1;spoly(g,[[-6,-38],[0,-56],[7,-38]],'#9963b5');
+      }else if(archetype==='bruiser'){
+        g.save();g.translate(hands[1][0],hands[1][1]);g.rotate(hammer.angle);
+        // Upright haft, with the head above the fist in the carrying pose.
+        g.strokeStyle='#53382b';g.lineWidth=3.5;g.beginPath();g.moveTo(0,5);g.lineTo(0,-21);g.stroke();
+        g.strokeStyle='#594837';g.lineWidth=1.5;
+        spoly(g,[[-8,-26],[8,-26],[10,-24],[10,-18],[8,-16],[-8,-16],[-10,-18],[-10,-24]],'#b59879');
+        g.strokeStyle='#ead1a0';g.lineWidth=1.2;g.beginPath();g.moveTo(-7,-24);g.lineTo(7,-24);g.stroke();
+        g.strokeStyle='#74624f';g.lineWidth=2;g.beginPath();g.moveTo(-5,-24);g.lineTo(-5,-18);g.moveTo(5,-24);g.lineTo(5,-18);g.stroke();
+        g.fillStyle=detail.bossSpec.color;g.strokeStyle='#53382b';g.lineWidth=1;
+        g.beginPath();g.ellipse(0,0,2.5,2.1,0,0,Math.PI*2);g.fill();g.stroke();g.restore();
+      }
+    }
     g.restore();
 
   } else {
@@ -170,6 +217,7 @@ function drawFoe(g, x, y, face, phase, sc, col, kind, rot, flinch, detail) {
     g.restore();
   }
   g.restore();
+  if(detail?.boss&&bossFirearm(detail))drawBossWeapon(g,detail,{x,y,face,phase,sc,rot,flinch});
 }
 
 /* Тряпичная кукла: тело вытянуто по вектору полёта,

@@ -1,0 +1,32 @@
+{
+  "version": "0.206",
+  "publishReady": false,
+  "liveBrowserChecked": false,
+  "liveMobileChecked": false,
+  "livePlaygamaChecked": false,
+  "canonicalSuites": 92,
+  "exportedSuites": 92,
+  "sourceFingerprint": "1f3ab7f100d5955cae60653bc62dcc46a6bf77e485946a8f9b68651146b53c4b",
+  "notes": [
+    "Stage and event checkpoints; not a frame-by-frame replay.",
+    "Reload tests use synthetic local, QA and Playgama storage in fresh VM contexts.",
+    "No publication and no edits to user browser saves."
+  ],
+  "artifacts": [
+    {
+      "file": "VackyGames_StickmanArena_v0.206_QA.html",
+      "bytes": 7779719,
+      "sha256": "fba33c877ddcc69b2d04c947cca47c5cb31362a1680f1e4d1dd5b49a9a692c75"
+    },
+    {
+      "file": "VackyGames_StickmanArena_v0.206_PLAYGAMA_PREVIEW.zip",
+      "bytes": 4409862,
+      "sha256": "f1688fb24e1178b81034ee450922aabf1111314293030ecd10d14c1cba603436"
+    },
+    {
+      "file": "VackyGames_StickmanArena_v0.206_FULL_SOURCE_QA.zip",
+      "bytes": 38860648,
+      "sha256": "d639e74d82c4ac23e76627be268b72249d4ef1432021f93ed619211d6e0c9e31"
+    }
+  ]
+}

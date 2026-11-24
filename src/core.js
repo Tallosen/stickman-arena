@@ -39,14 +39,15 @@ const PAPER = "#f5ecdd", INK = "#2b2620", HERO = "#d2691e", FOE = "#c8402c";
 function hash(a, b) { const s = Math.sin(a * 12.9898 + b * 4.1414) * 43758.5453; return s - Math.floor(s); }
 function sline(g, x1, y1, x2, y2) {          // чуть кривая линия
   const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy);
-  const o = (hash(x1 + x2, y1 + y2) - .5) * Math.min(4, L * .10);
+  if(L<1e-8)return;
+  const o = (g.vackyStableSketch===true?.12:hash(x1 + x2, y1 + y2)-.5) * Math.min(4, L * .10);
   g.beginPath(); g.moveTo(x1, y1);
   g.quadraticCurveTo((x1 + x2) / 2 - dy / L * o, (y1 + y2) / 2 + dx / L * o, x2, y2);
   g.stroke();
 }
 function scircle(g, x, y, r, fill) {         // кружок «от руки»
-  const w = 1 + (hash(x, y) - .5) * .10;
-  g.beginPath(); g.ellipse(x, y, r * w, r / w, hash(y, x) * 3, 0, 6.2832);
+  const stable=g.vackyStableSketch===true,w = stable?1.012:1 + (hash(x, y) - .5) * .10;
+  g.beginPath(); g.ellipse(x, y, r * w, r / w, stable?.3:hash(y, x) * 3, 0, 6.2832);
   if (fill) { g.fillStyle = fill; g.fill(); }
   g.stroke();
 }
@@ -61,19 +62,34 @@ function spoly(g, pts, fill) {
 /* ── звук ─────────────────────────────────────────────────── */
 let AC = null;
 let audioMaster=null;
+const audioVoices=new Set();
+function stopGameSounds(){for(const voice of [...audioVoices])voice.stop();if(typeof soundCooldowns!=='undefined')soundCooldowns.clear();}
+function gameAudioAllowed(){
+  return (typeof Playables==='undefined'||Playables.audioAllowed)&&
+    (typeof userAudioMuted==='undefined'||!userAudioMuted);
+}
 function audio(){
-  if(!AC){AC=new (window.AudioContext||webkitAudioContext)();audioMaster=AC.createGain();audioMaster.connect(AC.destination);}
-  const allowed=typeof Playables==='undefined'||Playables.audioAllowed;
+  if(!AC){AC=new (window.AudioContext||webkitAudioContext)();audioMaster=AC.createGain();
+    // Linear bus: no automatic make-up gain, transient pumping or saturation.
+    // Voice peak budget below + .72 trim bounds worst-case aligned PCM peaks.
+    const trim=AC.createGain();trim.gain.value=.72;
+    audioMaster.connect(trim);trim.connect(AC.destination);
+  }
+  const allowed=gameAudioAllowed();
   audioMaster.gain.value=allowed?1:0;
   if(allowed&&AC.state==='suspended')AC.resume().catch(()=>{});
   return AC;
 }
 function platformAudio(enabled){
+  enabled=enabled&&gameAudioAllowed();
+  if(typeof refreshSoundButtons==='function')refreshSoundButtons();
   if(!AC)return;audioMaster.gain.value=enabled?1:0;
+  if(!enabled)stopGameSounds();
   if(enabled)AC.resume().catch(()=>{});else AC.suspend().catch(()=>{});
 }
 function beep(f, d, ty = "square", v = .05, sl = 0) {
-  if(typeof Playables!=='undefined'&&!Playables.audioAllowed)return;
+  if(!gameAudioAllowed())return;
+  if(typeof playDesignedTone==='function')return playDesignedTone(f,d,ty,v,sl);
   try {
     const a = audio(), o = a.createOscillator(), g = a.createGain();
     o.type = ty; o.frequency.setValueAtTime(f, a.currentTime);
@@ -84,7 +100,8 @@ function beep(f, d, ty = "square", v = .05, sl = 0) {
   } catch (e) {}
 }
 function noise(dur, vol, cut, sweep) {
-  if(typeof Playables!=='undefined'&&!Playables.audioAllowed)return;
+  if(!gameAudioAllowed())return;
+  if(typeof playDesignedNoise==='function')return playDesignedNoise(dur,vol,cut,sweep);
   try {
     const a = audio(), n = Math.floor(a.sampleRate * dur);
     const buf = a.createBuffer(1, n, a.sampleRate), d = buf.getChannelData(0);
@@ -100,19 +117,35 @@ function noise(dur, vol, cut, sweep) {
 }
 const vary = () => .92 + Math.random() * .16;
 const chain = (notes, ty = "triangle", v = .05) =>
-  notes.forEach((n, i) => (typeof Playables==='undefined'?setTimeout:Playables.delay)(() => beep(n, .11, ty, v), i * 75));
+  typeof playDesignedChain==='function'?playDesignedChain(notes,ty,v):notes.forEach((n, i) => (typeof Playables==='undefined'?setTimeout:Playables.delay)(() => beep(n, .11, ty, v), i * 75));
+
+function soundCue(name,x=null,gain=1){return typeof playSound==='function'?playSound(name,x,null,gain):false;}
 
 const SFX = {
-  shot: () => { beep(700 * vary(), .045, "square", .02, -300); noise(.05, .02, 3000, -2000); },
-  pop:  () => { beep(330 * vary(), .11, "triangle", .04, -190); noise(.12, .035, 1600, -1200); },
-  hurt: () => { beep(150, .22, "sawtooth", .07, -80); noise(.18, .05, 900, -600); },
-  level:() => chain([523, 659, 784, 1047], "square", .05),
-  chest:() => chain([784, 988, 1175], "triangle", .05),
-  heal: () => chain([659, 880], "sine", .06),
-  boom: () => { beep(80, .4, "sawtooth", .08, -40); noise(.45, .1, 1800, -1600); },
-  ice:  () => { beep(1400, .35, "sine", .045, -900); noise(.3, .03, 5000, -4000); },
-  bite: () => { beep(220, .07, "square", .035, -120); noise(.09, .04, 1400, -900); },
-  dead: () => chain([440, 330, 247, 165], "triangle", .06),
-  revive:() => chain([392, 523, 659, 880], "sine", .06),
-  build:() => { beep(500, .05, "square", .03); (typeof Playables==='undefined'?setTimeout:Playables.delay)(() => beep(700, .07, "square", .03), 60); },
+  shot:(weapon=null,x=null)=>{const w=weapon||(typeof P!=='undefined'?P.wtype:'basic');
+    if(w==='goldSniper')return typeof playSound==='function'?playSound('sniper',x,null,1,true,'precision'):false;
+    if(w==='dropShotgun')return soundCue('shotgun',x);
+    if(!weapon&&w==='sniper'&&(P.gear?.gun??4)<2)return soundCue('arrow',x,.8);
+    if(!weapon&&w==='basic'&&(P.gear?.gun??0)>=2)return soundCue('minigun',x,.85);
+    // Explicit weapons are NPC/auxiliary cues; the player's precision shot has its own lane.
+    if(!weapon&&w==='sniper')return typeof playSound==='function'?playSound('sniper',x,null,1,true,'precision'):false;
+    return soundCue(w==='basic'?'rifle':w,x,weapon ? .8 : 1);},
+  hit:x=>soundCue('hit',x,.55),pop:x=>soundCue('pop',x,.7),hurt:()=>soundCue('hurt'),
+  level:()=>soundCue('level'),chest:()=>soundCue('chest'),heal:()=>soundCue('heal'),
+  boom:()=>soundCue('boom'),ice:()=>soundCue('ice'),bite:x=>soundCue('bite',x,.65),
+  dead:()=>soundCue('dead'),revive:()=>soundCue('revive'),build:()=>soundCue('build'),
+  click:()=>soundCue('click'),boss:()=>soundCue('boss'),ultimate:()=>soundCue('ultimate'),
+  pickup:x=>soundCue('pickup',x),crateLand:x=>soundCue('crateLand',x),
+  grenadeThrow:x=>soundCue('grenadeThrow',x),grenadeBlast:x=>soundCue('grenadeBlast',x),
+  ultImpact:x=>soundCue('ultImpact',x),
+  ultMove:x=>typeof playSound==='function'?playSound('slash',x,null,.85,true,'action'):false,
+  ultLand:x=>soundCue('ultImpact',x),airstrikeImpact:x=>soundCue('grenadeBlast',x),
+  mineBlast:x=>soundCue('mineBlast',x),mineMini:x=>soundCue('mineMini',x,.75),petBlast:x=>soundCue('petBlast',x,.8),
+  petVoice:(type,x)=>soundCue(({chicken:'petChicken',dog:'petDog',cat:'petCat',parrot:'petParrot',boar:'petBoar',mole:'petMole'})[type]||'chirp',x,.62),
+  petShot:x=>soundCue('turret',x,.35),
+  dragon:()=>soundCue('dragon'),breath:x=>soundCue('breath',x),victory:()=>soundCue('victory'),
+  ability:kind=>soundCue(kind),
+  turret:x=>soundCue('turret',x,.55),slash:x=>soundCue('slash',x,.42),
+  chirp:x=>soundCue('chirp',x,.45),petDown:x=>soundCue('petDown',x,.5),
+  wings:x=>soundCue('wings',x,.28),
 };

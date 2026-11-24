@@ -1,4 +1,17 @@
 "use strict";
+function drawHeroDamageFeedback(g){
+ const f=P.damageFeedback;if(!f||f.life<=0)return;
+ const age=1000-f.life,fade=Math.min(1,f.life/350),r=34+Math.min(1,age/180)*8;
+ g.save();g.translate(P.x,P.y-8);g.globalAlpha=fade;g.lineWidth=3;
+ g.strokeStyle='#fff4db';g.lineWidth=6;g.beginPath();
+ if(f.area)g.arc(0,0,r,0,Math.PI*2);else g.arc(0,0,r,f.angle-.48,f.angle+.48);
+ g.stroke();g.strokeStyle='#bf4733';g.lineWidth=3;g.stroke();
+ if(!f.area){
+  g.rotate(f.angle);g.beginPath();g.moveTo(r+12,0);g.lineTo(r+3,-6);g.lineTo(r+3,6);g.closePath();
+  g.fillStyle='#bf4733';g.fill();g.strokeStyle='#fff4db';g.lineWidth=1.5;g.stroke();
+ }
+ g.restore();
+}
 /* render.js — отрисовка кадра */
 
 // Code-native frost: no image downloads, particles or per-frame random geometry.
@@ -148,7 +161,88 @@ function drawUltImpact(g, f) {
   g.restore();
 }
 
+function drawEmpoweredUltFX(g){
+ const s=ult.signature;if(!s)return;
+ const p=Math.min(1,ult.t/ult.dur),low=visualFX('lowFX'),id=s.id;
+ const x=P.x+(ult.stageX||0),ground=P.y+(ult.stageY||0)+13,y=ground-37-(ult.lift||0),aim=P.aim;
+ const charge=Math.min(1,p/s.beats[0]),muzzle=empoweredUltMuzzle();
+ const line=(x1,y1,x2,y2,w=2)=>{g.lineWidth=w;g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.stroke();};
+ const ring=(cx,cy,r)=>{g.beginPath();g.arc(cx,cy,r,0,Math.PI*2);g.stroke();};
+ g.save();g.lineCap='round';g.lineJoin='round';g.strokeStyle=s.color;g.fillStyle=s.color;
+ if(!low&&p>.14&&p<.78){
+  g.globalAlpha=.25;for(let i=0;i<3;i++){
+   const dx=ult.signatureFace*(18+i*7);line(x-dx,y+18+i*6,x-dx-ult.signatureFace*26,y+20+i*6,1.5);
+  }
+ }
+ if(id==='constellation'&&p>.10&&p<.73){
+  g.save();g.translate(x+ult.signatureFace*28,y-50);g.rotate(ult.t/120);
+  g.globalAlpha=.85;g.fillStyle='#efc14e';g.strokeStyle='#725936';g.lineWidth=1.6;
+  g.beginPath();g.ellipse(0,0,6,Math.abs(Math.cos(ult.t/80))*8+1,0,0,Math.PI*2);g.fill();g.stroke();g.restore();
+ }
+ // Charging tells the weapon apart even before the first shot. No screen-sized fill.
+ if(p<s.beats[0]){
+  g.globalAlpha=.25+charge*.45;
+  if(id==='rail'||id==='constellation'){
+   for(const e of ult.signatureTargets.slice(0,low?3:6)){
+    const r=19+(1-charge)*15;g.lineWidth=1.5;ring(e.x,e.y-12,r);
+    for(let k=0;k<4;k++){const a=k*Math.PI/2;line(e.x+Math.cos(a)*(r-5),e.y-12+Math.sin(a)*(r-5),e.x+Math.cos(a)*(r+5),e.y-12+Math.sin(a)*(r+5));}
+   }
+   if(id==='rail'){g.setLineDash([6,10]);line(muzzle.x,muzzle.y,muzzle.x+Math.cos(muzzle.aim)*230,muzzle.y+Math.sin(muzzle.aim)*230,1);g.setLineDash([]);}
+  }else if(id==='fan'||id==='quake'){
+   g.lineWidth=2;g.beginPath();g.ellipse(x,ground,24+charge*38,9+charge*12,0,0,Math.PI*2);g.stroke();
+   if(id==='fan')for(const d of [-.38,0,.38])line(muzzle.x+Math.cos(muzzle.aim+d)*8,muzzle.y+Math.sin(muzzle.aim+d)*8,muzzle.x+Math.cos(muzzle.aim+d)*(18+charge*20),muzzle.y+Math.sin(muzzle.aim+d)*(18+charge*20));
+  }else{
+   const count=id==='helix'||id==='sweep'?6:3;
+   for(let i=0;i<count;i++){const a=ult.t/190+i*Math.PI*2/count,r=16+charge*9;
+    line(muzzle.x+Math.cos(a)*r,muzzle.y+Math.sin(a)*r,muzzle.x+Math.cos(a)*(r+6),muzzle.y+Math.sin(a)*(r+6),3);}
+  }
+ }
+ for(const f of ult.signatureFX||[]){
+  const age=(ult.t-f.born)/600,a=Math.max(0,1-age),travel=1-Math.pow(1-age,3);
+  g.strokeStyle=s.color;g.globalAlpha=a*.75;
+  if(id==='quake'){
+   const r=28+travel*205;g.lineWidth=4*a+1;g.beginPath();g.ellipse(f.ox,f.oy,r,r*.42,0,0,Math.PI*2);g.stroke();
+   for(let i=0;i<(low?6:12);i++){const an=i*Math.PI/6;line(f.ox+Math.cos(an)*(r-12),f.oy+Math.sin(an)*(r-12)*.42,f.ox+Math.cos(an)*(r+18),f.oy+Math.sin(an)*(r+18)*.42,2);}
+  }else if(id==='fan'){
+   for(let i=0;i<(low?5:9);i++){const an=f.aim+(i/(low?4:8)-.5)*1.20,r=45+travel*205;
+    line(f.ox+Math.cos(an)*Math.max(35,r-85),f.oy+Math.sin(an)*Math.max(35,r-85),f.ox+Math.cos(an)*r,f.oy+Math.sin(an)*r,3*a+1);}
+   g.beginPath();g.arc(f.ox,f.oy,50+travel*185,f.aim-.65,f.aim+.65);g.stroke();
+  }else if(id==='helix'){
+   for(let arm=0;arm<2;arm++){
+    g.beginPath();for(let i=0;i<=(low?16:36);i++){const q=i/(low?16:36),an=q*Math.PI*2+f.beat*.6+arm*Math.PI,r=24+q*(38+travel*58);
+     const px=f.ox+Math.cos(an)*r,py=f.oy+Math.sin(an)*r*.68;if(i)g.lineTo(px,py);else g.moveTo(px,py);}g.lineWidth=2.5;g.stroke();
+   }
+  }else if(id==='sweep'){
+   const an=f.aim,r=65+travel*110;
+   for(let j=0;j<(low?2:4);j++){const d=an+j*.045;line(f.ox+Math.cos(d)*38,f.oy+Math.sin(d)*38,f.ox+Math.cos(d)*r,f.oy+Math.sin(d)*r,2.5);}
+  }
+  // Precision shots and winged volleys have different routes, not a recoloured shared burst.
+  const points=f.points.length?f.points:[{x:f.ox+Math.cos(f.aim)*220,y:f.oy+Math.sin(f.aim)*220}];
+  for(let i=0;i<points.length;i++){
+   const target=points[i];g.globalAlpha=a*(id==='rail'?.85:.48);
+   if(id==='rail'){
+    const an=Math.atan2(target.y-f.oy,target.x-f.ox),endx=target.x+Math.cos(an)*55,endy=target.y+Math.sin(an)*55;
+    g.strokeStyle=s.color;line(f.ox,f.oy,endx,endy,9*a+1);g.strokeStyle='#fff8e8';line(f.ox,f.oy,endx,endy,2);
+    g.strokeStyle=s.color;if(!low)for(let k=1;k<4;k++)ring(f.ox+(target.x-f.ox)*k/4,f.oy+(target.y-f.oy)*k/4,5+travel*13);
+   }else if(id==='constellation'){
+    const from=i?points[i-1]:{x:f.ox,y:f.oy};line(from.x,from.y,target.x,target.y,2.5);ring(target.x,target.y,8+age*22);
+    line(target.x-7,target.y,target.x+7,target.y);line(target.x,target.y-7,target.x,target.y+7);
+   }else if(id==='salvo'){
+    for(const side of [-1,1]){g.beginPath();g.moveTo(f.ox,f.oy);g.quadraticCurveTo((f.ox+target.x)/2+side*45,(f.oy+target.y)/2-65,target.x,target.y);g.lineWidth=2.5;g.stroke();}
+   }else if(id==='lance'){
+    const an=Math.atan2(target.y-f.oy,target.x-f.ox),px=f.ox+(target.x-f.ox)*travel,py=f.oy+(target.y-f.oy)*travel;
+    line(px-Math.cos(an)*55,py-Math.sin(an)*55,px,py,4);line(px,py,px-Math.cos(an-.4)*12,py-Math.sin(an-.4)*12);line(px,py,px-Math.cos(an+.4)*12,py-Math.sin(an+.4)*12);
+   }
+  }
+ }
+ // The dragon arrives after the weapon's own choreography, not instead of it.
+ if(p>.70){g.globalAlpha=Math.sin(Math.min(1,(p-.70)/.30)*Math.PI)*.45;g.strokeStyle=ult.dragonType?.breath||s.color;g.lineWidth=2;
+  for(const side of [-1,1]){g.beginPath();g.moveTo(x,ground-61);g.quadraticCurveTo(x+side*38,ground-105,x+side*78,ground-79);g.lineTo(x+side*43,ground-72);g.lineTo(x+side*55,ground-55);g.stroke();}}
+ g.restore();
+}
+
 function drawUltMotionFX(g) {
+  if(ult.mode==='dragonburst')drawEmpoweredUltFX(g);
   const p = Math.max(0, Math.min(1, ult.t / ult.dur));
   const hy = P.y + 17 - (ult.lift || 0);
   g.save(); g.lineCap = "round";
@@ -289,7 +383,7 @@ function drawWorldScope(g, p, mode, bar) {
   g.beginPath();g.arc(cx,cy,17+(1-lock)*42,0,7);g.stroke();
   g.fillStyle="#c8402c";g.beginPath();g.arc(cx,cy,3.3,0,7);g.fill();
   // Короткая вспышка остаётся строго внутри линзы.
-  if(kick>.48){g.globalAlpha=aa*(kick-.48)/.52*.32;g.fillStyle="#fff5b0";g.beginPath();g.arc(cx,cy,r-5,0,7);g.fill();}
+  if(kick>.48&&!visualFX('reduceFlash')){g.globalAlpha=aa*(kick-.48)/.52*.32;g.fillStyle="#fff5b0";g.beginPath();g.arc(cx,cy,r-5,0,7);g.fill();}
   g.globalAlpha=aa*.84;g.fillStyle="#17150f";g.fillRect(cx-148,cy-r-31,296,24);
   g.globalAlpha=aa;g.fillStyle="#e3bd4b";g.font="900 11px system-ui";g.textAlign="center";
   if(mode==="scope") g.fillText(ult.fired?"TARGET DOWN · CONFIRMED":"GOLD SCOPE · HOLD BREATH",cx,cy-r-15);
@@ -323,7 +417,7 @@ function drawUltScreenFX(g) {
     g.restore();
   }
 
-  if ((ult.flash || 0) > .01) {
+  if ((ult.flash || 0) > .01&&!visualFX('reduceFlash')) {
     g.fillStyle = "rgba(255,248,232," + Math.min(.55, ult.flash).toFixed(3) + ")";
     g.fillRect(0, 0, W, H);
   }
@@ -338,6 +432,11 @@ function drawUltScreenFX(g) {
   g.fillRect(0, bar - 2, W, 2); g.fillRect(0, H - bar, W, 2);
   g.globalAlpha = 1;
 
+  if(ult.mode==='dragonburst'&&ult.signature){
+    const english={lance:'GUN-FU DASH',salvo:'WINGED DIVE',fan:'RECOIL LEAP',quake:'METEOR LANDING',sweep:'SLIDING BARRAGE',helix:'AIRBORNE VORTEX',rail:'ROLL AND BREAK',constellation:'RICOCHET DIVE'};
+    g.save();g.globalAlpha=Math.min(1,p*6,(1-p)*6)*.90;g.fillStyle=ult.signature.color;g.font='900 12px system-ui';g.textAlign='center';
+    g.fillText(typeof uiLanguage!=='undefined'&&uiLanguage==='ru'?ult.signature.name:P.wtype==='laser'?(ult.signature.id==='rail'?'PRISM BREAKTHROUGH':'PRISM BEAM NETWORK'):english[ult.signature.id],W/2,bar-14);g.restore();
+  }
   if (ult.mode === "scope" || ult.mode === "deadeye") drawWorldScope(g,p,ult.mode,bar);
   else if(SNIPER_STANDARD_ULT_MODES.includes(ult.mode)){
     const names={ricochet:"GOLDEN RICOCHET",quickdraw:"QUICKDRAW · TRIPLE TAP",dive:"AIRBORNE · BULLET TIME",shellstorm:"BRASS STORM",rollshot:"ROLLING THUNDER"};
@@ -400,7 +499,7 @@ function drawEliteChest(g,c){
 function draw() {
   ctx.fillStyle = PAPER; ctx.fillRect(0, 0, W, H);
   ctx.save();
-  if (shake > .2) ctx.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
+  if (shake > .2&&visualFX('shake')) ctx.translate((Math.random() - .5) * shake, (Math.random() - .5) * shake);
   const sniperPOV = ult.on && SNIPER_SCOPE_MODES.includes(ult.mode);
   const sniperP = sniperPOV ? Math.max(0,Math.min(1,ult.t/ult.dur)) : 0;
   const flyRaw = sniperPOV ? Math.max(0,Math.min(1,sniperP/.20)) : 0;
@@ -410,18 +509,23 @@ function draw() {
   const fm = focus ? .30 : 0;
   const scopeX = ult.mode === "deadeye" ? ult.camX : focus ? focus.x : P.x;
   const scopeY = ult.mode === "deadeye" ? ult.camY : focus ? focus.y-12 : P.y;
-  const fx = ult.on ? (sniperPOV ? P.x+(scopeX-P.x)*fly : focus ? P.x+(focus.x-P.x)*fm : P.x) : cam.x+W/2;
-  const fy = ult.on ? (sniperPOV ? P.y+(scopeY-P.y)*fly : focus ? P.y+(focus.y-P.y)*fm : P.y) : cam.y+H/2;
+  const followMotion=ult.on&&ult.mode==='dragonburst';
+  const frameEnvelope=followMotion?Math.max(0,Math.min(1,ult.t/ult.dur/.12,(1-ult.t/ult.dur)/.15)):0;
+  const motionPose=followMotion?ultPose():null;
+  const bodyCenterY=motionPose?Math.cos((ult.rot||0)+motionPose.lean)*motionPose.neck*.5*motionPose.squash*ultHeroScale():0;
+  const fx = ult.on ? (sniperPOV ? P.x+(scopeX-P.x)*fly : focus ? P.x+(focus.x-P.x)*fm : P.x)+(followMotion?(ult.stageX||0)*.78:0) : cam.x+W/2;
+  const fy = ult.on ? (sniperPOV ? P.y+(scopeY-P.y)*fly : focus ? P.y+(focus.y-P.y)*fm : P.y)+(followMotion?((ult.stageY||0)-(ult.lift||0))*.90+bodyCenterY*.9*frameEnvelope:0) : cam.y+H/2;
   const up = ult.on ? Math.max(0, Math.min(1, ult.t / ult.dur)) : 0;
   const cant = !ult.on ? 0 : (ult.mode === "dash" || ult.mode === "combo")
     ? Math.sin((ult.step || 0) * 2.4) * .012
     : (ult.mode === "kick" || ult.mode === "cross") ? Math.sin(up * Math.PI) * P.face * .010 : 0;
-  ctx.translate(W / 2, H / 2); ctx.rotate(cant); ctx.scale(Z, Z); ctx.translate(-fx, -fy);
+  ctx.translate(W / 2, H / 2); ctx.rotate(visualFX('shake')?cant:0); ctx.scale(Z, Z); ctx.translate(-fx, -fy);
   const hw = W / 2 / Z + 70, hh = H / 2 / Z + 70;
   const L = fx - hw, R = fx + hw, T = fy - hh, B = fy + hh;
   const vis = o => o.x > L && o.x < R && o.y > T && o.y < B;
 
   drawMapGround(ctx,L,R,T,B);
+  drawBossGround(ctx,L,R,T,B);
   drawArenaSecrets(ctx,L,R,T,B);
 
   ctx.lineCap = "round"; ctx.lineJoin = "round";
@@ -430,6 +534,7 @@ function draw() {
 
   drawGasCloud(ctx, L, R, T, B);
   drawEnemyHazards(ctx);
+  drawBossMarks(ctx);
   drawCompassStorm(ctx,L,R,T,B);
 
   for (const o of props) {                       // камни, кусты, деревья
@@ -437,6 +542,7 @@ function draw() {
     drawMapProp(ctx,o);
   }
 
+  drawNightTorches(ctx,L,R,T,B);
   for (const h of pickups) {                     // бусты на карте
     if (!vis(h)) continue;
     drawPickup(ctx, h);
@@ -484,7 +590,8 @@ function draw() {
       ctx.beginPath(); ctx.arc(m.x, m.y, 1.6 + Math.sin(t / 120) * 1.4, 0, 7); ctx.fill(); }
   }
   for (const g of nades) { ctx.save(); ctx.translate(g.x, g.y); ctx.rotate(t / 90); drawItemIcon(ctx, "nade", 0, 0, .85); ctx.restore(); }
-  for (const p of puffs) {
+  for (const [i,p] of puffs.entries()) {
+    if(visualFX('lowFX')&&i%3)continue;
     ctx.globalAlpha = Math.max(0, p.life); ctx.lineWidth = 1.8;
     scircle(ctx, p.x, p.y, p.r, p.gas ? "#9fbd72" : "#e0d3bd"); ctx.globalAlpha = 1;
   }
@@ -493,14 +600,14 @@ function draw() {
     if (!vis(e)) continue;
     drawEnemyIntent(ctx,e);
     drawFoe(ctx, e.x, e.y + 13 * (e.r / 11)-(ult.on?0:(e.stormLift||0)), e.face, e.phase, e.r / 11,
-            e.poison > 0 ? "#86aa65" : e.flash > 0 ? "#f0907c" : FOE, e.kind, 0, e.flinch,e);
+            e.poison > 0 ? "#86aa65" : e.flash > 0 ? "#f0907c" : e.boss?e.bossSpec.color:FOE, e.kind, 0, e.flinch,e);
     if (e.kind === "elite" || enemyBaseKind(e.kind) === "tank") {
       const w = e.r * 2.2;
       ctx.fillStyle = "rgba(0,0,0,.12)"; ctx.fillRect(e.x - w / 2, e.y - e.r - 18, w, 4);
       ctx.fillStyle = FOE; ctx.fillRect(e.x - w / 2, e.y - e.r - 18, w * Math.max(0, e.hp / e.maxhp), 4);
     }
   }
-  for (const f of flashes) drawFlash(ctx, f);
+  if(!visualFX('reduceFlash'))for (const f of flashes) drawFlash(ctx, f);
   for (const b of booms) {                            // волна стелется по земле
     if(b.style==='boar'){drawBoarBlast(ctx,b);continue;}
     const a2 = Math.max(0, b.life);
@@ -510,6 +617,11 @@ function draw() {
     ctx.beginPath(); ctx.ellipse(b.x, b.y + 8, b.r * .86, b.r * .38, 0, 0, 7); ctx.stroke();
     ctx.globalAlpha = 1;
   }
+  if(P.laserBeam&&P.wtype==='laser'&&P.gear.gun===4&&!ult.on){
+    const b=P.laserBeam;ctx.save();ctx.lineCap='round';ctx.strokeStyle='#3c91a6';ctx.lineWidth=6+P.gear.gun;
+    ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.lineTo(b.ex,b.ey);ctx.stroke();ctx.strokeStyle='#b2f5df';ctx.lineWidth=2.2;ctx.stroke();
+    ctx.fillStyle='#ecfff3';ctx.beginPath();ctx.arc(b.ex,b.ey,3+Math.sin(t*.015)*.6,0,7);ctx.fill();ctx.restore();
+  }
   for (const s of shots) {
     if(s.source==='backpack'){
       ctx.strokeStyle="#d2a23d";ctx.lineWidth=2;ctx.beginPath();
@@ -517,14 +629,15 @@ function draw() {
       ctx.fillStyle="#fff2bb";ctx.beginPath();ctx.arc(s.x,s.y,2.6,0,7);ctx.fill();
       continue;
     }
-    if (s.kind === "sniper") {
-      ctx.strokeStyle = "#8a53c4"; ctx.lineWidth = 3.4;
-      ctx.beginPath(); ctx.moveTo(s.x, s.y);
-      ctx.lineTo(s.x - Math.cos(s.a) * 34, s.y - Math.sin(s.a) * 34); ctx.stroke();
-      ctx.globalAlpha = .3; ctx.lineWidth = 7;
-      ctx.beginPath(); ctx.moveTo(s.x, s.y);
-      ctx.lineTo(s.x - Math.cos(s.a) * 26, s.y - Math.sin(s.a) * 26); ctx.stroke();
-      ctx.globalAlpha = 1;
+    const look=s.ultCast?weaponShotKind(P.wtype,P.gear.gun):s.kind;
+    if(look==='arrow'){
+      ctx.save();ctx.translate(s.x,s.y);ctx.rotate(s.a);ctx.strokeStyle='#805b35';ctx.lineWidth=1.6;sline(ctx,-19,0,0,0);
+      spoly(ctx,[[-4,-3],[2,0],[-4,3]],'#a8b7ae');ctx.strokeStyle='#d9bd83';sline(ctx,-16,0,-21,-3);sline(ctx,-16,0,-21,3);ctx.restore();
+    }else if(look==='laser'){
+      ctx.strokeStyle='#3d929f';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(s.x-Math.cos(s.a)*42,s.y-Math.sin(s.a)*42);ctx.lineTo(s.x,s.y);ctx.stroke();
+      ctx.strokeStyle='#c6fff1';ctx.lineWidth=1.7;ctx.stroke();
+    }else if (look === "sniper") {
+      drawSniperProjectile(ctx,s.x,s.y,s.a,(s.weaponType||P.wtype)==='goldSniper');
     } else if (s.kind === "pellet") {
       ctx.fillStyle = "#7a5330";
       ctx.beginPath(); ctx.arc(s.x, s.y, 2.4, 0, 7); ctx.fill();
@@ -560,16 +673,16 @@ function draw() {
       ctx.beginPath(); ctx.arc(P.x, P.y - 8, 34, 0, 7); ctx.stroke();
       ctx.setLineDash([]);
     }
-    if (!(sniperPOV && sniperP>.13) && !(P.hurt > 0 && Math.floor(t / 85) % 2 === 0))
+    if (!(sniperPOV && sniperP>.13))
       if (ult.on) {
-        const gear2 = { ...P.gear, _w: P.wtype, _noShadow: true, _chem: P.chemT > 0 };
-        const SCU = 1.42, BOLD = 1.55;                 // выше и стройнее, как на референсе
+        const gear2 = { ...P.gear, _w: P.wtype, _holdWeapon:true, _noShadow: true, _chem: P.chemT > 0 };
+        const SCU = ultHeroScale(), BOLD = 1.55;
         const pz = ultPose();
-        for (let i = 0; i < (ult.trail || []).length; i++) {
+        for (let i = 0; !visualFX('lowFX')&&i < (ult.trail || []).length; i++) {
           const tr = ult.trail[i];
-          ctx.globalAlpha = ult.mode === "dive" ? .022 + i * .014 : .05 + i * .022;
+          ctx.globalAlpha = ult.mode === 'dragonburst'?.02+i*.015:ult.mode === "dive" ? .022 + i * .014 : .05 + i * .022;
           ctx.save(); ctx.translate(tr.x, tr.y + 17); ctx.rotate(tr.rot);
-          drawHero(ctx, 0, 0, P.face, 0, gear2, SCU, P.aim, 0, tr.pose, BOLD);
+          drawHero(ctx, 0, 0, tr.face??P.face, 0, gear2, tr.sc??SCU, tr.aim??P.aim, 0, tr.pose, BOLD);
           ctx.restore();
         }
         ctx.globalAlpha = 1;
@@ -578,7 +691,7 @@ function draw() {
         const hy = P.y + 17 + (ult.stageY || 0) - (ult.lift || 0) - Math.sin(P.aim) * kick;
         // тень на земле
         ctx.globalAlpha = .13; ctx.fillStyle = INK;
-        ctx.beginPath(); ctx.ellipse(P.x, P.y + 17, 17, 5, 0, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(P.x+(ult.stageX||0), P.y + 17+(ult.stageY||0), 17, 5, 0, 0, 7); ctx.fill();
         ctx.globalAlpha = 1;
         // объём: тёмная копия со сдвигом, затем сама фигура
         ctx.save(); ctx.translate(hx + 2.5, hy + 3.5); ctx.rotate(ult.rot || 0);
@@ -593,18 +706,24 @@ function draw() {
         const run = P.run || 0;
         const rc = (P.recoilT || 0) > 0 ? (P.recoilT / 170) * 4 : 0;
         const hp2 = { lean: -P.face * run * .055, squash: 1 + Math.sin(P.phase * 2) * .018 * run };
+        if(bossLoot?.stage===20){
+          hp2.af=[7,-23];hp2.ab=[-8,-23];
+          if(bossLootOpening){const reach=Math.sin(Math.min(1,bossLootOpening.age/650)*Math.PI);hp2.lean=P.face*.13*reach;hp2.af=[13,-21];}
+        }
         for (const g2 of (P.ghosts || [])) {           // след при ускорении
           ctx.globalAlpha = Math.max(0, g2.life) * .14;
           drawHero(ctx, g2.x, g2.y + 17, g2.face, g2.ph,
-                   { ...P.gear, _w: P.wtype, _noShadow: true, _chem: P.chemT > 0 }, .99, P.aim, 0, hp2);
+                   { ...P.gear, _w: P.wtype, _holdWeapon:true, _noShadow: true, _holstered:bossLoot?.stage===20, _chem: P.chemT > 0 }, .99, P.aim, 0, hp2);
         }
-        ctx.globalAlpha = 1;
+        ctx.globalAlpha = P.hurt>0?.76+.16*(.5+.5*Math.sin(t/170)):1;
         drawHero(ctx, P.x - Math.cos(P.aim) * rc, P.y + 17 - Math.sin(P.aim) * rc,
-                   P.face, P.phase, { ...P.gear, _w: P.wtype, _chem: P.chemT > 0, _backpackFlash:P.backpackFlash }, 1.02, P.aim, P.muzzle, hp2);
+                   P.face, P.phase, { ...P.gear, _w: P.wtype, _holdWeapon:true, _chem: P.chemT > 0, _holstered:bossLoot?.stage===20, _backpackFlash:P.backpackFlash }, 1.02, P.aim, P.muzzle, hp2);
       }
     ctx.globalAlpha = 1;
   }
+  if(!sniperPOV)drawHeroDamageFeedback(ctx);
   drawDragonFinale(ctx);
+  drawDragonAssist(ctx);
   ctx.font = "700 14px system-ui"; ctx.textAlign = "center";
   for (const p of pops) {
     ctx.globalAlpha = Math.min(1, p.life * 1.6); ctx.fillStyle = p.col;
@@ -668,25 +787,34 @@ function draw() {
       ctx.globalAlpha = 1;
     }
     for(const s of ult.goldSegments||[]){              // цепочка золотого рикошета
-      const a3=Math.max(0,s.life);ctx.globalAlpha=a3*.22;ctx.strokeStyle="#e3b52f";ctx.lineWidth=16;
+      const a3=Math.max(0,s.life);ctx.globalAlpha=a3*.22;ctx.strokeStyle=ult.mode==='dragonburst'?ult.dragonType.breath:"#e3b52f";ctx.lineWidth=16;
       ctx.beginPath();ctx.moveTo(s.x1,s.y1);ctx.lineTo(s.x2,s.y2);ctx.stroke();
       ctx.globalAlpha=a3;ctx.strokeStyle="#fff4ae";ctx.lineWidth=3.6;
       ctx.beginPath();ctx.moveTo(s.x1,s.y1);ctx.lineTo(s.x2,s.y2);ctx.stroke();ctx.globalAlpha=1;
     }
     if (ult.lift > 4) {                                // тень внизу, пока в воздухе
       ctx.globalAlpha = .10; ctx.fillStyle = INK;
-      ctx.beginPath(); ctx.ellipse(P.x, P.y + 18, 16, 4.5, 0, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(P.x+(ult.stageX||0), P.y + 18+(ult.stageY||0), 16, 4.5, 0, 0, 7); ctx.fill();
       ctx.globalAlpha = 1;
     }
     for (const f of (ult.impacts || [])) drawUltImpact(ctx, f);
     ctx.globalAlpha = 1;
   }
   drawAbilityWorldFX(ctx);
+  drawBossLoot(ctx);
+  drawWeaponDelivery(ctx);
   ctx.textAlign = "left"; ctx.restore();
+
+  drawBossNight(ctx);
 
   if (ult.on) drawUltScreenFX(ctx);                    // лучи, вспышка и кино-полосы
   drawAbilityScreenFX(ctx);
   if (!sniperPOV) hud();
+  if (!sniperPOV) drawBossHUD(ctx);
+  if (!sniperPOV) drawBossArrival(ctx);
   if (!sniperPOV) drawAltarGuide(ctx);
   drawDragonScreenFX(ctx);                             // финальные кино-полосы поверх HUD
+  drawBossLootGuide(ctx);
+  drawBossLootNotice(ctx);
+  if(!ult.on)drawWeaponDeliveryHUD(ctx);
 }

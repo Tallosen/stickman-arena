@@ -11,16 +11,125 @@ const SNIPER_SCOPE_MODES = ["scope", "deadeye"];
 const SNIPER_ULT_MODES = SNIPER_STANDARD_ULT_MODES.concat(SNIPER_SCOPE_MODES);
 const RARE_SCOPE_CHANCE = .04;
 
+// Weapon-specific choreography; visual pulses share the same once-per-target damage budget.
+const EMPOWERED_ULTS = {
+ laser:[{id:'rail',name:'Призма: лучевой прорыв',color:'#4cbcbf',pose:'rollshot',beats:[.37,.57,.70]},
+        {id:'constellation',name:'Призма: сеть лучей',color:'#74cbbb',pose:'ricochet',beats:[.30,.43,.56,.69]}],
+ basic:[{id:'lance',name:'Ган-фу: тройной рывок',color:'#df9630',pose:'dance',beats:[.27,.46,.65]},
+        {id:'salvo',name:'Крылатый прыжок',color:'#edb845',pose:'dive',beats:[.35,.54]}],
+ shotgun:[{id:'fan',name:'Выстрел в отскоке',color:'#dc6c38',pose:'dive',beats:[.32,.54]},
+          {id:'quake',name:'Метеор: тяжёлая посадка',color:'#d18b46',pose:'meteor',beats:[.62]}],
+ minigun:[{id:'sweep',name:'Скользящий шквал',color:'#3caca7',pose:'dance',beats:[.28,.36,.44,.52,.60,.68]},
+          {id:'helix',name:'Воздушный вихрь',color:'#55a2d6',pose:'spiral',beats:[.39,.45,.51,.57,.63,.69]}],
+ sniper:[{id:'rail',name:'Перекат: точный пробой',color:'#638bd2',pose:'rollshot',beats:[.57]},
+         {id:'constellation',name:'Прыжок с рикошетами',color:'#aa7dc9',pose:'ricochet',beats:[.32,.45,.58,.69]}]
+};
+EMPOWERED_ULTS.dropShotgun=EMPOWERED_ULTS.shotgun;
+EMPOWERED_ULTS.goldSniper=EMPOWERED_ULTS.sniper;
+const ULT_MOVE=(t,x=0,lift=0,rot=0,y=0)=>[t,{x,y,lift,rot}];
+const EMPOWERED_MOTION={
+ lance:[ULT_MOVE(0),ULT_MOVE(.12,-16),ULT_MOVE(.27,70,12),ULT_MOVE(.36,38,26),ULT_MOVE(.46,-54,6),ULT_MOVE(.55,-22,25),ULT_MOVE(.65,78,4),ULT_MOVE(.77,50),ULT_MOVE(.94),ULT_MOVE(1)],
+ salvo:[ULT_MOVE(0),ULT_MOVE(.12,-20),ULT_MOVE(.27,32,80,-.30),ULT_MOVE(.43,102,112,-.55),ULT_MOVE(.59,124,58,-.26),ULT_MOVE(.74,82),ULT_MOVE(.94),ULT_MOVE(1)],
+ fan:[ULT_MOVE(0),ULT_MOVE(.13,15),ULT_MOVE(.30,-63,78,.30),ULT_MOVE(.44,-108,96,.42),ULT_MOVE(.58,-86,35,.18),ULT_MOVE(.73,-58),ULT_MOVE(.94),ULT_MOVE(1)],
+ quake:[ULT_MOVE(0),ULT_MOVE(.13,-8),ULT_MOVE(.29,20,116,-2.2),ULT_MOVE(.44,42,143,-Math.PI*2),ULT_MOVE(.52,52,115,-Math.PI*2),ULT_MOVE(.62,60,0,-Math.PI*2),ULT_MOVE(.76,42,0,-Math.PI*2),ULT_MOVE(.94,0,0,-Math.PI*2),ULT_MOVE(1,0,0,-Math.PI*2)],
+ sweep:[ULT_MOVE(0),ULT_MOVE(.14,-30),ULT_MOVE(.30,46,6,0,-8),ULT_MOVE(.46,92,9,0,4),ULT_MOVE(.61,-30,5,0,12),ULT_MOVE(.72,-65),ULT_MOVE(.94),ULT_MOVE(1)],
+ helix:[ULT_MOVE(0),ULT_MOVE(.13,-12),ULT_MOVE(.27,-44,92,2.4),ULT_MOVE(.37,-18,125,Math.PI*2),ULT_MOVE(.54,54,97,Math.PI*2),ULT_MOVE(.68,86,44,Math.PI*2),ULT_MOVE(.79,68,0,Math.PI*2),ULT_MOVE(.94,0,0,Math.PI*2),ULT_MOVE(1,0,0,Math.PI*2)],
+ rail:[ULT_MOVE(0),ULT_MOVE(.10,-12),ULT_MOVE(.22,40,22,Math.PI),ULT_MOVE(.36,96,0,Math.PI*2),ULT_MOVE(.48,96,0,Math.PI*2),ULT_MOVE(.59,84,0,Math.PI*2),ULT_MOVE(.71,66,12,Math.PI*2),ULT_MOVE(.94,0,0,Math.PI*2),ULT_MOVE(1,0,0,Math.PI*2)],
+ constellation:[ULT_MOVE(0),ULT_MOVE(.13,-10,10),ULT_MOVE(.28,-58,70,.35),ULT_MOVE(.42,-98,92,.50),ULT_MOVE(.58,-66,60,.27),ULT_MOVE(.72,-34,0),ULT_MOVE(.94),ULT_MOVE(1)]
+};
+function chooseEmpoweredUlt(weapon){
+ const pool=EMPOWERED_ULTS[weapon]||EMPOWERED_ULTS.basic;
+ ult.signatureBags=ult.signatureBags||{};ult.signatureLast=ult.signatureLast||{};
+ let bag=ult.signatureBags[weapon];
+ if(!bag?.length){
+  bag=pool.map(p=>p.id);if(Math.random()<.5)bag.reverse();
+  if(bag[bag.length-1]===ult.signatureLast[weapon])bag.reverse();
+  ult.signatureBags[weapon]=bag;
+ }
+ const forced=ult.forceSignature;ult.forceSignature=null;
+ const id=pool.some(p=>p.id===forced)?forced:bag.pop();ult.signatureLast[weapon]=id;
+ return pool.find(p=>p.id===id);
+}
+function ultHeroScale(){
+ if(ult.mode!=='dragonburst')return 1.42;
+ const p=Math.max(0,Math.min(1,ult.t/ult.dur)),u=Math.max(0,Math.min(1,p/.10,(1-p)/.10));
+ return 1.02+.40*u*u*(3-2*u);
+}
+function empoweredUltMuzzle(){
+ const q=ultPose(),a=P.aim,sc=ultHeroScale(),push=P.gear.jacket?6.5:3.5,tip=gunMuzzlePoint(P.wtype,P.gear.gun);
+ const lx=q.gunAt[0]*P.face+Math.cos(a)*(push+tip.x*1.3)-Math.sin(a)*tip.y*1.3*P.face;
+ const ly=(q.gunAt[1]+Math.sin(a)*(push+tip.x*1.3)+Math.cos(a)*tip.y*1.3*P.face)*q.squash;
+ const ca=Math.cos(q.lean+(ult.rot||0)),sa=Math.sin(q.lean+(ult.rot||0)),kick=Math.max(0,ult.kick||0)*5;
+ return {x:P.x+(ult.stageX||0)-Math.cos(a)*kick+sc*(lx*ca-ly*sa),
+  y:P.y+17+(ult.stageY||0)-(ult.lift||0)-Math.sin(a)*kick+sc*(lx*sa+ly*ca),aim:a+q.lean+(ult.rot||0)};
+}
+function updateEmpoweredUlt(p,DMG){
+ const s=ult.signature;if(!s)return;
+ const id=s.id,motion=keyframes(EMPOWERED_MOTION[id],Math.min(1,p)),face=ult.signatureFace;
+ ult.rot=motion.rot*face;ult.lift=motion.lift;
+ ult.stageX=Math.max(24-P.x,Math.min(WORLD-24-P.x,motion.x*face));
+ ult.stageY=Math.max(24-P.y,Math.min(WORLD-24-P.y,motion.y));
+ const next=Math.min(s.beats.length-1,ult.signatureBeat),victim=ult.signatureTargets.find((e,i)=>i%s.beats.length===next&&e.hp>0);
+ const hx=P.x+ult.stageX,hy=P.y-24+ult.stageY-ult.lift;
+ const worldAim=victim?Math.atan2(victim.y-12-hy,victim.x-hx):ult.signatureAim;
+ const pose=ultPose(),angle=worldAim-ult.rot-pose.lean;
+ const tumbling=p<s.beats[0]-.035&&['quake','rail','helix'].includes(id);
+ P.aim=tumbling?(face>0?0:Math.PI):Math.atan2(Math.sin(angle)/pose.squash,Math.cos(angle));P.face=face;
+ if(p>=.14&&!ult.signatureMove){ult.signatureMove=true;SFX.ultMove?.(P.x);}
+ // Sample after-images in time, not once per display frame; each keeps its own pose and aim.
+ if(ult.t-(ult.signatureTrailAt||0)>=55&&p>.14&&p<.80){
+  ult.signatureTrailAt=ult.t;
+  ult.trail.push({x:hx,y:P.y+ult.stageY-ult.lift,rot:ult.rot,pose:ultPose(),aim:P.aim,face:P.face,sc:ultHeroScale()});
+  if(ult.trail.length>3)ult.trail.shift();
+ }
+ if(p>=.80)ult.trail=[];
+ while(ult.signatureBeat<s.beats.length&&p>=s.beats[ult.signatureBeat]){
+  const beat=ult.signatureBeat++,selected=ult.signatureTargets.filter((e,i)=>i%s.beats.length===beat&&e.hp>0);
+  ult.kick=id==='fan'||id==='rail'?1.25:.70;
+  const muzzle=empoweredUltMuzzle(),ox=id==='quake'||id==='helix'?hx:muzzle.x,oy=id==='quake'?P.y+ult.stageY+12:id==='helix'?hy:muzzle.y;
+  const endpoints=selected.map(e=>({x:e.x,y:e.y-12}));
+  ult.signatureFX.push({id,born:ult.t,beat,ox,oy,aim:muzzle.aim,points:endpoints});
+  for(const e of selected){hitUlt(e,DMG*2.4,P.x,P.y);addUltImpact(e.x,e.y-12,worldAim,.85,'shot');}
+  P.muzzle=110;ult.fired++;
+  SFX.shot(null,P.x);
+  if(id==='quake'||beat===s.beats.length-1)SFX.ultImpact?.(P.x);
+  shake=Math.max(shake,id==='quake'?10:6);ult.flash=Math.min(ult.flash,.20);ult.punch=Math.min(ult.punch,.65);
+  if(id==='quake')addUltImpact(hx,P.y+ult.stageY+12,0,1.3,'ground');
+ }
+ if(p>=.76&&!ult.signatureLanding){ult.signatureLanding=true;addUltImpact(hx,P.y+ult.stageY+12,0,.65,'ground');SFX.ultLand?.(P.x);}
+ ult.signatureFX=ult.signatureFX.filter(f=>ult.t-f.born<600).slice(-8);
+ if(p>.78&&!ult.landed){ult.landed=1;startUltDragonAssist(ult.dragonType,DMG);}
+}
+
 const ult = { charge: 0, on: false, mode: "flip", t: 0, dur: 0, zoom: 1, done: [],
               impacts: [], flash: 0, punch: 0, bag: [], focus: null, orbit: [] };
 
 function ultReady() { return ult.charge >= ULT_FULL && !ult.on; }
 
+function empoweredUlt(){return (P.gear?.gun||0)>=GEAR.gun.max;}
+function ultBaseDamage(){
+  // Weapon damage per bullet unfairly favoured the sniper over pellet/rapid guns.
+  // Cadence-based weapon rebalance must not weaken the established ultimate budget.
+  const baseline=(1+Math.max(P.gear.gun,P.dropWeapon===P.wtype?P.storedGunLevel||0:0))*(1+.15*meta.dmg)*(1+(Math.max(1,P.lvl)-1)*.14);
+  return (26+baseline*4)*(1+.035*(Math.max(1,P.stage)-1));
+}
+function hitUlt(e,damage,x,y,cast=ult.cast){
+  if(!cast||!e.boss){hit(e,damage,x,y);return;}
+  const spent=cast.bossDamage.get(e)||0,budget=e.maxhp*(cast.empowered?.18:.14);
+  const remaining=Math.max(0,budget-spent);if(!remaining)return;
+  const before=e.hp;
+  hit(e,Math.max(damage,e.maxhp*(cast.empowered?.14:.10)),x,y,true,remaining);
+  cast.bossDamage.set(e,spent+Math.max(0,before-e.hp));
+}
+
 function startUlt() {
-  if (!ultReady() || !running || paused) return;
+  if(typeof bossLootLocked==='function'&&bossLootLocked())return;
+  if (!ultReady() || !running || paused || (typeof Playables!=='undefined'&&Playables.blocked)) return;
   ult.charge = 0; ult.on = true; ult.t = 0; ult.done = [];
+  ult.cast={empowered:empoweredUlt(),bossDamage:new Map()};
+  ult.baseDamage=ultBaseDamage();ult.dragonType=ult.cast.empowered?rollDragon():null;
   // Снайперка имеет собственный набор; оптика выпадает отдельно и очень редко.
-  const modePool = P.wtype === "sniper" ? SNIPER_STANDARD_ULT_MODES : ULT_MODES;
+  const modePool = ['sniper','goldSniper'].includes(P.wtype) ? SNIPER_STANDARD_ULT_MODES : ULT_MODES;
   // Мешок приёмов гарантирует, что игрок увидит все варианты до повторов.
   if (!ult.bag || !ult.bag.length || ult.weaponBag !== P.wtype || ult.bag.some(m => !modePool.includes(m))) {
     ult.bag = modePool.slice(); ult.weaponBag = P.wtype;
@@ -33,21 +142,32 @@ function startUlt() {
   }
   const forcedMode = ult.forceMode;
   ult.forceMode = null;
-  ult.mode = forcedMode || (P.wtype === "sniper" && Math.random() < RARE_SCOPE_CHANCE
+  ult.mode = forcedMode || (['sniper','goldSniper'].includes(P.wtype) && P.gear.gun>=3 && Math.random() < RARE_SCOPE_CHANCE
     ? SNIPER_SCOPE_MODES[Math.random()*SNIPER_SCOPE_MODES.length|0]
     : ult.bag.pop());
   ult.lastMode = ult.mode;
+  if(ult.cast.empowered&&!forcedMode)ult.mode='dragonburst';
   ult.dur = { dash: 2000, rain: 2400, kick: 1500, upper: 1600, dance: 2700,
               meteor: 1950, spiral: 2300, cross: 1750, scope: 3200, deadeye: 4400,
               ricochet: 2700, quickdraw: 2350, dive: 2850,
-              shellstorm: 3050, rollshot: 2900 }[ult.mode] || 1700;
+              shellstorm: 3050, rollshot: 2900, dragonburst:2400 }[ult.mode] || 1700;
   ult.marks = []; ult.blinks = []; ult.hop = 0; ult.spinAim = 0;
   ult.swoosh = null; ult.shards = []; ult.trail = [];
   ult.impacts = []; ult.flash = .32; ult.punch = .5; ult.focus = null; ult.orbit = [];
   ult.stageX = 0; ult.stageY = 0; ult.beat = -1;
-  ult.fired = 0; ult.landed = 0; ult.rot = 0; ult.lift = 0;
+  ult.fired = 0; ult.landed = 0; ult.rot = 0; ult.lift = 0;ult.kick=0;
   ult.scopeLock = 0; ult.fpKick = 0; ult.bolt = 0; ult.screenFall = 0; ult.pendingNext = 0;
   ult.goldSegments = []; ult.coinSpin = 0; ult.shellSpin = 0;
+  ult.signature=null;ult.signatureTargets=[];ult.signatureFX=[];ult.signatureBeat=0;ult.signatureTrailAt=0;ult.signatureLanding=false;ult.signatureMove=false;
+  if(ult.mode==='dragonburst'){
+    ult.signature=chooseEmpoweredUlt(P.wtype);
+    ult.signatureTargets=enemies.filter(e=>e.hp>0&&dist(e,P)<650)
+      .sort((a,b)=>(!!b.boss-!!a.boss)||dist(a,P)-dist(b,P)).slice(0,10);
+    const target=ult.signatureTargets[0];
+    ult.signatureAim=target?Math.atan2(target.y-P.y,target.x-P.x):P.aim;
+    P.aim=ult.signatureAim;P.face=Math.cos(P.aim)>=0?1:-1;
+    ult.signatureFace=P.face;
+  }
   ult.camX = P.x; ult.camY = P.y; ult.current = null;
   if (typeof document !== "undefined" && document.body)
     document.body.classList.toggle("sniper-cinematic", SNIPER_SCOPE_MODES.includes(ult.mode));
@@ -92,12 +212,13 @@ function startUlt() {
     ult.step = 0; ult.next = 180; ult.home = { x: P.x, y: P.y };
   }
   addUltImpact(P.x, P.y - 18, P.aim, .65, "aura");
-  shake = 12;
-  chain([392, 523, 659, 880, 1175], "square", .06);
-  noise(.5, .07, 2600, -2200);
+  shake = ult.mode==='dragonburst'?6:12;
+  if(ult.mode==='dragonburst')ult.flash=.12;
+  SFX.ultimate?.();
 }
 
 function updateUlt(dt) {
+  if(!running||paused||(typeof Playables!=='undefined'&&Playables.blocked))return;
   if (!ult.on) {
     if (running && !paused) ult.charge = Math.min(ULT_FULL, ult.charge + dt);
     ult.zoom += (1 - ult.zoom) * .12;
@@ -119,7 +240,7 @@ function updateUltLegacy(dt) {
   }
   ult.trail = ult.trail || [];
   if (ult.mode === "meteor" || ult.mode === "dive") {
-    ult.trail.push({ x: P.x, y: P.y - (ult.lift || 0), rot: ult.rot || 0, pose: ultPose() });
+    ult.trail.push({ x: P.x, y: P.y - (ult.lift || 0), rot: ult.rot || 0, pose: ultPose(),aim:P.aim,face:P.face,sc:ultHeroScale() });
     if (ult.trail.length > (ult.mode === "dive" ? 3 : 4)) ult.trail.shift();
   }
 
@@ -129,9 +250,10 @@ function updateUltLegacy(dt) {
                   meteor: 1.48, cross: 1.60, dance: 1.42, spiral: 1.38,
                   scope: 1.82, deadeye: 1.68, ricochet: 1.48,
                   quickdraw: 1.58, dive: 1.44, shellstorm: 1.52,
-                  rollshot: 1.48 })[ult.mode] || 1.42;
+                  rollshot: 1.48 })[ult.mode] || (ult.mode==='dragonburst'?({basic:1.34,shotgun:1.32,minigun:1.25,sniper:1.48}[P.wtype]||1.34):1.42);
   const enter = Math.min(1, p / .12), leave = p > .82 ? Math.max(0, (1 - p) / .18) : 1;
-  const target = 1 + (peak - 1) * enter * leave + (ult.punch || 0) * .10;
+  const framedPeak=ult.mode==='dragonburst'?Math.min(peak,Math.max(1.1,Math.min(W,H)/320)):peak;
+  const target = 1 + (framedPeak - 1) * enter * leave + (ult.punch || 0) * .10;
   ult.zoom += (target - ult.zoom) * (p < .82 ? .12 : .08);
 
   const boom = (r, dmg, sh) => {
@@ -142,12 +264,14 @@ function updateUltLegacy(dt) {
       ult.done.push(e);
       const aa = Math.atan2(e.y - P.y, e.x - P.x);
       e.kb = 5.5; e.kbx = Math.cos(aa); e.kby = Math.sin(aa);
-      hit(e, dmg, P.x, P.y);
+      hitUlt(e, dmg, P.x, P.y);
     }
   };
-  const DMG = 26 + P.damage * 4;
+  const DMG = ult.baseDamage||ultBaseDamage();
 
-  if (ult.mode === "flip") {
+  if(ult.mode==='dragonburst'){
+    updateEmpoweredUlt(p,DMG);
+  } else if (ult.mode === "flip") {
     ult.rot = p < .18 ? 0 : Math.min(1, (p - .18) / .55) * Math.PI * 4;
     ult.lift = Math.sin(Math.max(0, Math.min(1, (p - .18) / .62)) * Math.PI) * 78;
     if (p > .45 && !ult.fired) {                     // залп в воздухе
@@ -155,12 +279,12 @@ function updateUltLegacy(dt) {
       for (let i = 0; i < 14; i++) {
         const a = i / 14 * 6.283;
         shots.push({ x: P.x, y: P.y - 24, vx: Math.cos(a) * 11, vy: Math.sin(a) * 11,
-                     a, life: 700, dmg: DMG, kind: "sniper", pierce: 1, hit: [] });
+                     a, life: 700, dmg: DMG, kind: "sniper", pierce: 1, hit: [], ultCast:ult.cast });
       }
       addUltImpact(P.x, P.y - 42, 0, 1.05, "radial");
       SFX.shot(); boom(230, DMG, 16);
     }
-    if (p > .78 && !ult.landed) { ult.landed = 1; boom(300, DMG, 22); SFX.boom();
+    if (p > .78 && !ult.landed) { ult.landed = 1; boom(300, DMG, 22); SFX.ultImpact?.(P.x);
       addUltImpact(P.x, P.y + 2, -Math.PI / 2, 1.45, "ground");
       booms.push({ x: P.x, y: P.y, r: 20, max: 300, life: 1 }); }
 
@@ -188,7 +312,7 @@ function updateUltLegacy(dt) {
         ult.tracer = { x1: P.x, y1: P.y - 24, x2: best.x, y2: best.y, life: 1 };
         P.aim = Math.atan2(best.y - P.y + 24, best.x - P.x);
         addUltImpact(best.x, best.y - 12, P.aim, .72, "shot");
-        hit(best, DMG, P.x, P.y); P.muzzle = 120; shake = Math.max(shake, 6); ult.kick = 1;
+        hitUlt(best, DMG, P.x, P.y); P.muzzle = 120; shake = Math.max(shake, 6); ult.kick = 1;
         SFX.shot();
       }
     }
@@ -204,7 +328,7 @@ function updateUltLegacy(dt) {
                      r: 12, max: 78, life: 1, rot: Math.random() * 6.28, style: "star" });
       spawnShards(P.x + Math.cos(a) * 52, P.y - 22 + Math.sin(a) * 52, a, 14);
       addUltImpact(P.x + Math.cos(a) * 52, P.y - 22 + Math.sin(a) * 52, a, 1.55, "slash");
-      hitStop = Math.max(hitStop, 90); shake = Math.max(shake, 20); SFX.boom();
+      hitStop = Math.max(hitStop, 90); shake = Math.max(shake, 20); SFX.ultImpact?.(P.x);
       boom(150, DMG * 1.8, 20);
     }
 
@@ -220,7 +344,7 @@ function updateUltLegacy(dt) {
                      r: 12, max: 88, life: 1, rot: Math.random() * 6.28, style: "star" });
       spawnShards(P.x + Math.cos(a) * 34, P.y - 46, -1.57, 16);
       addUltImpact(P.x + Math.cos(a) * 34, P.y - 48, -Math.PI / 2, 1.65, "upper");
-      hitStop = Math.max(hitStop, 100); shake = Math.max(shake, 22); SFX.boom();
+      hitStop = Math.max(hitStop, 100); shake = Math.max(shake, 22); SFX.ultImpact?.(P.x);
       if (v && v.hp > 0) { v.launchUp = 1; }
       boom(130, DMG * 2.0, 22);
     }
@@ -239,7 +363,7 @@ function updateUltLegacy(dt) {
         P.aim = a; P.face = Math.cos(a) > 0 ? 1 : -1;
         ult.slash = 1;
         addUltImpact(tg.x, tg.y - 14, a, .95, "slash");
-        if (!ult.done.includes(tg)) { ult.done.push(tg); hit(tg, DMG * 1.4, P.x, P.y); }
+        if (!ult.done.includes(tg)) { ult.done.push(tg); hitUlt(tg, DMG * 1.4, P.x, P.y); }
         SFX.shot(); shake = Math.max(shake, 9);
       } else if (ult.step > ult.queue.length) {
         const h = ult.home; P.x += (h.x - P.x) * .25; P.y += (h.y - P.y) * .25;
@@ -262,7 +386,7 @@ function updateUltLegacy(dt) {
         ult.blinks.push({ x1: x0, y1: y0, x2: P.x, y2: P.y, life: 1 });
         ult.slash = 1.2;
         addUltImpact(tg.x, tg.y - 14, a + side * .38, .92 + ult.step * .05, "slash");
-        hit(tg, DMG * .92, P.x, P.y); hitStop = Math.max(hitStop, 45);
+        hitUlt(tg, DMG * .92, P.x, P.y); hitStop = Math.max(hitStop, 45);
         SFX.shot(); shake = Math.max(shake, 10 + ult.step);
       }
     }
@@ -272,7 +396,7 @@ function updateUltLegacy(dt) {
     }
     if (p > .84 && !ult.landed) {
       ult.landed = 1; addUltImpact(P.x, P.y, P.aim, 1.45, "cross");
-      boom(245, DMG * 1.15, 20); SFX.boom();
+      boom(245, DMG * 1.15, 20); SFX.ultImpact?.(P.x);
     }
     if (ult.slash > 0) ult.slash -= dt / 170;
 
@@ -283,11 +407,11 @@ function updateUltLegacy(dt) {
     if (p > .76 && !ult.landed) {
       ult.landed = 1; ult.lift = 0; ult.rot = 0;
       addUltImpact(P.x, P.y + 3, -Math.PI / 2, 2.15, "meteor");
-      boom(410, DMG * 1.65, 30); SFX.boom(); hitStop = Math.max(hitStop, 115);
+      boom(410, DMG * 1.65, 30); SFX.ultImpact?.(P.x); hitStop = Math.max(hitStop, 115);
       for (let i = 0; i < 18; i++) {
         const a = i / 18 * 6.283;
         shots.push({ x: P.x, y: P.y - 5, vx: Math.cos(a) * 9.5, vy: Math.sin(a) * 9.5,
-                     a, life: 650, dmg: DMG * .55, kind: "sniper", pierce: 1, hit: [] });
+                     a, life: 650, dmg: DMG * .55, kind: "sniper", pierce: 1, hit: [], ultCast:ult.cast });
       }
       spawnShards(P.x, P.y, -Math.PI / 2, 26);
     }
@@ -301,13 +425,13 @@ function updateUltLegacy(dt) {
         const a = ult.spinAim + off;
         shots.push({ x: P.x + Math.cos(a) * 34, y: P.y - 18 + Math.sin(a) * 22,
                      vx: Math.cos(a) * 10.5, vy: Math.sin(a) * 10.5, a, life: 820,
-                     dmg: DMG * .72, kind: "sniper", pierce: 1, hit: [] });
+                     dmg: DMG * .72, kind: "sniper", pierce: 1, hit: [], ultCast:ult.cast });
       }
       P.muzzle = 85; SFX.shot(); shake = Math.max(shake, 5);
     }
     if (p > .78 && !ult.landed) {
       ult.landed = 1; addUltImpact(P.x, P.y - 18, 0, 1.35, "spiral");
-      boom(280, DMG, 18); SFX.boom();
+      boom(280, DMG, 18); SFX.ultImpact?.(P.x);
     }
 
   } else if (ult.mode === "dance") {                  // постановочный ган-фу танец
@@ -326,7 +450,7 @@ function updateUltLegacy(dt) {
         const a = base + i * .105;
         shots.push({ x: sx + Math.cos(a) * 18, y: sy + Math.sin(a) * 18,
                      vx: Math.cos(a) * 10.8, vy: Math.sin(a) * 10.8, a, life: 760,
-                     dmg: DMG * .48, kind: "sniper", pierce: 1, hit: [] });
+                     dmg: DMG * .48, kind: "sniper", pierce: 1, hit: [], ultCast:ult.cast });
       }
       P.muzzle = 100; ult.dancePulse = 1; SFX.shot(); shake = Math.max(shake, 4.5);
     }
@@ -337,10 +461,10 @@ function updateUltLegacy(dt) {
         const a = i / 20 * 6.283 + .16;
         shots.push({ x: P.x + Math.cos(a) * 22, y: P.y - 18 + Math.sin(a) * 14,
                      vx: Math.cos(a) * 11.5, vy: Math.sin(a) * 11.5, a, life: 820,
-                     dmg: DMG * .62, kind: "sniper", pierce: 1, hit: [] });
+                     dmg: DMG * .62, kind: "sniper", pierce: 1, hit: [], ultCast:ult.cast });
       }
       addUltImpact(P.x, P.y - 18, 0, 1.50, "dance");
-      boom(320, DMG * 1.15, 21); hitStop = Math.max(hitStop, 85); SFX.boom();
+      boom(320, DMG * 1.15, 21); hitStop = Math.max(hitStop, 85); SFX.ultImpact?.(P.x);
     }
 
   } else if (ult.mode === "ricochet") {               // монета и цепочка рикошетов по настоящим ботам
@@ -353,7 +477,7 @@ function updateUltLegacy(dt) {
         const x1=prev?prev.x:P.x+P.face*24,y1=prev?prev.y-12:P.y-58;
         ult.goldSegments.push({x1,y1,x2:v.x,y2:v.y-12,life:1});
         v.launchUp=1;ult.done.push(v);addUltImpact(v.x,v.y-12,P.aim,1.15,"shot");
-        spawnShards(v.x,v.y-12,P.aim,9);hit(v,Math.max(DMG*3.2,v.hp+1),x1,y1);
+        spawnShards(v.x,v.y-12,P.aim,9);hitUlt(v,Math.max(DMG*3.2,v.hp+1),x1,y1);
         P.muzzle=150;ult.flash=.48;hitStop=Math.max(hitStop,48);shake=Math.max(shake,10);SFX.shot();
         ult.step++;ult.current=ult.queue[ult.step]||null;ult.focus=ult.current||v;ult.next=145;
       }}
@@ -368,7 +492,7 @@ function updateUltLegacy(dt) {
       if(p>.13){ult.next-=dt;if(ult.next<=0){
         ult.tracer={x1:sx,y1:sy,x2:v.x,y2:v.y-12,life:1,gold:1};
         v.launchUp=1;ult.done.push(v);addUltImpact(v.x,v.y-12,P.aim,1.28,"shot");
-        spawnShards(v.x,v.y-12,P.aim,12);hit(v,Math.max(DMG*3.8,v.hp+1),sx,sy);
+        spawnShards(v.x,v.y-12,P.aim,12);hitUlt(v,Math.max(DMG*3.8,v.hp+1),sx,sy);
         P.muzzle=180;ult.kick=1;ult.flash=.58;hitStop=Math.max(hitStop,58);shake=Math.max(shake,13);SFX.shot();
         ult.step++;ult.current=ult.queue[ult.step]||null;ult.focus=ult.current||v;ult.next=255;
       }}
@@ -383,7 +507,7 @@ function updateUltLegacy(dt) {
       if(p>.15){ult.next-=dt;if(ult.next<=0){
         ult.tracer={x1:sx,y1:sy,x2:v.x,y2:v.y-12,life:1,gold:1};
         v.launchUp=1;ult.done.push(v);addUltImpact(v.x,v.y-12,P.aim,1.20,"shot");
-        hit(v,Math.max(DMG*3.4,v.hp+1),sx,sy);P.muzzle=160;ult.kick=1;ult.flash=.42;
+        hitUlt(v,Math.max(DMG*3.4,v.hp+1),sx,sy);P.muzzle=160;ult.kick=1;ult.flash=.42;
         hitStop=Math.max(hitStop,42);shake=Math.max(shake,9);SFX.shot();
         ult.step++;ult.current=ult.queue[ult.step]||null;ult.focus=ult.current||v;ult.next=310;
       }}
@@ -401,7 +525,7 @@ function updateUltLegacy(dt) {
         ult.goldSegments.push({x1:sx,y1:sy,x2:v.x,y2:v.y-12,life:1});
         v.launchUp=1;ult.done.push(v);addUltImpact(sx,sy,P.aim,1.0,"shot");
         addUltImpact(v.x,v.y-12,P.aim,1.30,"shot");spawnShards(v.x,v.y-12,P.aim,12);
-        hit(v,Math.max(DMG*3.7,v.hp+1),sx,sy);P.muzzle=170;ult.kick=1;ult.flash=.52;
+        hitUlt(v,Math.max(DMG*3.7,v.hp+1),sx,sy);P.muzzle=170;ult.kick=1;ult.flash=.52;
         hitStop=Math.max(hitStop,54);shake=Math.max(shake,12);SFX.shot();
         ult.step++;ult.current=ult.queue[ult.step]||null;ult.focus=ult.current||v;ult.next=155;
       }}
@@ -420,7 +544,7 @@ function updateUltLegacy(dt) {
         v.launchUp=ult.step===ult.queue.length-1?1:0;ult.done.push(v);
         addUltImpact(v.x,v.y-12,P.aim,ult.step===ult.queue.length-1?1.65:1.12,"shot");
         spawnShards(v.x,v.y-12,P.aim,ult.step===ult.queue.length-1?17:9);
-        hit(v,Math.max(DMG*(ult.step===ult.queue.length-1?4.6:3.1),v.hp+1),sx,sy);
+        hitUlt(v,Math.max(DMG*(ult.step===ult.queue.length-1?4.6:3.1),v.hp+1),sx,sy);
         P.muzzle=190;ult.kick=1;ult.flash=ult.step===ult.queue.length-1?.70:.40;
         hitStop=Math.max(hitStop,ult.step===ult.queue.length-1?90:38);shake=Math.max(shake,ult.step===ult.queue.length-1?18:8);SFX.shot();
         ult.step++;ult.current=ult.queue[ult.step]||null;ult.focus=ult.current||v;ult.next=215;
@@ -438,9 +562,9 @@ function updateUltLegacy(dt) {
         v.scopeFall=1; ult.done.push(v);
         ult.tracer={x1:P.x,y1:P.y-24,x2:v.x,y2:v.y-12,life:1,gold:1};
         addUltImpact(v.x,v.y-13,P.aim,1.75,"shot"); spawnShards(v.x,v.y-12,P.aim,18);
-        hit(v,Math.max(DMG*5,v.hp+1),P.x,P.y);
+        hitUlt(v,Math.max(DMG*5,v.hp+1),P.x,P.y);
       }
-      SFX.shot(); chain([130,92,65],"square",.085);
+      SFX.shot();
     }
 
   } else if (ult.mode === "deadeye") {                // серия выстрелов от первого лица
@@ -462,8 +586,8 @@ function updateUltLegacy(dt) {
         ult.fpKick=1;ult.bolt=1;ult.flash=.62;ult.screenFall=.001;P.muzzle=190;
         hitStop=Math.max(hitStop,72);shake=Math.max(shake,12);
         v.scopeFall=1;ult.done.push(v);addUltImpact(v.x,v.y-12,P.aim,1.25,"shot");
-        spawnShards(v.x,v.y-12,P.aim,11);hit(v,Math.max(DMG*4,v.hp+1),P.x,P.y);
-        SFX.shot();chain([112,78,56],"square",.075);
+        spawnShards(v.x,v.y-12,P.aim,11);hitUlt(v,Math.max(DMG*4,v.hp+1),P.x,P.y);
+        SFX.shot();
         ult.step++;ult.pendingNext=480;
       }
     }
@@ -481,8 +605,8 @@ function updateUltLegacy(dt) {
     if (p > .47 && !ult.landed) {
       ult.landed = 1; addUltImpact(ix, iy, a, 1.82, "cross");
       spawnShards(ix, iy, a, 22); hitStop = Math.max(hitStop, 110); shake = Math.max(shake, 25);
-      if (v && v.hp > 0) { ult.done.push(v); v.launchUp = 1; hit(v, DMG * 2.25, P.x, P.y); }
-      boom(185, DMG * 1.45, 24); SFX.boom();
+      if (v && v.hp > 0) { ult.done.push(v); v.launchUp = 1; hitUlt(v, DMG * 2.25, P.x, P.y); }
+      boom(185, DMG * 1.45, 24); SFX.ultImpact?.(P.x);
     }
 
   } else if (ult.mode === "rain") {                   // прыжок и ливень сверху
@@ -503,14 +627,14 @@ function updateUltLegacy(dt) {
       m.life -= dt / 380;
       if (m.life <= .45 && !m.done) {
         m.done = 1;
-        if (m.e && m.e.hp > 0) hit(m.e, DMG, m.x, m.y - 40);
+        if (m.e && m.e.hp > 0) hitUlt(m.e, DMG, m.x, m.y - 40);
         addUltImpact(m.x, m.y - 4, Math.PI / 2, .90, "bolt");
         booms.push({ x: m.x, y: m.y, r: 8, max: 74, life: .7 });
         shake = Math.max(shake, 7);
       }
     }
     ult.marks = ult.marks.filter(m => m.life > 0);
-    if (p > .86 && !ult.landed) { ult.landed = 1; boom(300, DMG, 20); SFX.boom();
+    if (p > .86 && !ult.landed) { ult.landed = 1; boom(300, DMG, 20); SFX.ultImpact?.(P.x);
       addUltImpact(P.x, P.y + 2, -Math.PI / 2, 1.35, "ground");
       booms.push({ x: P.x, y: P.y, r: 20, max: 300, life: 1 }); }
 
@@ -519,7 +643,7 @@ function updateUltLegacy(dt) {
     ult.lift = p < .55 ? Math.sin(p / .55 * Math.PI * .5) * 120
                        : p < .75 ? Math.cos((p - .55) / .2 * Math.PI * .5) * 120 : 0;
     if (p > .75 && !ult.landed) {
-      ult.landed = 1; boom(360, DMG * 1.4, 26); SFX.boom();
+      ult.landed = 1; boom(360, DMG * 1.4, 26); SFX.ultImpact?.(P.x);
       addUltImpact(P.x, P.y + 4, -Math.PI / 2, 1.85, "ground");
       booms.push({ x: P.x, y: P.y, r: 24, max: 360, life: 1 });
       booms.push({ x: P.x, y: P.y, r: 12, max: 220, life: .8 });
@@ -555,6 +679,7 @@ function updateUltLegacy(dt) {
     ult.rot = 0; ult.lift = 0; ult.stageX = 0; ult.stageY = 0; ult.focus = null;
     ult.scopeLock = 0; ult.fpKick = 0; ult.bolt = 0; ult.screenFall = 0; ult.pendingNext = 0; ult.current = null;
     ult.goldSegments=[];ult.coinSpin=0;ult.shellSpin=0;
+    ult.signatureFX=[];ult.signatureTargets=[];ult.signature=null;
     if (typeof document !== "undefined" && document.body) document.body.classList.remove("sniper-cinematic");
   }
 }
@@ -756,9 +881,34 @@ function spawnShards(x, y, dir, n) {
   }
 }
 
+// Retime expressive pre-top poses to the root motion and firing beats.
+const UP=(mode,p)=>keyframes(POSES[mode],p);
+const EMPOWERED_POSES={
+ lance:[[0,K({})],[.12,UP('dance',.10)],[.27,UP('dance',.34)],[.36,UP('dance',.22)],[.46,UP('dance',.46)],[.55,UP('dance',.58)],[.65,UP('dance',.70)],[.78,UP('dance',.82)],[1,K({})]],
+ salvo:[[0,K({})],[.12,UP('flip',0)],[.24,UP('flip',.20)],[.35,UP('dive',.3)],[.54,UP('dive',.65)],[.74,UP('quickdraw',.2)],[.86,UP('quickdraw',.9)],[1,K({})]],
+ fan:[[0,K({})],[.13,UP('flip',0)],[.26,UP('dive',.22)],[.40,UP('dive',.65)],[.54,UP('quickdraw',.4)],[.73,UP('slam',1)],[.86,UP('volley',.5)],[1,K({})]],
+ quake:[[0,K({})],[.13,UP('meteor',0)],[.29,UP('flip',.42)],[.44,UP('meteor',.55)],[.54,UP('slam',.55)],[.62,UP('slam',.82)],[.76,UP('slam',1)],[.90,UP('volley',.3)],[1,K({})]],
+ sweep:[[0,K({})],[.14,UP('dance',.1)],[.28,UP('dance',.34)],[.44,UP('dance',.70)],[.60,UP('dance',.34)],[.73,UP('quickdraw',.4)],[1,K({})]],
+ helix:[[0,K({})],[.13,UP('flip',0)],[.27,UP('flip',.42)],[.37,UP('dive',.3)],[.52,UP('dive',.65)],[.69,UP('rain',.3)],[.79,UP('slam',1)],[.91,UP('volley',.3)],[1,K({})]],
+ rail:[[0,K({})],[.10,UP('rollshot',.05)],[.22,UP('rollshot',.28)],[.36,UP('rollshot',.64)],[.57,UP('scope',.6)],[.71,UP('quickdraw',.4)],[.87,UP('scope',1)],[1,K({})]],
+ constellation:[[0,K({})],[.13,UP('ricochet',.16)],[.28,UP('dive',.22)],[.45,UP('dive',.65)],[.58,UP('ricochet',.40)],[.72,UP('scope',.5)],[.88,UP('scope',1)],[1,K({})]]
+};
+function anchorUltWeapon(pose){
+  // Preserve the animated striking/aiming hand; move the grip with it, not the torso.
+  // The renderer and empowered muzzle both consume this same pose.
+  const a=P.aim,face=P.face,push=P.gear.jacket?6.5:3.5,[gx,gy]=weaponTriggerPoint(P.wtype,P.gear.gun);
+  return {...pose,gunAt:[(pose.af[0]*face-Math.cos(a)*(push+gx*1.3)+Math.sin(a)*gy*1.3*face)*face,
+    pose.af[1]-Math.sin(a)*(push+gx*1.3)-Math.cos(a)*gy*1.3*face]};
+}
 function ultPose() {
   const p = Math.max(0, Math.min(1, ult.t / ult.dur));
-  return keyframes(POSES[ult.mode] || POSES.flip, p);
+  if(ult.mode==='dragonburst'&&ult.signature){
+    const pose=keyframes(EMPOWERED_POSES[ult.signature.id],p);
+    const recoil=Math.max(0,ult.kick||0);
+    pose.lean-=recoil*.06;pose.af=[pose.af[0]-recoil*2,pose.af[1]];
+    return anchorUltWeapon(pose);
+  }
+  return anchorUltWeapon(keyframes(POSES[ult.mode] || POSES.flip, p));
 }
 
 /* ── двойной клик мышью ── */

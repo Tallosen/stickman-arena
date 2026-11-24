@@ -15,9 +15,15 @@ function resetAbilities() {
 }
 
 function useAbility(kind) {
-  if (!running || paused || !ABILITIES[kind] || inventory[kind] <= 0) return;
+  if(typeof runSaveAction==='function'&&!runSaveDepth)return runSaveAction(()=>useAbility(kind));
+  if(typeof bossLootLocked==='function'&&bossLootLocked())return false;
+  if (!running || paused || (typeof Playables!=='undefined'&&Playables.blocked) || !ABILITIES[kind] || inventory[kind] <= 0) return false;
   inventory[kind]--;
-  saveInventory();
+  if(!saveInventory()){
+    inventory[kind]++;
+    if(!pops.some(p=>p.inventoryError&&p.life>0))pops.push({x:P.x,y:P.y-66,txt:typeof uiLanguage==='undefined'||uiLanguage==='ru'?'Не удалось сохранить заряд. Попробуй ещё раз.':'Could not save the charge. Try again.',life:2,col:'#956d44',inventoryError:true});
+    return false;
+  }
   abilityBursts.push({ kind, t: 0, dur: kind === "tank" ? 1250 : 1050, seed: ++abilitySerial });
   if (abilityBursts.length > 3) abilityBursts.shift();
   pointer.active = false;
@@ -26,16 +32,14 @@ function useAbility(kind) {
     airstrike = { life: 7200, max: 7200, next: 80, shots: 0 };
     airstrikeMarks = [];
     shake = Math.max(shake, 10);
-    chain([160, 240, 360, 520], "sawtooth", .055);
-    noise(.12, .09, 1200, -700);
+    SFX.ability?.('airstrike');
   } else if (kind === "gas") {
     P.chemT = 6800;
     gasCloud = { life: 6800, max: 6800, pulse: 80, phase: Math.random() * 6.283 };
     P.invT = Math.max(P.invT || 0, 6800); // герметичный костюм защищает хозяина
     P.seen = { x: P.x, y: P.y };
     shake = Math.max(shake, 11);
-    chain([180, 145, 112], "sawtooth", .075);
-    noise(.18, .16, 800, -460);
+    SFX.ability?.('gas');
   } else {
     // Каждый заряд создаёт новую самостоятельную машину. Золотой угол
     // разводит точки въезда, поэтому пять танков не появляются одной стопкой.
@@ -50,9 +54,11 @@ function useAbility(kind) {
     };
     allyTanks.push(q);
     shake = Math.max(shake, 14);
-    chain([110, 92, 76], "square", .07);
+    SFX.ability?.('tank');
   }
   pops.push({ x: P.x, y: P.y - 66, txt: ABILITIES[kind].name, life: 1.5, col: ABILITIES[kind].col });
+  if(typeof setAbilityMenuOpen==='function')setAbilityMenuOpen(false);
+  return true;
 }
 
 function updateAbilities(dt, k) {
@@ -67,7 +73,7 @@ function updateAbilities(dt, k) {
       gasCloud.pulse += 520;
       for (const e of enemies) {
         if (e.hp <= 0) continue;
-        e.hp -= Math.max(1, e.maxhp * .105);
+        e.hp -= Math.max(1, e.maxhp * (e.boss?.006:.105));
         e.flash = Math.max(e.flash || 0, 70); e.poison = 300;
         // Resolve the lethal pulse now, before the enemy loop filters dead bodies.
         if (e.hp <= 0) popEnemy(e);
@@ -100,7 +106,7 @@ function updateAbilities(dt, k) {
     m.t += dt;
     if (!m.done && m.t >= m.delay) {
       m.done = true; m.blast = 1;
-      explode(m.x, m.y, 122, 10 + P.lvl * 1.8);
+      explode(m.x, m.y, 122, 10 + P.lvl * 1.8,'airstrikeImpact');
       flashes.push({ x:m.x, y:m.y, r:12, max:105, life:1, rot:m.seed });
       hitStop = Math.max(hitStop, 42);
     }
@@ -141,19 +147,14 @@ function updateAbilities(dt, k) {
         dmg: 4 + P.lvl * .7, kind: "tank", pierce: false, hit: [] });
       puffs.push({ x: q.x + Math.cos(a) * 35, y: q.y - 8 + Math.sin(a) * 35,
         vx: Math.cos(a), vy: Math.sin(a), life: .7, r: 5 });
-      noise(.10, .035, 420, -180); shake = Math.max(shake, 4);
+      SFX.shot('sniper',q.x); shake = Math.max(shake, 4);
     }
   }
   allyTanks = allyTanks.filter(q => !q.dead);
 }
 
-function grantRandomAbility(x, y) {
-  const kind = ABILITY_KEYS[(Math.random() * ABILITY_KEYS.length) | 0];
-  inventory[kind]++; saveInventory();
-  rewardDrops.push({ kind, x, y, t:0, life:1 });
-  pops.push({ x, y:y-52, txt:ABILITIES[kind].name+" +1", life:1.8, col:ABILITIES[kind].col });
-  chain([520,780,1040], "sine", .065); shake=Math.max(shake,7);
-  return kind;
+function grantRandomAbility(x, y, chest={x,y}) {
+  return grantEliteChestReward(chest)?chest.rewardKind:false;
 }
 
 function grantEliteChestReward(c){
@@ -164,9 +165,9 @@ function grantEliteChestReward(c){
   const next={...inventory};
   next[kind]=Math.min(999,next[kind]+1);
   let notice='';
-  if(ABILITY_KEYS.every(k=>next[k]===inventory[k]))notice='ИНВЕНТАРЬ ПОЛОН';
-  else try{(typeof Playables==='undefined'?localStorage:Playables.storage).setItem(INVENTORY_KEY,JSON.stringify(next));}
-  catch(_){notice='НЕ УДАЛОСЬ СОХРАНИТЬ · СУНДУК ЖДЁТ';}
+  if(inventoryReadOnly)notice=bossText('ЗАПАСЫ НЕ ПРОЧИТАНЫ · ДАННЫЕ СОХРАНЕНЫ','SUPPLIES UNREADABLE · ORIGINAL DATA PRESERVED');
+  else if(ABILITY_KEYS.every(k=>next[k]===inventory[k]))notice=bossText('ИНВЕНТАРЬ ПОЛОН','INVENTORY FULL');
+  else if(!saveInventory(next))notice=bossText('НЕ УДАЛОСЬ СОХРАНИТЬ · СУНДУК ЖДЁТ','SAVE FAILED · CHEST WILL WAIT');
   if(notice){
     if(!(c.retryT>0)){pops.push({x:c.x,y:c.y-65,txt:notice,life:2,col:'#8650b1'});c.retryT=2500;}
     return false;
@@ -174,7 +175,7 @@ function grantEliteChestReward(c){
   Object.assign(inventory,next);c.rewardGranted=true;
   rewardDrops.push({kind,x:c.x,y:c.y-12,t:0,life:1});
   pops.push({x:c.x,y:c.y-65,txt:ABILITIES[kind].name+' +1',life:2.8,col:'#8650b1'});
-  chain([520,780,1040,1560],'sine',.08);shake=Math.max(shake,9);
+  SFX.chest();shake=Math.max(shake,9);
   return true;
 }
 
@@ -308,7 +309,7 @@ function drawAbilityScreenFX(g) {
   const p = Math.min(1, fx.t / fx.dur), a = Math.min(1, p * 7, (1-p) * 5);
   const A = ABILITIES[fx.kind];
   g.save();
-  if (p < .22) { g.globalAlpha = (1-p/.22) * .18; g.fillStyle = A.col; g.fillRect(0,0,W,H); }
+  if (p < .22&&!visualFX('reduceFlash')) { g.globalAlpha = (1-p/.22) * .18; g.fillStyle = A.col; g.fillRect(0,0,W,H); }
   const y = 82 - (1-a) * 18, bw = Math.min(286, W - 32);
   g.globalAlpha = a * .94; g.fillStyle = "#fdf6e8"; g.strokeStyle = INK; g.lineWidth = 2.5;
   g.beginPath(); g.roundRect(W/2-bw/2, y-25, bw, 50, 13); g.fill(); g.stroke();

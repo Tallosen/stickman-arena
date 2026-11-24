@@ -1,0 +1,33 @@
+const fs=require('fs'),path=require('path'),assert=require('node:assert/strict'),make=require('./arena-harness.cjs');
+const root=path.join(__dirname,'..'),h=make({native:true,width:520,height:230});h.box.assert=assert;
+for(const f of ['camp-progress','camp-ui'])h.run(fs.readFileSync(path.join(root,'src',f+'.js'),'utf8'));
+const get=h.box.document.getElementById,button={};h.box.previewButton=button;
+h.box.document.getElementById=id=>id==='arsenalPreview'?h.canvas:id==='arsenalFire'?button:get(id);
+h.run(`reset();campPanelActive=true;campActiveSection='campEquipment';campProfile.weapon='sniper';arsenalPreviewLevel=4;
+let sounds=[],bullets=0,muzzles=[];soundCue=(name)=>sounds.push(name);
+const originalBullet=drawSniperProjectile,originalHero=drawHero;
+drawSniperProjectile=(...a)=>{bullets++;return originalBullet(...a);};drawHero=(...a)=>{muzzles.push(a[8]);return originalHero(...a);};
+const before=JSON.stringify({P,campProfile,inventory,ult});
+drawArsenalPreview(500,true);drawArsenalPreview(900,true);assert.equal(sounds.length,0);assert.equal(bullets,0);assert(muzzles.every(m=>m===0));
+assert(fireArsenalPreview(previewButton,1000));assert.equal(sounds.length,1);assert.equal(sounds[0],'sniper');assert(muzzles.at(-1)>0);
+assert(!fireArsenalPreview(previewButton,1050));assert.equal(sounds.length,1);
+drawArsenalPreview(1075,true);assert(bullets>0);const count=bullets;drawArsenalPreview(1500,true);assert.equal(bullets,count);
+assert(fireArsenalPreview(previewButton,1600));assert.equal(sounds.length,2);
+assert(!fireArsenalPreview({},1900));campPanelActive=false;assert(!fireArsenalPreview(previewButton,1900));campPanelActive=true;
+globalThis.Playables={blocked:true};assert(!fireArsenalPreview(previewButton,1900));Playables.blocked=false;
+for(const [i,w] of ARSENAL_BRANCHES.entries())for(let L=0;L<5;L++){
+ campProfile.weapon=w;arsenalPreviewLevel=L;const at=3000+i*7000+L*1000,n=sounds.length;
+ assert(fireArsenalPreview(previewButton,at));assert.equal(sounds.length,n+1);drawArsenalPreview(at+80,true);drawArsenalPreview(at+300,true);drawArsenalPreview(at+600,true);
+ assert.equal(sounds.length,n+1,'Animation cannot autoplay sound');
+}
+campProfile.weapon='sniper';arsenalPreviewLevel=4;assert.equal(JSON.stringify({P,campProfile,inventory,ult}),before,'Preview cannot change inventory, profile or combat');
+P.wtype='goldSniper';const shot=makeHeroShot({x:0,y:0},0,10,'sniper',{source:'hand'});P.wtype='basic';assert.equal(shot.weaponType,'goldSniper','In-flight bullet keeps its original finish');
+arsenalPreviewShot=null;fireArsenalPreview(previewButton,40000);drawArsenalPreview(40075,true);
+`);
+if(process.argv.includes('--frames'))fs.writeFileSync(path.join(root,'audit/arsenal-fire-v0199.png'),h.canvas.toBuffer('image/png'));
+const art=make({native:true,width:700,height:210});art.run(`ctx.fillStyle=PAPER;ctx.fillRect(0,0,W,H);
+ctx.fillStyle=INK;ctx.font='16px system-ui';ctx.fillText('Снайперская пуля',30,45);ctx.fillText('Золотая снайперка',370,45);
+drawSniperProjectile(ctx,280,120,0,false,4);drawSniperProjectile(ctx,620,120,0,true,4);`);
+if(process.argv.includes('--frames'))fs.writeFileSync(path.join(root,'audit/sniper-rounds-v0199.png'),art.canvas.toBuffer('image/png'));
+const source=fs.readFileSync(path.join(root,'src/camp-ui.js'),'utf8');assert(!source.includes('arsenalListen'));assert(!source.includes('Особый авиадроп: шанс'));assert(!source.includes('previewStats'));
+console.log('PASS: no autoplay, click/recoil/projectile/impact, one sound per accepted tap, cooldown, stale/closed/host pause guards, all 20 forms, no game mutations, persistent bullet finish');

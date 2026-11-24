@@ -15,7 +15,7 @@ function prepareRestingDragon(mesh){
   for(const f of faces)for(const p of f.p)for(let i=0;i<3;i++){min[i]=Math.min(min[i],p[i]);max[i]=Math.max(max[i],p[i]);}
   const target=[(min[0]+max[0])/2,max[1]*.45,(min[2]+max[2])/2];
   let radius=0;for(const f of faces)for(const p of f.p)radius=Math.max(radius,Math.hypot(...p.map((v,i)=>v-target[i])));
-  return mesh.resting={faces,min,max,target,radius};
+  return mesh.resting={faces,min,max,target,radius,spec:mesh.d};
 }
 function dragonOrbitCamera(rest,view,w,h){
   const yaw=view.yaw??-.65,pitch=Math.max(.12,Math.min(1.12,view.pitch??.38));

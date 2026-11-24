@@ -2,7 +2,7 @@ const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('ass
 const noop=()=>{},ctx=new Proxy({}, {get:(o,k)=>o[k]||noop,set:(o,k,v)=>(o[k]=v,true)});
 const element=()=>({style:{},classList:{add:noop,remove:noop,contains:()=>true},addEventListener:noop,getContext:()=>ctx,appendChild:noop});
 const box={console,assert,document:{body:element(),getElementById:()=>element(),createElement:element,addEventListener:noop},innerWidth:390,innerHeight:844,devicePixelRatio:1,addEventListener:noop,requestAnimationFrame:noop,setTimeout:noop,localStorage:{getItem:()=>null,setItem:noop},hud:noop};box.window=box;vm.createContext(box);
-for(const f of ['core','config','map-art','arena-secrets','pets','draw-pets','ult','state','progression','world','enemy-hazards','combat','abilities','dragon-economy','dragons','update'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',f+'.js'),'utf8'),box,{filename:f});
+for(const f of ['core','config','map-art','arena-secrets','pets','draw-pets','ult','state','progression','world','enemy-hazards','combat','abilities','dragon-economy','dragons','bosses','boss-loot','update'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',f+'.js'),'utf8'),box,{filename:f});
 vm.runInContext(`
 function offerCards(){queuedLevels=0;paused=false;}
 for(const key of Object.keys(SFX))SFX[key]=()=>{};

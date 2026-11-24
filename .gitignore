@@ -1,0 +1,10 @@
+node_modules/
+.npm-cache/
+audit/*
+!audit/weapon-preview-v0173.wav
+!audit/regression-current.json
+!audit/release-preflight.json
+!audit/imported-v0206-verification.json
+package_v*/
+.DS_Store
+Thumbs.db

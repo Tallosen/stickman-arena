@@ -3,15 +3,36 @@
 
 /* ── цикл ─────────────────────────────────────────────────── */
 let last = 0;
+const ARENA_STEP_MS=1000/60,ARENA_FRAME_MS=100;
+function arenaFrameActive(){
+  return running&&!paused&&!(typeof Playables!=='undefined'&&Playables.blocked);
+}
 (typeof Playables==='undefined'?requestAnimationFrame:Playables.requestFrame)(function loop(now) {
   (typeof Playables==='undefined'?requestAnimationFrame:Playables.requestFrame)(loop);
-  const activeMs=Math.max(0,Math.min(1000,now-last));
-  const dt = Math.min(34, activeMs); last = now;
+  // At most six small steps: a slow display must not shorten combat while
+  // the stage clock keeps advancing. Long stalls are discarded for both.
+  const activeMs=Math.max(0,Math.min(ARENA_FRAME_MS,now-last));
+  const dt=Math.min(34,activeMs);last=now;
   try {
+    if(typeof tickTutorial==="function")tickTutorial(now);
+    if(typeof drawArsenalPreview==='function')drawArsenalPreview(now);
+    if(typeof arenaEnding!=='undefined'&&arenaEnding){updateArenaEnding(dt);if(arenaEnding)drawArenaEnding(ctx);return;}
+    if(typeof drawArenaMenu==='function'&&drawArenaMenu(now))return;
+    if(P.runWon&&typeof drawArenaEndingBackdrop==='function'&&drawArenaEndingBackdrop(ctx))return;
     // Дом полностью закрывает арену: не рисуем второй невидимый игровой кадр.
     if(typeof dragonHomeOpen==="function"&&dragonHomeOpen())return;
-    if (hitStop > 0) { hitStop -= dt;updateRunProgress(activeMs);draw();return; }
-    if (running && !paused) update(dt,activeMs);
+    const steps=Math.min(6,Math.max(1,Math.ceil(activeMs/ARENA_STEP_MS-1e-7)));
+    const stepMs=activeMs/steps;
+    for(let step=0;step<steps&&stepMs>0&&arenaFrameActive();step++){
+      let elapsed=stepMs;
+      if(hitStop>0){
+        const held=Math.min(hitStop,elapsed);hitStop=Math.max(0,hitStop-held);
+        updateRunProgress(held);updateNightLighting(held);elapsed-=held;
+      }
+      if(elapsed>0&&arenaFrameActive())update(elapsed,elapsed);
+      // A level choice, death or cloud save can begin inside update(). The
+      // rest of this frame is dropped, never replayed after the dialog closes.
+    }
     draw();
   } catch (err) {
     running = false;
@@ -21,13 +42,25 @@ let last = 0;
 });
 
 function update(dt,activeMs=dt) {
+  if(typeof runSaveAction==='function'&&!runSaveDepth)return runSaveAction(()=>update(dt,activeMs));
   updateRunProgress(activeMs);
+  if(paused||!running)return;
+  updateBossLootNotice(activeMs);
+  const lootScene=bossLootLocked();
+  if(bossLoot)updateBossLoot(dt,activeMs);
+  if(lootScene||bossLootLocked()||paused||!running)return;
+  updateDamageFeedback(activeMs);
+  updateNightLighting(activeMs);
+  if(!running)return;
   updateUlt(dt);                       // ульта живёт в реальном времени
   if (ult.on) dt *= .30;               // всё остальное — в замедлении
   t += dt; const k = dt / 16.67;
   updateDragonFinale(dt);
   updateAbilities(dt, k);
+  if(stageBoss?.enemy.hp<=0&&stageBoss.enemy.rewarded){updateRunProgress(0);if(!running||paused||bossLootLocked())return;}
+  if(updateBossEncounter(dt))return;
   updateArenaSecrets(dt);
+  updateWeaponDelivery(activeMs);
   if (P.stagePulse > 0) P.stagePulse = Math.max(0, P.stagePulse - dt);
   if (shake > 0) shake = Math.max(0, shake - dt * .045);
   if (xpBoost > 0) xpBoost -= dt;
@@ -76,11 +109,11 @@ function update(dt,activeMs=dt) {
     spawnT -= dt;
     if (spawnT <= 0 && enemies.length < 140) {
       const stage = Math.max(1, P.stage || 1);
-      const wave=stageWave(stage);spawnT = wave.interval;
+      spawnT=stageSpawnInterval(stage,P.stageMs);
       spawn(stageEnemyKind(stage,Math.random(),Math.random()));
     }
-    eliteT -= dt; if (eliteT <= 0) {
-      eliteT = stageWave(P.stage).eliteInterval; spawn("elite"); shake = 10;
+    eliteT -= dt; if (eliteT <= 0 && (isBossStage(P.stage)||stageTempo(P.stage,P.stageMs).phase!=='breather')) {
+      eliteT = stageWave(P.stage).eliteInterval*(typeof campModifier==='function'?campModifier('eliteInterval'):1); if(!isBossStage(P.stage)){spawn("elite");shake=10;}
     }
     chestT -= dt; if (chestT <= 0) { chestT = 13000 - meta.luck * 2200; spawnChest(); }
     healT -= dt; if (healT <= 0) { healT = 15000; spawnHeart(); }
@@ -91,17 +124,17 @@ function update(dt,activeMs=dt) {
     if (dist(h, P) >= 34) continue;
     h.dead = true;
     if (h.kind === "heart") {
-      if (P.hp < P.hpMax) { P.hp++; pops.push({ x: P.x, y: P.y - 52, txt: "+1", life: 1.2, col: "#c8402c" }); }
+      if (P.hp < P.hpMax) { P.hp=Math.min(P.hpMax,P.hp+1); pops.push({ x: P.x, y: P.y - 52, txt: "+1", life: 1.2, col: "#c8402c" }); }
       else { gainXP(150); pops.push({ x:P.x, y:P.y-52, txt:"XP +150", life:1.2, col:"#c79018" }); }
-      SFX.heal();
+      SFX.pickup?.(h.x);
     } else if (h.kind === "haste") {
       P.hasteT = 7000;
       pops.push({ x: P.x, y: P.y - 52, txt: "УСКОРЕНИЕ", life: 1.4, col: "#a8761a" });
-      chain([700, 900, 1200], "square", .05);
+      SFX.pickup?.(h.x);
     } else {
       P.invT = 6000; P.seen = { x: P.x, y: P.y };
       pops.push({ x: P.x, y: P.y - 52, txt: "НЕУЯЗВИМОСТЬ", life: 1.4, col: "#2f7d9c" });
-      chain([500, 700, 990], "sine", .055);
+      SFX.pickup?.(h.x);
     }
   }
   pickups = pickups.filter(h => !h.dead);
@@ -115,6 +148,7 @@ function update(dt,activeMs=dt) {
 
   for (const e of enemies) {
     if(e.hp<=0||e.stormCaught)continue;
+    const bodyStartX=e.x,bodyStartY=e.y;
     enemyResolveRocks(e);
     let tankTarget = null, tankDistance = 1e9;
     for (const q of allyTanks) {
@@ -141,7 +175,10 @@ function update(dt,activeMs=dt) {
       const j = e.slip > 0 ? rnd(-.6, .6) : 0;
       const vl = Math.hypot(vx, vy) || 1;
       const rockHit=enemyDisplace(e,(vx/vl+j)*e.speed*slow*k*intent.pace,(vy/vl+j)*e.speed*slow*k*intent.pace);
-      if(rockHit&&e.kind==='dasher'&&e.attackState==='dash'){e.attackState='recover';e.attackT=550;e.attackCd=2600;}
+      if(rockHit&&(e.kind==='dasher'||e.boss)&&e.attackState==='dash'){
+        e.attackState='recover';e.attackT=e.boss?750:550;e.attackCd=2600;
+        if(e.boss)openBossWindow(e,e.bossSpec.id==='bruiser'?1200:750,'stagger');
+      }
       if(e.kb>0){
         // Ordinary impacts slow the advance, but cannot indefinitely pin a survivor.
         const recoil=Math.min(e.kb,e.speed*slow*intent.pace*.65)*k;
@@ -153,7 +190,8 @@ function update(dt,activeMs=dt) {
     }
     const baseKind=enemyBaseKind(e.kind);
     const anim = baseKind === 'runner' ? .30 : baseKind === 'tank' ? .13 : baseKind === 'elite' ? .17 : .23;
-    e.phase += (anim * slow + (e.slip > 0 ? .3 : 0)) * k;
+    if(e.boss){const travel=Math.hypot(e.x-bodyStartX,e.y-bodyStartY);e.moveBlend=(e.moveBlend||0)+(Math.min(1,travel/Math.max(.1,e.speed*k))-(e.moveBlend||0))*Math.min(1,dt/120);e.phase+=travel/Math.max(1,e.r/11*3.8);}
+    else e.phase += (anim * slow + (e.slip > 0 ? .3 : 0)) * k;
     if (e.slip > 0) e.slip -= dt / 500;
     if (e.flash > 0) e.flash -= dt;
     if (e.poison > 0) e.poison -= dt;
@@ -174,11 +212,8 @@ function update(dt,activeMs=dt) {
     if (dist(e, P) < P.r + e.r && P.hurt <= 0 && P.invT <= 0 && !dragonFinale) {
       // мелкие снимают половину сердца, крупные — больше
       const base = baseKind === "elite" ? 1.5 : baseKind === "tank" ? 1 : .5;
-      const dmg = Math.min(2.5, base + Math.floor((P.stage - 1) / 3) * .5);
-      P.hp = Math.round((P.hp - dmg) * 2) / 2;
-      P.hurt = P.iframe; shake = dmg >= 1 ? 14 : 9; SFX.hurt();
-      pops.push({ x: P.x, y: P.y - 40, txt: dmg === .5 ? "-½" : "-" + dmg, life: 1, col: FOE });
-      if (P.hp <= 0) return gameOver();
+      const dmg = e.boss?1+P.stage/10:Math.min(2.5, base + Math.floor((P.stage - 1) / 3) * .5);
+      if(hurtHero(dmg,e,true))return;
     }
   }
   // мягкое расталкивание через сетку, иначе толпа слипается и стоит
@@ -211,59 +246,38 @@ function update(dt,activeMs=dt) {
   for (const m of mines) {
     if(m.mini){m.ttl=(m.ttl??11000)-dt;if(m.ttl<=0){m.dead=true;continue;}}
     if (m.arm > 0) { m.arm -= dt; continue; }
-    for (const e of enemies) if (petEnemyAlive(e)&&Math.hypot(e.x - m.x, e.y - m.y) < e.r + (m.mini ? 18 : 26)) { m.dead = true; explode(m.x, m.y, m.mini ? (m.blastR||72) : 130, m.mini ? m.dmg : 9); break; }
+    for (const e of enemies) if (petEnemyAlive(e)&&Math.hypot(e.x - m.x, e.y - m.y) < e.r + (m.mini ? 18 : 26)) { m.dead = true; explode(m.x, m.y, m.mini ? (m.blastR||72) : 130, m.mini ? m.dmg : 9,m.mini?'mineMini':'mineBlast'); break; }
   }
   mines = mines.filter(m => !m.dead);
   for (const g of nades) {
     g.x += g.vx * k; g.y += g.vy * k; g.vx *= .965; g.vy *= .965; g.fuse -= dt;
-    if (g.fuse <= 0) { g.dead = true;triggerArenaSecret('nade',g.x,g.y,155);explode(g.x, g.y, 155, 7); }
+    if (g.fuse <= 0) { g.dead = true;triggerArenaSecret('nade',g.x,g.y,155);explode(g.x, g.y, 155, 7,'grenadeBlast'); }
   }
   nades = nades.filter(g => !g.dead);
 
   updateHeroFire(dt);
-  for (const s of shots) {
-    steerBackpackShot(s,dt,k);
-    s.x += s.vx * k; s.y += s.vy * k; s.life -= dt;
-    if(s.source==='backpack'&&(s.life<=0||dist(s,s.anchor)>s.range+48)){s.life=0;continue;}
-    for (const e of enemies) {
-      if(s.source==='backpack'&&!backpackTargetInRange(s,e))continue;
-      if (e.hp <= 0 || Math.hypot(e.x - s.x, e.y - s.y) > e.r + 4) continue;
-      if (s.pierce) {
-        if (s.hit.includes(e)) continue;
-        s.hit.push(e);
-        const big = enemyBaseKind(e.kind) === "tank" || e.kind === "elite";
-        if (s.crit && big) {                       // крит только по крупным
-          hit(e, (s.dmg || P.damage) * 3, s.x, s.y);
-          pops.push({ x: e.x, y: e.y - e.r - 26, txt: "КРИТ!", life: 1.4, col: "#8a53c4" });
-          shake = Math.max(shake, 15);
-          chain([1200, 900], "square", .05); noise(.16, .05, 3000, -2200);
-        } else hit(e, s.dmg || P.damage, s.x, s.y);
-      } else { hit(e, s.dmg || P.damage, s.x, s.y); s.life = 0; break; }
-    }
-  }
-  shots = shots.filter(s => s.life > 0);
+  updateHeroProjectiles(dt,k);
   enemies = enemies.filter(e => e.hp > 0);
 
   for (const c of chests) {
     c.a += .04 * k;
     if(c.dead)continue;
+    c.retryT=Math.max(0,(c.retryT||0)-dt);
     if(c.elite){
-      c.retryT=Math.max(0,(c.retryT||0)-dt);
       if(c.dropT>0){c.dropT=Math.max(0,c.dropT-dt);
-        if(c.dropT===0){SFX.chest();shake=Math.max(shake,7);
+        if(c.dropT===0){SFX.crateLand?.(c.x);shake=Math.max(shake,7);
           pops.push({x:c.x,y:c.y-60,txt:'ЭЛИТНЫЙ СУНДУК',life:2,col:'#8650b1'});}
         continue;
       }
       if(c.landT>0){c.landT=Math.max(0,c.landT-dt);continue;}
     }
     if (dist(c, P) < 42) {
-      if(c.elite){if(grantEliteChestReward(c)){c.dead=true;SFX.chest();}continue;}
-      c.dead = true; SFX.chest();
-      if (c.rare) grantRandomAbility(c.x, c.y);
-      else {
-        P.item = c.item;
-        pops.push({ x: P.x, y: P.y - 48, txt: ITEMS[c.item].name, life: 1.4, col: ITEMS[c.item].col });
-      }
+      if(c.elite){if(grantEliteChestReward(c))c.dead=true;continue;}
+      if(c.rare){if(grantRandomAbility(c.x,c.y,c))c.dead=true;continue;}
+      c.dead = true;
+      P.item = c.item;
+      SFX.pickup?.(c.x);
+      pops.push({ x: P.x, y: P.y - 48, txt: ITEMS[c.item].name, life: 1.4, col: ITEMS[c.item].col });
     }
   }
   chests = chests.filter(c => !c.dead);
@@ -320,6 +334,7 @@ function update(dt,activeMs=dt) {
   for (const f of flashes) { f.r += (f.max - f.r) * .34 * k; f.life -= dt / 320; }
   flashes = flashes.filter(f => f.life > 0);
   updateDragonAltar(dt);
+  if(stageBoss?.enemy.hp<=0&&stageBoss.enemy.rewarded){updateRunProgress(0);if(!running||bossLootLocked())return;}
   if (queuedLevels > 0 && !paused && !ult.on && !dragonFinale && !compassStorm) { SFX.level(); offerCards(); }
 }
 function gainXP(amount) {

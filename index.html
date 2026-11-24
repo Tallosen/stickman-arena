@@ -44,7 +44,7 @@
   .card b{display:block;font-size:14px}
   .card span{font-size:11.5px;opacity:.65}
   .tag{font-size:11px;letter-spacing:.12em;opacity:.5}
-  .hud-btn{position:fixed;right:14px;bottom:20px;width:86px;height:86px;border-radius:50%;
+  .hud-btn{position:fixed;right:calc(14px + env(safe-area-inset-right,0px));bottom:calc(20px + env(safe-area-inset-bottom,0px));width:86px;height:86px;border-radius:50%;
     border:3px solid #2b2620;background:#fdf6e8;box-shadow:3px 3px 0 #2b2620;
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
     cursor:pointer;z-index:8;font-family:inherit;color:#2b2620;padding:0}
@@ -69,7 +69,19 @@
   .hud-badge{position:fixed;left:14px;bottom:22px;width:88px;height:88px;z-index:8;
     pointer-events:auto;cursor:pointer}
   .hud-badge:active{transform:scale(.94)}
-  .ability-dock{position:fixed;left:50%;bottom:82px;transform:translateX(-50%);display:flex;gap:7px;z-index:8}
+  .ability-dock{position:fixed;right:calc(29px + env(safe-area-inset-right,0px));bottom:calc(120px + env(safe-area-inset-bottom,0px));z-index:8}
+  .ability-dock.hidden{display:none}
+  .ability-toggle{position:relative;display:grid;place-items:center;width:56px;height:56px;padding:0;border:2.6px solid #2b2620;border-radius:50%;background:#f5dfaf;color:#2b2620;box-shadow:3px 3px 0 #2b2620;cursor:pointer;touch-action:manipulation}
+  .ability-toggle svg{width:30px;height:30px;pointer-events:none}
+  .ability-toggle b{position:absolute;right:-4px;top:-5px;min-width:21px;padding:0 5px;border:2px solid #2b2620;border-radius:12px;background:#c9631c;color:#fff8ec;font:900 11px/17px system-ui;pointer-events:none}
+  .ability-toggle::after{content:'‹';position:absolute;left:4px;top:17px;font:800 20px/18px system-ui}
+  .ability-toggle[aria-expanded="true"]{background:#eec783}.ability-toggle[aria-expanded="true"]::after{content:'›'}
+  .ability-toggle:disabled{opacity:.45;cursor:default;box-shadow:none}
+  .ability-toggle:focus-visible,.ability-slot:focus-visible{outline:3px solid #c9631c;outline-offset:4px}
+  .ability-panel{position:absolute;right:calc(100% + 10px);bottom:-7px;display:flex;gap:8px;padding:7px;background:rgba(253,246,232,.96);border:1.5px solid #b3986c;border-radius:38px;box-shadow:0 3px 8px #2b262024;animation:ability-reveal .14s ease-out;touch-action:manipulation}
+  .ability-panel[hidden]{display:none}
+  @keyframes ability-reveal{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:translateX(0)}}
+  @media(prefers-reduced-motion:reduce){.ability-panel{animation:none}}
   .ability-slot{position:relative;width:56px;height:56px;border-radius:50%;border:2.6px solid #2b2620;
     background:#fdf6e8;box-shadow:3px 3px 0 #2b2620;cursor:pointer;padding:0;overflow:visible}
   .ability-slot canvas{width:44px;height:44px;margin:3px auto 0}
@@ -87,133 +99,276 @@
   body.dragon-finale .hud-btn,body.dragon-finale .hud-pause,
   body.dragon-finale .hud-dev,body.dragon-finale .hud-badge,
   body.dragon-finale .ability-dock,body.dragon-finale .hud-book{opacity:0!important;pointer-events:none!important;transition:opacity .18s ease}
-  .book-overlay{display:block;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;touch-action:pan-y;
-    padding:12px max(10px,env(safe-area-inset-right)) max(18px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));background:rgba(239,224,194,.98);z-index:12}
-  .book-overlay.hidden{display:none}
-  .book-cover{width:min(760px,100%);min-width:0;margin:0 auto;padding:0 14px 16px;border:3px solid #6e5437;border-radius:16px;
-    background:#f5e8c9;box-shadow:0 4px 0 #bca27c;text-align:left}
-  .book-header{position:sticky;top:0;z-index:2;display:grid;grid-template-columns:minmax(0,1fr) 44px;gap:2px 10px;
-    padding:13px 0 9px;background:#f5e8c9;border-bottom:1px solid #c7b18b;border-radius:12px 12px 0 0}
-  .book-header h2{font-size:21px;letter-spacing:0;line-height:1.15}
-  .book-header .tag{font-size:10px;letter-spacing:0;opacity:1;color:#80684a;line-height:1.5;margin-top:4px}
-  .book-close{width:44px;height:44px;border:2px solid #6e5437;border-radius:11px;background:#fff7e7;color:#493923;font-size:25px;cursor:pointer;touch-action:manipulation}
-  .book-close:focus-visible,.craft-btn:focus-visible{outline:3px solid #287e94;outline-offset:2px}
-  .book-recipe{margin:12px 0;color:#715739;font-size:12px;font-weight:700;line-height:1.5}
-  .book-recipe b{display:inline-block;margin-right:6px;border:1px solid #bf9e64;border-radius:7px;padding:3px 9px;background:#efdab0;color:#755021}
-  .dragon-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}
-  .dragon-card{display:grid;grid-template-columns:88px minmax(0,1fr);gap:7px 10px;align-items:center;min-width:0;
-    padding:10px;border:1.7px solid #9a815d;border-radius:12px;background:#fff7e7;text-align:left}
-  .dragon-card canvas{display:block;width:88px;height:70px;max-width:100%;pointer-events:none;touch-action:pan-y}
-  .dragon-copy{min-width:0;overflow-wrap:anywhere}.dragon-card b{display:block;font-size:14px;line-height:1.25}
-  .dragon-card span{display:block;font-size:9px;color:#897357;margin-top:4px;letter-spacing:.03em}
-  .dragon-card strong{display:block;color:#8f6326;font-size:18px;margin-top:5px;line-height:1.15;overflow-wrap:anywhere}
-  .dragon-card.locked canvas{filter:saturate(.5);opacity:.6}.dragon-card.owned{background:#fff9ec}
   .victory-dragon{background:radial-gradient(circle at 50% 42%,#fff7cb,#e9d09d 62%,#b88745);}
   #victoryDragonCanvas{width:min(360px,88vw);height:210px}
-  @media(max-width:559px){.hud-pause{top:72px}.hud-book{top:124px}.dragon-grid{grid-template-columns:1fr;gap:10px}.book-cover{padding:0 10px 12px}.book-header h2{font-size:19px}}
-  @media(max-width:420px){.ability-dock{bottom:80px;gap:5px}.ability-slot{width:51px;height:51px}.ability-slot canvas{width:40px;height:40px}}
-  .hud-egg{left:66px!important}.hud-home{left:118px!important}
-  .dragon-entry-icon{width:28px;height:28px;display:block;pointer-events:none}.dragon-entry-icon svg{width:100%;height:100%}
-  .dragon-entry-row{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin:10px 0}
-  .dragon-entry-row button{display:flex;align-items:center;gap:7px;min-height:44px;padding:7px 12px;border:2px solid #655239;border-radius:10px;background:#f4e2b9;color:#493820;font:800 12px system-ui;cursor:pointer;box-shadow:2px 2px 0 #655239}
-  .dragon-entry-row button:focus-visible{outline:3px solid #287e94;outline-offset:2px}
-  .craft-btn{display:block;grid-column:1/-1;width:100%;min-width:0;min-height:44px;padding:9px 10px;border:1.7px solid #957039;border-radius:9px;
-    background:#efd18e;color:#49351d;font:800 12px/1.35 system-ui;white-space:normal;overflow-wrap:anywhere;cursor:pointer;touch-action:manipulation}
-  .craft-btn:active:not(:disabled){background:#e8c171}.craft-btn:disabled{background:#eee6d6;border-color:#c9baa0;color:#8a7c65;cursor:default}
-  .book-note{max-width:none;font-size:11px;opacity:1;color:#806b4d;margin-top:12px;line-height:1.5}
-  #craftMessage{grid-column:1/-1;min-height:17px;margin:5px 0 0;font-size:11px;line-height:1.4;color:#527644;overflow-wrap:anywhere}
-  #craftMessage.craft-error{color:#a33928}
-  .home-overlay{position:fixed;inset:0;z-index:16;overflow:auto;background:#f5ecdd;color:#2b2620;padding:20px max(16px,env(safe-area-inset-right)) 26px max(16px,env(safe-area-inset-left));touch-action:pan-y;background-image:linear-gradient(#c6b99a24 1px,transparent 1px),linear-gradient(90deg,#c6b99a24 1px,transparent 1px);background-size:48px 48px}
-  .home-overlay.hidden{display:none}.home-shell{max-width:1120px;margin:auto}
-  .home-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;border-bottom:3px solid #2b2620;padding-bottom:14px}
-  .home-eyebrow{font-size:10px;letter-spacing:.14em;color:#8d641e;margin-bottom:5px;font-weight:800}.home-header h2{font-size:27px;font-weight:900;letter-spacing:.02em}
-  .home-header button,.home-tools button,.home-tabs button,.home-secondary,.home-pager button,.home-admin button{border:2px solid #2b2620;background:#fff7e7;color:#2b2620;padding:10px 14px;border-radius:9px 7px 10px 8px;cursor:pointer;min-height:42px;font-weight:800;box-shadow:2px 2px 0 #2b2620}
-  .home-wallet{color:#685d48;font-size:12px;margin-top:8px;white-space:pre-line;line-height:1.5}.home-header>button{white-space:nowrap;flex-shrink:0}
-  .home-tabs{display:flex;gap:10px;margin-bottom:18px}.home-tabs button[aria-selected="true"]{background:#d2691e;color:#fff8ec}
-  .home-layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(280px,1fr);gap:20px}
-  .home-scene{position:sticky;top:12px;border:3px solid #2b2620;border-radius:13px 10px 15px 9px;overflow:hidden;background:#f5ecdd;align-self:start;box-shadow:4px 4px 0 #b8a78b}
-  #homeCanvas{width:100%;height:410px;touch-action:none}
-  .home-scene-copy{padding:12px 15px 17px;min-height:80px;text-align:center;border-top:2px solid #a6906b;background:#efe0bb}.home-scene-copy h3{font-size:19px;font-weight:900;color:#473724}.home-scene-copy p{font-size:11px;max-width:none;margin-top:7px;color:#736247;opacity:1}
-  .home-panel{background:#f9f0db;border:3px solid #2b2620;border-radius:9px 13px 8px 12px;padding:22px;box-shadow:4px 4px 0 #b8a78b}
-  .home-panel h3{font-size:21px;font-weight:900}.home-panel p{max-width:none;color:#6d5c43;opacity:1;font-size:12px;margin:13px 0;line-height:1.65}
-  .home-panel .home-small{font-size:11px;color:#827154}
-  .home-dragon-stock{display:inline-flex;align-items:center;gap:10px;padding:8px 14px 8px 9px;background:#f5ecd6;border:2px solid #8c7652;border-radius:12px;color:#493d2c;font-size:26px;font-weight:900;line-height:1;margin:18px 0;font-variant-numeric:tabular-nums;max-width:100%;box-sizing:border-box}
-  .diamond-stock-icon{width:40px;height:40px;flex:none;overflow:visible}
-  #incubatorPanel{align-self:start}#incubatorPanel .incubator-rule{font-size:11px;margin:6px 0 0;color:#736247}
-  .home-scene-copy p:empty{display:none}.home-overlay:not(.view-warehouse) .home-scene-copy{min-height:0;padding:12px}
-  .home-progress{height:13px;background:#e3d5b9;border:2px solid #2b2620;border-radius:5px;overflow:hidden;margin:12px 0 22px}.home-progress>div{height:100%;background:#a6bd7d;transition:width .4s ease}
-  #eggProgressText{font-size:12px;font-weight:800;color:#665438}.home-primary{width:100%;border:2px solid #2b2620;padding:14px 10px;background:#d2691e;color:#fff8ec;border-radius:9px;font-size:12px;font-weight:900;cursor:pointer;min-height:50px;box-shadow:3px 3px 0 #2b2620}
-  .home-primary:disabled,.home-pager button:disabled{opacity:.4;cursor:default;box-shadow:none}.home-secondary{width:100%;margin-top:12px;font-size:12px}
-  .home-tools{display:flex;gap:7px;justify-content:center;flex-wrap:wrap;padding:12px 10px 15px;background:#efe0bb}.home-tools.hidden{display:none}.home-tools button{padding:8px 10px;font-size:10px}
-  .home-status{min-height:24px;color:#70552e;font-size:12px;margin:18px 0;line-height:1.5}
-  .exclusive-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 8px;margin-top:15px}
-  .exclusive-grid>p{grid-column:1/-1}.exclusive-card{position:relative;border:2px solid #5f4b31;border-bottom:5px solid #97754d;border-radius:8px;background:#f4e7c9;color:#473723;padding:0 0 8px;overflow:hidden;cursor:pointer;min-width:0}
-  .exclusive-card.selected{border-color:#d2691e;box-shadow:0 0 0 2px #d2691e33}.exclusive-card canvas{width:100%;height:auto;pointer-events:none}.exclusive-card span{display:block;font-size:10px;padding:0 6px;min-height:30px;font-weight:700}.exclusive-card b{position:absolute;top:4px;right:5px;font-size:9px;background:#fff4d9d9;padding:2px 4px;border-radius:4px;color:#795020}
-  .home-pager{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:17px;font-size:11px;font-weight:700}.home-pager button{padding:7px 13px}
-  .home-admin{margin:18px 0;border:2px dashed #97754d;border-radius:8px;background:#efdfbd;padding:12px}.home-admin summary{cursor:pointer;font-size:12px;font-weight:800}.home-admin-actions{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}.home-admin button{font-size:11px}.home-admin p{max-width:none;font-size:11px}
-  #adminFilterRow{font-size:11px;font-weight:800;margin-top:12px}#adminFamily{display:block;margin-top:6px;width:100%;padding:10px;border:2px solid #7c6849;border-radius:6px;background:#fff7e7;color:#493d2c}
-  @media(max-width:650px){.home-overlay{padding-top:max(14px,env(safe-area-inset-top))}.home-layout{grid-template-columns:1fr;gap:16px}.home-header{margin-bottom:14px}.home-header h2{font-size:22px}.home-header button{padding:8px 11px}.home-wallet{font-size:11px}.home-panel{padding:17px}#homeCanvas{height:260px}.home-scene-copy{min-height:65px}.home-scene-copy h3{font-size:16px}.home-tabs button{flex:1;font-size:12px}.exclusive-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.home-status{margin:12px 0}.home-eyebrow{font-size:9px}.home-admin-actions{flex-direction:column}}
-  @media(max-width:650px){.home-scene{position:relative;top:auto}}
-  @media(prefers-reduced-motion:reduce){.home-progress>div{transition:none}}
-  /* Collection becomes a drawer inside the habitat, not a second page of controls. */
-  .home-overlay.view-warehouse .home-layout{display:block}
-  .home-overlay.view-warehouse .home-scene{position:relative;top:auto}
-  .home-overlay.view-warehouse #homeCanvas{display:block;height:clamp(360px,70dvh,680px)}
-  .home-overlay.view-warehouse .home-scene-copy{position:absolute;bottom:0;left:0;right:0;min-height:0;padding:24px 15px 14px;border:0;background:linear-gradient(transparent,#172020df);pointer-events:none}
-  .home-overlay.view-warehouse .home-scene-copy h3{color:#fff1d4;font-size:17px}
-  .home-overlay.view-warehouse .home-scene-copy p{color:#ebd9b3;margin-top:4px}
-  .home-overlay.view-warehouse:not(.inspecting) .home-scene-copy,.home-overlay.drawer-open .home-scene-copy{display:none}
-  .cave-collection-toggle{position:absolute;right:12px;top:12px;z-index:3;display:flex;align-items:center;gap:7px;min-width:46px;min-height:46px;padding:7px 11px;border:2px solid #655239;border-radius:12px;background:#f6e7c8f2;color:#493820;box-shadow:0 3px 12px #0003;cursor:pointer}
-  .cave-collection-toggle span:first-child{font-size:24px;line-height:1}.cave-collection-toggle span:last-child{font-size:12px;font-weight:800}
-  .cave-collection-toggle.hidden,.cave-drawer.hidden{display:none}
-  .cave-drawer{position:absolute;left:12px;right:12px;bottom:12px;z-index:2;max-height:72%;overflow-y:auto;overscroll-behavior:contain;background:#f6ead1f5;border:2px solid #796343;border-radius:13px;padding:12px;box-shadow:0 6px 24px #0005}
-  .cave-drawer header{display:flex;align-items:center;justify-content:space-between;gap:10px}.cave-drawer h3{font-size:15px}.cave-drawer #warehouseCount{font-size:10px;color:#79664a;margin:0;text-align:right}
-  .cave-drawer .exclusive-grid{display:grid;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:112px;gap:8px;margin-top:10px;overflow-x:auto;padding:2px 2px 7px;overscroll-behavior-x:contain;touch-action:pan-x;scrollbar-width:thin}
-  .cave-drawer .exclusive-grid>p{grid-column:auto;width:240px;font-size:12px;color:#766348}
-  .cave-drawer .exclusive-card{width:112px;align-self:start}.cave-drawer .exclusive-card span{font-size:10px;min-height:26px}
-  .cave-drawer .home-pager{margin-top:5px}.cave-drawer .home-pager.hidden{display:none}
-  .cave-drawer #adminFilterRow{margin-top:8px;font-size:10px}.cave-drawer #adminFamily{padding:6px;margin-top:4px}
-  .home-status:empty{display:none}.home-overlay.view-warehouse .home-header{margin-bottom:10px;padding-bottom:9px}.home-overlay.view-warehouse .home-tabs{margin-bottom:10px}
-  #homeCanvas:focus-visible,.cave-collection-toggle:focus-visible{outline:3px solid #edb658;outline-offset:-4px}
-  @media(max-width:650px){.home-overlay.view-warehouse #homeCanvas{height:clamp(340px,66dvh,580px)}.cave-drawer{left:8px;right:8px;bottom:8px;padding:10px}.cave-drawer .exclusive-grid{grid-auto-columns:104px}.cave-drawer .exclusive-card{width:104px}.home-overlay.view-warehouse .home-header .home-eyebrow{display:none}}
-  #platformGate{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;background:#f5ecddf7;padding:28px;text-align:center}
-  #platformGate[hidden]{display:none}#platformMessage{max-width:360px;font-size:15px;line-height:1.5;color:#6b5235}
-  #platformRetry{min-height:48px;padding:12px 24px;border:2px solid #6e5437;border-radius:10px;background:#efd18e;font:700 14px system-ui;color:#49351d}
-  #platformRetry[hidden]{display:none}
+  @media(max-width:559px){.hud-pause{top:72px}}
+  @media(max-width:420px){.ability-dock{right:calc(31px + env(safe-area-inset-right,0px))}.ability-toggle{width:52px;height:52px}.ability-panel{right:calc(100% + 8px);gap:6px;padding:6px;bottom:-5px}.ability-slot{width:48px;height:48px;flex:0 0 48px}.ability-slot canvas{width:38px;height:38px}}
+  .dragon-menu-buttons{display:grid;gap:10px;width:min(350px,100%)}
+  .menu-action-row{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;align-items:center;min-width:0}
+  .primary-menu-action{width:min(350px,100%)}.primary-menu-action>.btn{min-width:0;padding-left:12px;padding-right:12px}
+  .menu-action{min-width:0;min-height:48px;padding:10px 14px;font:700 14px system-ui;color:#493a27;background:#f5e7c5;border:2px solid #65543b;border-radius:11px;box-shadow:2px 2px 0 #b8a78b;cursor:pointer;touch-action:manipulation}
+  button.help-dot{display:inline-grid;place-items:center;flex:0 0 44px;width:44px;height:44px;min-height:44px;padding:0;border:1.5px solid #a48b67;border-radius:50%;background:#fff8e9;color:#816039;font:800 19px system-ui;box-shadow:none;cursor:pointer;touch-action:manipulation}
+  .help-heading{display:flex;align-items:center;gap:8px;min-width:0}.help-heading>h2,.help-heading>h3{min-width:0}.scene-help-heading{justify-content:center}
+  .menu-action:focus-visible,.help-dot:focus-visible{outline:3px solid #bc7a26;outline-offset:2px}
+  .game-help{position:fixed;inset:0;z-index:40;background:#2b261e88;display:grid;place-items:center;padding:20px;overscroll-behavior:contain}
+  button.help-dot.hidden{display:none}
+  .game-help.hidden{display:none}.game-help-card{width:min(420px,100%);max-height:calc(100dvh - 40px);overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;background:#fff4dc;border:2px solid #584b37;border-radius:16px;padding:18px;box-shadow:4px 4px 0 #342b2377}
+  .game-help-card header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}.game-help-card h2{font-size:18px;letter-spacing:0}
+  .game-help-card p{font-size:13px;line-height:1.6;max-width:none;text-align:left;opacity:1;color:#725c3e;margin:10px 0}
 
-  /* Collection: paper nest cells, no nested drawer or room-sized scene. */
-  .home-header>div{min-width:0;overflow-wrap:anywhere}
-  .home-overlay.view-warehouse .home-layout{display:block}
-  .home-overlay.view-warehouse:not(.inspecting) .home-scene{display:none}
-  .home-overlay.view-warehouse .cave-drawer{position:static;max-height:none;overflow:visible;margin:0;padding:0;border:0;box-shadow:none;background:none}
-  .home-overlay.view-warehouse .cave-drawer.hidden{display:none}
-  .home-overlay.view-warehouse .cave-drawer header{padding:2px 0 12px}
-  .home-overlay.view-warehouse .cave-drawer h3{display:none}
-  .home-overlay.view-warehouse .exclusive-grid{display:grid;grid-auto-flow:row;grid-auto-columns:auto;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;overflow:visible;padding:0;margin:0}
-  .home-overlay.view-warehouse .exclusive-card{width:100%;min-width:0;padding:0 0 12px;border:2px solid #776347;border-radius:13px 10px 14px 11px;background:#fff5df;box-shadow:0 3px 0 #c7b38d;touch-action:pan-y;overflow:hidden;position:relative;cursor:pointer}
-  .home-overlay.view-warehouse .exclusive-card canvas{display:block;width:100%;height:auto;aspect-ratio:164/112;touch-action:pan-y;pointer-events:none}
-  .home-overlay.view-warehouse .exclusive-card span{display:block;padding:7px 8px 0;min-height:38px;font:800 12px/1.3 system-ui;overflow-wrap:anywhere;color:#493b28}
-  .home-overlay.view-warehouse .exclusive-card b{position:absolute;right:7px;top:7px;font:800 11px system-ui;color:#60472b;border:1px solid #b6a078;border-radius:7px;padding:3px 6px;background:#fff5dfed}
-  .home-overlay.view-warehouse .exclusive-card:focus-visible{outline:3px solid #c88c32;outline-offset:3px}
-  .home-overlay.view-warehouse .exclusive-card:hover{border-color:#b67727}
-  .home-overlay.view-warehouse .exclusive-grid>p{grid-column:1/-1;width:auto;padding:40px 18px;border:2px dashed #bbaa8a;border-radius:14px;text-align:center}
-  .home-overlay.view-warehouse #homeCanvas{height:clamp(270px,52dvh,480px);background:#f5ecdd}
-  .home-overlay.view-warehouse .home-scene-copy{position:static;background:#efe0bb;padding:12px;border-top:1px solid #b8a17a;pointer-events:auto}
-  .home-overlay.view-warehouse .home-scene-copy h3{color:#493b28}
-  .home-overlay.view-warehouse .home-scene-copy p{color:#7c6746}
-  .home-overlay.view-warehouse .cave-collection-toggle{left:10px;right:auto;top:10px;min-height:44px}
-  @media(max-width:650px){.home-overlay.view-warehouse .exclusive-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.home-overlay.view-warehouse .exclusive-card{width:100%}}
+  .guide-launch{position:fixed;right:14px;top:14px;z-index:25}button.guide-launch.hidden{display:none}
+  .home-overlay,.book-cover{padding-bottom:74px}
+  .tutorial{position:fixed;inset:0;z-index:60;background:#25211955;touch-action:none}
+  .tutorial.hidden{display:none}
+  #tutorialSpot{position:fixed;border:3px solid #e6ab4b;border-radius:14px;box-shadow:0 0 0 4px #fff3cf88;pointer-events:none}
+  .tutorial-card{position:fixed;width:min(350px,calc(100vw - 28px));max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;padding:19px;background:#fff4dc;border:2px solid #5b4932;border-radius:16px;box-shadow:4px 4px 0 #49391f44;text-align:left}
+  .tutorial-tag{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#ae782f;margin-bottom:7px}
+  .tutorial-card h2{font-size:19px;letter-spacing:0}.tutorial-card p{max-width:none;opacity:1;color:#725b3c;font-size:13px;line-height:1.55;margin:10px 0 15px}
+  .tutorial-actions{display:flex;flex-direction:column;gap:9px}.tutorial-actions .btn{min-height:44px;font-size:14px}
+  #btnTutorialSkip{background:transparent;border:0;min-height:44px;color:#8c7451;font:12px system-ui;cursor:pointer}
+  #btnReplayTutorial{width:100%;margin-top:10px}
 
+  .main-menu-shell{position:relative;width:min(410px,100%);display:flex;flex-direction:column;align-items:stretch;gap:13px;padding:25px;background:linear-gradient(150deg,#fff8e9,#f1e2bd);border:2px solid #69573d;border-radius:22px 17px 23px 16px;box-shadow:5px 6px 0 #69573d33;text-align:center}
+  .main-menu-shell h1{font-size:25px;line-height:1.2}.main-menu-shell h2{font-size:24px;letter-spacing:0}.main-menu-shell p{align-self:center;margin:0;max-width:310px;font-size:12px}
+  .menu-eyebrow{font-size:10px;font-weight:850;letter-spacing:.16em;color:#9a743f}.menu-section-label{text-align:left;font-size:10px;font-weight:800;letter-spacing:.1em;color:#987c52;border-top:1px solid #c8b58f;padding-top:16px;margin-top:3px}
+  .main-menu-shell .primary-menu-action,.main-menu-shell .dragon-menu-buttons{width:100%}
+  .main-menu-shell .primary-menu-action>.btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:50px;border:1px solid #a55319;box-shadow:0 3px 0 #9a5a23}
+  .play-symbol{font-size:17px}
+  .dragon-menu-buttons .menu-action{display:flex;align-items:center;text-align:left;gap:12px;padding:9px 12px;min-height:62px;background:#fff5df;border:1.5px solid #a8926b;box-shadow:0 2px 0 #bca77f;font-size:14px}
+  .menu-icon{width:38px;height:38px;flex:0 0 38px;display:grid;place-items:center;border-radius:10px;background:#e6ead9}.menu-icon svg{width:34px;height:34px}.menu-icon-book{background:#e2e9e4}.menu-icon-egg{background:#f1e0b4}.menu-icon-pet{background:#dfe7cd}
+  .menu-chevron{margin-left:auto;font-size:24px;font-weight:400;color:#a08250}
+
+
+  .main-menu-shell #btnRestart{background:transparent;color:#897454;border:1px solid #bfad8d;box-shadow:none;min-height:44px;font-size:12px;letter-spacing:.02em}
+  #pauseStats{font-size:11px;color:#907550;opacity:1}
+  .menu-build-info{display:flex;align-items:center;justify-content:center;gap:7px;align-self:center;justify-self:center;max-width:100%;margin-top:10px;padding:6px 0 2px;color:#88765d;font:10px/1.5 system-ui;letter-spacing:.04em;white-space:nowrap}
+  #verTag{position:static;font:inherit;letter-spacing:inherit;font-variant-numeric:tabular-nums}
+  #start .menu-camp-hint{font-size:11px;color:#8a7659;max-width:100%;margin-top:-5px}
+  #start #menuRecord{font-size:12px;color:#796346;letter-spacing:.02em}
+  @media(max-width:370px){.main-menu-shell{padding:18px;gap:11px}.dragon-menu-buttons .menu-action{font-size:12px;gap:9px}}
+  .menu-language-status:empty{display:none}.menu-language-status{color:#a14c32;font-size:11px}
+  .menu-settings{display:flex;justify-content:flex-end;padding-top:3px;margin-top:3px}
+  .menu-icon-controls{display:flex;align-items:center;gap:8px}
+  .round-setting{position:relative;display:grid;place-items:center;width:44px;height:44px;flex:0 0 44px;padding:0;color:#403a31;background:transparent;border:0;border-radius:50%;box-shadow:none;cursor:pointer;touch-action:manipulation}
+  .round-setting::before{content:"";position:absolute;inset:4px;border:2px solid #c3bdb0;border-radius:50%;background:#fff9ee;box-shadow:0 2px 0 #b7a98d40;pointer-events:none}
+  .round-setting svg{position:relative;width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+  .round-setting:hover::before{border-color:#917650;background:#fffdf6}
+  .round-setting:focus-visible,.round-setting:focus-within{outline:2px solid #ce771f;outline-offset:2px}
+  .sound-slash{display:none}.sound-muted .sound-waves{display:none}.sound-muted .sound-slash{display:block}
+  .language-pill{display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:7px 13px;border:2px solid #403a31;border-radius:13px;background:#fff8e9;color:#302a23;font:13px system-ui;cursor:pointer;box-shadow:none;touch-action:manipulation}
+  .language-pill:hover{background:#fffdf5}.language-pill:focus-visible,.language-choices button:focus-visible{outline:2px solid #c87135;outline-offset:3px}
+  .language-dialog{position:fixed;inset:0;z-index:65;display:grid;place-items:center;padding:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));background:#f5ecdded;overflow-y:auto;overscroll-behavior:contain}
+  .language-card{position:relative;width:min(370px,100%);padding:56px 20px 34px;background:#f8efdf;border:2px solid #69573d;border-radius:20px;text-align:center;box-sizing:border-box}
+  .language-card h2{margin:0 0 22px;font:700 20px system-ui;color:#302a23}
+  #btnCloseLanguage{position:absolute;right:9px;top:9px;width:44px;height:44px;min-height:44px;background:transparent;border:0;border-radius:12px;color:#57452f;font:24px system-ui;cursor:pointer}
+  .language-choices{display:flex;flex-wrap:wrap;justify-content:center;gap:10px}
+  .language-choices button{min-height:44px;padding:9px 15px;border:2px solid #403a31;border-radius:12px;background:#fff8e9;color:#302a23;font:14px system-ui;cursor:pointer;touch-action:manipulation}
+  .language-choices button[aria-pressed="true"]{background:#c97139;color:#fff}
+  .language-dialog.hidden,.language-dialog[hidden]{display:none!important}
+  .language-card{width:min(440px,100%);max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain}
+  .language-choices{gap:8px}.language-choices button{padding:8px 12px}
+  .language-pill{max-width:190px;overflow-wrap:anywhere}
+  .menu-icon-controls{flex-wrap:wrap;justify-content:flex-end;direction:ltr}
+  #btnCloseLanguage{z-index:1}
+  [dir="rtl"] .menu-chevron{margin-left:0;margin-right:auto}
+  [dir="rtl"] .dragon-menu-buttons .menu-action{text-align:right}
+  #start{background:#f3ead8;overflow-y:auto;justify-content:safe center;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+  #start .main-menu-shell{width:min(840px,100%);padding:12px;gap:10px;background:none}
+  #menuScene{width:100%;height:auto;aspect-ratio:45/31;max-height:49dvh;object-fit:contain;pointer-events:auto;touch-action:pan-y}
+  #menuScene:focus-visible{outline:2px dashed #bd8b48;outline-offset:3px;border-radius:20px}
+  #start .primary-menu-action{max-width:350px;align-self:center}
+  #start .menu-settings{justify-content:center;border:0;padding-top:12px}
+  @media(max-height:540px) and (min-width:600px){#start .main-menu-shell{display:grid;grid-template-columns:1fr 1fr;width:min(860px,100%);align-items:center;padding:14px}#menuScene{grid-column:1;grid-row:1/7;max-height:80dvh}#start .primary-menu-action{width:100%}}
+  .main-menu-shell{border:0;border-radius:0;box-shadow:none;background:none}
+  #start{background:radial-gradient(ellipse at 50% 35%,#fcf5e6 0%,#f3ead8 72%)}
+  #start h1{font-size:clamp(28px,5.2vw,43px);letter-spacing:.06em;text-shadow:0 2px 0 #fff4dd}
+  #start .menu-eyebrow{letter-spacing:.24em}
+  #start .main-menu-shell p{max-width:430px}
+  .menu-secondary{min-height:44px;padding:10px 20px;background:transparent;color:#755c3e;border:1px solid #bca786;border-radius:11px;font:700 13px system-ui;cursor:pointer;touch-action:manipulation}
+  #btnMenuNewRun{align-self:center;width:min(350px,100%)}
+  .main-menu-shell .primary-menu-action>#btnMainMenu{background:#f4e6c8;color:#654e31;border-color:#bca786;box-shadow:none}
+  #pause{background:rgba(245,236,221,.97)}
+  @media(max-height:540px) and (min-width:600px){#start .main-menu-shell{grid-template-columns:1.2fr 1fr;column-gap:20px}#menuScene{grid-row:1/9}#start .main-menu-shell>:not(#menuScene){grid-column:2}#btnMenuNewRun{justify-self:center}}
+  #start .menu-settings,#pause .menu-settings{position:fixed;top:max(12px,env(safe-area-inset-top));right:calc(72px + env(safe-area-inset-right));z-index:24;margin:0;padding:0;border:0}
+  .menu-settings .menu-icon-controls{flex-wrap:nowrap;gap:8px}
+  .menu-settings .language-pill{min-height:44px;background:#fff8e9;border-color:#b6a082;box-shadow:0 2px 0 #d8c8ac}
+  .menu-settings .round-setting{width:44px;height:44px;background:#fff8e9;border-color:#b6a082;box-shadow:0 2px 0 #d8c8ac}
+  .menu-settings .round-setting::before{inset:0;border-color:#b6a082;background:transparent;box-shadow:none}
+  .menu-settings .language-pill{max-width:min(190px,calc(100vw - 144px - env(safe-area-inset-right)))}
+  #gameGuideBtn{top:max(12px,env(safe-area-inset-top))!important;right:calc(14px + env(safe-area-inset-right))}
+  #start{padding-top:max(76px,calc(env(safe-area-inset-top) + 64px))}
+  #pause{padding-top:max(76px,calc(env(safe-area-inset-top) + 64px));overflow-y:auto;justify-content:safe center}
+  #start .primary-menu-action>#btnStart{position:relative;min-height:62px;border:2px solid #884922;border-radius:17px 13px 18px 12px;background:linear-gradient(165deg,#eea246 0%,#de7723 38%,#ca5916 100%);box-shadow:0 5px 0 #884922,inset 0 2px 0 #ffe0a2,0 10px 23px #97552226;font-size:18px;letter-spacing:.08em;transition:transform .15s,box-shadow .15s,filter .15s}
+  #btnStart .play-symbol{display:grid;place-items:center;width:30px;height:30px;margin-right:7px;border:1px solid #ffe5b088;border-radius:50%;background:#fff0c926;font-size:16px}
+  @media(hover:hover){#start .primary-menu-action>#btnStart:hover{filter:brightness(1.06);transform:translateY(-2px);box-shadow:0 7px 0 #884922,inset 0 2px 0 #ffe0a2,0 12px 25px #97552229}}
+  #start .primary-menu-action>#btnStart:active{transform:translateY(4px);box-shadow:0 1px 0 #884922,inset 0 2px 0 #ffe0a2}
+  #btnStart:focus-visible{outline:3px solid #397f97;outline-offset:7px}
+  @media(prefers-reduced-motion:reduce){#start .primary-menu-action>#btnStart{transition:none}}
+  #bossReward{z-index:26;background:rgba(27,26,36,.76);padding:16px}
+  .boss-reward-panel{width:min(500px,100%);max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;background:radial-gradient(ellipse at 50% 0,#fff8df,#f4e5c3 76%);border:2px solid #80694b;border-radius:24px;padding:24px;text-align:left;box-shadow:0 7px 0 #362b1d55,0 24px 70px #0d0b1744}
+  .boss-reward-heading{display:flex;align-items:center;gap:15px;margin-bottom:18px}
+  .boss-reward-medal{width:68px;height:68px;flex:0 0 68px;pointer-events:none}
+  .boss-reward-heading>div{min-width:0}.boss-reward-heading h2{font-size:25px;line-height:1.15;letter-spacing:-.03em;color:#3d3024}
+  .boss-reward-heading h2:focus{outline:none}
+  .boss-reward-stage{font:800 10px/1.4 system-ui;letter-spacing:.12em;text-transform:uppercase;color:#966c30;margin-bottom:5px}
+  .boss-reward-panel p{margin:8px 0 0;max-width:none;font-size:12px;line-height:1.5;color:#826d50}
+  #bossRewardChoices{display:grid;gap:12px}
+  .boss-reward-choice{--reward:#bb8133;--reward-tint:#f4dfaf;display:grid;grid-template-columns:76px minmax(0,1fr) 12px;align-items:center;gap:14px;width:100%;text-align:left;background:#fff9ec;border:2px solid #b69b72;border-left:5px solid var(--reward);border-radius:17px;padding:14px;color:#493820;box-shadow:0 3px 0 #b69b7240;cursor:pointer;touch-action:manipulation;font-family:inherit;transition:transform .12s ease,box-shadow .12s ease,background .12s ease}
+  .boss-reward-choice[data-kind="heal"]{--reward:#bc6255;--reward-tint:#f6d9cb}.boss-reward-choice[data-kind="ult"]{--reward:#8a66af;--reward-tint:#e8ddf4}
+  .boss-reward-choice[data-key="airstrike"]{--reward:#c87637;--reward-tint:#f9e0bd}.boss-reward-choice[data-key="gas"]{--reward:#789450;--reward-tint:#e6eccb}.boss-reward-choice[data-key="tank"]{--reward:#6186a2;--reward-tint:#dce9ed}
+  .boss-reward-art{position:relative;display:grid;place-items:center;min-width:0;width:76px;height:76px;border-radius:19px;background:var(--reward-tint);box-shadow:inset 0 0 0 1px #70542a1a}
+  .boss-reward-art canvas{width:68px;height:68px;pointer-events:none}
+  .boss-reward-value{position:absolute;right:-3px;bottom:-5px;padding:3px 7px;border:2px solid #fff9ec;border-radius:9px;background:var(--reward);color:white;font:900 11px/1.1 system-ui;white-space:nowrap}
+  .boss-reward-copy{min-width:0}.boss-reward-copy strong{display:block;font-size:16px;line-height:1.25;color:#3e3023;overflow-wrap:anywhere}
+  .boss-reward-category{display:block;margin-bottom:5px;font:800 9px/1.3 system-ui;letter-spacing:.06em;text-transform:uppercase;color:var(--reward)}
+  .boss-reward-desc{display:block;font-size:11px;line-height:1.45;margin-top:6px;color:#806c53;overflow-wrap:anywhere}
+  .boss-reward-arrow{font:700 24px/1 system-ui;color:var(--reward)}
+  .boss-reward-footer{margin-top:17px;text-align:center;font:700 10px/1.5 system-ui;color:#957c59}
+  @media(hover:hover){.boss-reward-choice:hover{background:#fffdf6;transform:translateY(-2px);box-shadow:0 5px 0 #b69b7240}}
+  .boss-reward-choice:active{transform:translateY(1px);box-shadow:none}.boss-reward-choice:focus-visible{outline:3px solid #d17c22;outline-offset:3px}
+  @media(max-width:380px){.boss-reward-panel{padding:16px;border-radius:20px}.boss-reward-heading{gap:10px}.boss-reward-heading h2{font-size:21px}.boss-reward-medal{width:54px;height:54px;flex-basis:54px}.boss-reward-choice{grid-template-columns:56px minmax(0,1fr);gap:11px;padding:12px 10px}.boss-reward-art{width:56px;height:62px;border-radius:14px}.boss-reward-art canvas{width:54px;height:54px}.boss-reward-arrow{display:none}.boss-reward-copy strong{font-size:14px}}
+  @media(prefers-reduced-motion:reduce){.boss-reward-choice{transition:none}.boss-reward-choice:hover{transform:none}}
+  #dragonVictory{overflow-y:auto;justify-content:flex-start;gap:12px;padding:28px 16px}#dragonVictory>*{flex-shrink:0}
+  #dragonVictory #victoryDragonCanvas{width:min(330px,84vw);height:auto;max-height:190px;object-fit:contain}
+  #victoryRecord{font-size:12px;color:#936b20}#victoryBosses{width:min(390px,100%);text-align:left;font-size:12px;line-height:1.7;color:#695334}
+  #victoryBosses div{padding:5px 10px;border-bottom:1px solid #dbc89f}
+  #victoryGear{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;width:min(400px,100%);font-size:11px}
+  #victoryGear span{background:#eadab7;border-radius:7px;padding:5px 8px}
+  .camp-menu-link{display:grid;grid-template-columns:1fr auto;width:min(430px,100%);gap:5px 12px;text-align:start;background:#fff5df;border:1px solid #b49a72;border-radius:14px;padding:12px 16px;color:#5a452b;cursor:pointer;touch-action:manipulation}
+  .camp-menu-link strong{font-size:14px}.camp-menu-link span:first-of-type{grid-column:1;font:12px/1.45 system-ui}.camp-menu-link span:last-child{grid-column:2;grid-row:1/3;align-self:center;font-size:22px}
+  #campLoadoutSummary{color:#7c684c;font-size:11px;text-align:center;max-width:430px}#campMenuStatus:empty{display:none}
+  .camp-dialog{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:#302a2399;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}.camp-dialog.hidden{display:none}
+  /* Camp screens: the hero and equipment lead; explanations open on demand. */
+  .camp-panel{width:min(640px,100%);min-width:0;max-height:calc(100dvh - max(12px,env(safe-area-inset-top)) - max(12px,env(safe-area-inset-bottom)));overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#c5ab80 transparent;touch-action:pan-y;background:#fbf1dc;border:2px solid #80694b;border-radius:22px;box-shadow:0 6px 0 #2f251b55;padding:0 18px 18px;text-align:start}
+  .camp-panel::-webkit-scrollbar{width:6px}.camp-panel::-webkit-scrollbar-thumb{background:#c5ab80;border-radius:4px}
+  .camp-panel>header{display:flex;justify-content:space-between;align-items:center;gap:12px;position:sticky;top:0;background:#fbf1dc;z-index:2;padding:10px 0;border-bottom:1px solid #d7c39f}.camp-panel>header>div{min-width:0}.camp-panel h2{margin:0;font-size:23px;letter-spacing:.01em;overflow-wrap:anywhere}
+  #btnCloseCamp{flex:0 0 44px;width:44px;min-height:44px;border:1px solid #b49a72;border-radius:50%;font-size:26px;background:#fff8e9;color:#5a452b;cursor:pointer;touch-action:manipulation}
+  .camp-panel h3{font-size:17px;margin:18px 0 9px;color:#5a452b;scroll-margin-top:80px}.camp-explainer{font-size:12px;line-height:1.5;color:#806c53;margin:10px 0}
+  .camp-panel .camp-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  .camp-section-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:0;padding:10px 0;border-bottom:1px solid #dfcfad}
+  .camp-section-nav button{min-width:0;min-height:44px;padding:7px 4px;border:1px solid #c1a781;border-radius:12px;background:#fff9ec;color:#725638;font:700 12px/1.25 system-ui;cursor:pointer;touch-action:manipulation;box-shadow:0 2px 0 #c4ad8740;overflow-wrap:anywhere}
+  .camp-section-nav button[aria-pressed="true"]{background:#e9edda;border-color:#82905b;color:#354929;box-shadow:inset 0 -3px 0 #82905b3d}
+  .camp-section-content{min-width:0;padding-top:10px}.camp-section-content>*{min-width:0}
+  .camp-equipment-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;padding:3px;margin:0 0 8px;border-radius:12px;background:#e9dcc1}
+  .camp-equipment-nav button{min-width:0;min-height:44px;padding:7px 10px;border:1px solid transparent;border-radius:9px;background:transparent;color:#80664b;font:750 12px/1.2 system-ui;cursor:pointer;touch-action:manipulation}
+  .camp-equipment-nav button[aria-pressed="true"]{background:#fffaf0;border-color:#c8ae82;color:#523d24;box-shadow:0 2px 0 #a68b5e33}
+  .camp-kit-bar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:3px 12px;margin:3px 2px 9px;color:#7b6448;font:11px/1.4 system-ui}.camp-kit-bar>span:first-child{color:#94754d}.camp-kit-bar strong{font-size:11px;color:#6b4b27;overflow-wrap:anywhere}
+  .camp-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .camp-option{position:relative;min-width:0;min-height:78px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:8px;border:2px solid #cfb68e;border-radius:14px;background:#fff9eb;color:#59452e;cursor:pointer;font:12px/1.3 system-ui;box-shadow:0 3px 0 #c7ad7d33;touch-action:manipulation;overflow-wrap:anywhere}
+  .camp-option[aria-pressed=true]{border-color:#b87628;background:linear-gradient(135deg,#fff2cb,#efd59c);box-shadow:0 3px 0 #bd89464d,inset 0 1px 0 #fff9e9}
+  .camp-option:disabled{cursor:default;background:#ece6d8;border-color:#d2c6af;color:#837665;box-shadow:0 2px 0 #c7bca522}.camp-option:disabled canvas{opacity:.48;filter:saturate(.4)}
+  .camp-option strong{max-width:100%;font-size:12px;line-height:1.25}.camp-option small{font-size:10px}.camp-option canvas{width:88px;height:44px;max-width:100%;object-fit:contain}.camp-choice-status{display:block;font:600 10px/1.35 system-ui;color:#8a7456;max-width:100%}
+  .camp-option[aria-pressed=true]>.camp-choice-status{position:absolute;inset-block-start:6px;inset-inline-end:7px;display:grid;place-items:center;width:19px;height:19px;border-radius:50%;background:#6c804a;color:#fff9df;font-size:12px;box-shadow:0 1px 0 #40552d44}
+  .camp-weapon-grid{margin-top:3px}.camp-weapon-grid .camp-option canvas{width:80px;height:40px}
+  .camp-style-grid{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:10px}.camp-style-grid .camp-option{min-height:96px;padding-top:8px}.camp-style-grid canvas{width:104px;height:52px}
+  .camp-footnote{margin:10px 2px 1px;color:#8b7658;font:11px/1.4 system-ui;text-align:center}
+  .arsenal-fire{display:block;position:relative;width:100%;min-height:44px;padding:0;border:2px solid #b79b6c;border-radius:16px;background:#f3e6c7;cursor:crosshair;touch-action:manipulation;box-shadow:0 3px 0 #a2855633;overflow:hidden}
+  .arsenal-preview,.camp-style-preview{display:block;width:100%;height:auto!important;aspect-ratio:52/23;border:0;border-radius:14px}.camp-style-preview{border:2px solid #b79b6c;background:#f3e6c7;box-shadow:0 3px 0 #a2855633}
+  .arsenal-evolution{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;padding:10px 0;margin:0;overflow:visible}
+  .arsenal-evolution button{min-width:0;min-height:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:5px 3px;border:2px solid #ccb58e;border-radius:11px;background:#fff8e8;color:#80694a;font:750 10px/1.2 system-ui;cursor:pointer;touch-action:manipulation;box-shadow:0 2px 0 #bda37a33}
+  .arsenal-evolution button canvas{width:88px;max-width:100%;height:auto;aspect-ratio:2/1;object-fit:contain}.arsenal-evolution button small{font-size:10px;letter-spacing:.06em}
+  .arsenal-evolution button[aria-pressed=true]{border-color:#ac742c;background:#e9ce95;color:#5c3e17;box-shadow:inset 0 -3px 0 #bc904a44}
+  .camp-progress-card{display:grid;grid-template-columns:62px minmax(0,1fr);gap:7px 12px;align-items:center;padding:11px 13px;margin:0 0 12px;border:1px solid #c7ab76;border-radius:16px;background:linear-gradient(120deg,#fff5d8,#eed9aa);box-shadow:0 3px 0 #c6ab7933}
+  .camp-progress-card>canvas{width:62px;height:62px}.camp-progress-card>div:not(.camp-progress-track){min-width:0}.camp-progress-card strong{display:block;font:800 16px/1.25 system-ui;color:#694621}.camp-progress-card small{display:block;margin-top:3px;font:11px/1.4 system-ui;color:#876b44}
+  .camp-progress-track{grid-column:1/-1;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px}.camp-progress-track span{height:7px;border-radius:3px;background:#c7b79166;box-shadow:inset 0 1px 1px #9e875033}.camp-progress-track .is-filled{background:#9b8346;box-shadow:inset 0 1px 0 #fff3bb66}
+  .camp-achievements{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:start}.camp-achievement{min-width:0;border:1px solid #cdb58e;border-radius:14px;background:#fff9ec;box-shadow:0 2px 0 #c6b18e33;overflow:hidden}.camp-achievement.is-unlocked{border-color:#a0ad75;background:linear-gradient(135deg,#f0f2de,#e5ebcd)}
+  .camp-quest-toggle{display:grid;grid-template-columns:40px minmax(0,1fr) 12px;align-items:center;gap:7px;width:100%;min-height:88px;padding:9px 8px;border:0;background:transparent;color:#5a442b;text-align:start;cursor:pointer;touch-action:manipulation}.camp-quest-toggle>canvas{width:40px;height:40px;padding:2px;border-radius:10px;background:#eee2c8;opacity:.8}.is-unlocked .camp-quest-toggle>canvas{background:#dbe4be;opacity:1}.camp-quest-toggle>div{min-width:0}.camp-quest-toggle strong{display:block;font:750 12px/1.25 system-ui;overflow-wrap:anywhere}.camp-quest-toggle small{display:block;font:10px/1.2 system-ui;color:#917c5b}.camp-quest-mark{font-size:17px;font-weight:800;color:#a58148}.is-unlocked .camp-quest-mark{color:#6e844a}
+  .camp-achievement progress{display:block;width:100%;height:6px;margin:6px 0 4px;border:0;border-radius:4px;accent-color:#9a8b51;overflow:hidden}.camp-achievement progress::-webkit-progress-bar{background:#e5d9bd;border-radius:4px}.camp-achievement progress::-webkit-progress-value{background:#a09358;border-radius:4px}.camp-achievement progress::-moz-progress-bar{background:#a09358;border-radius:4px}.camp-achievement.is-unlocked progress{accent-color:#7e9451}.camp-achievement.is-unlocked progress::-webkit-progress-value{background:#7e9451}
+  .camp-quest-detail{border-top:1px solid #d8c59e;padding:10px 12px;color:#775f3f;font:12px/1.45 system-ui}.camp-quest-detail p{font:inherit;margin:0}.camp-reward-label{display:block;font-size:11px;line-height:1.45;color:#8c652e;margin:7px 0 0}.camp-quest-toggle[aria-expanded=true]{background:#fff2d144}
+  .camp-trial-grid{gap:10px}.camp-trial-option{min-height:150px;gap:5px;padding:12px 10px}.camp-trial-option canvas{width:66px;height:66px}.camp-trial-option strong{font-size:14px}.camp-trial-modifier{font:700 12px/1.3 system-ui;color:#a06a34}.camp-trial-record{font:10px/1.35 system-ui;color:#7a7756}.camp-trial-option:disabled .camp-trial-modifier{color:#93846e}
+  .camp-panel button:focus-visible,.camp-menu-link:focus-visible,.camp-result-actions button:focus-visible{outline:3px solid #39869a;outline-offset:-3px}.camp-panel button:not(:disabled):active{transform:translateY(1px)}
+  .camp-save-warning{color:#a44028!important;font-size:12px;line-height:1.45;padding:9px 11px;margin:10px 0;border:1px solid #d29c74;border-radius:10px;background:#fff1dc}.camp-save-warning:empty{display:none}
+  .camp-panel p,.camp-result-panel p,.camp-result-progress p{max-width:none;opacity:1}.camp-panel canvas{pointer-events:none;touch-action:pan-y}#campRetrySave{margin:0 0 10px;min-height:44px}
+  @media(min-width:560px){.camp-weapon-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.camp-weapon-grid .camp-option{min-height:92px}}
+  @media(max-width:450px){.camp-panel{padding:0 10px 14px;border-radius:18px}.camp-panel h2{font-size:21px}.camp-section-nav button{font-size:11px}.arsenal-evolution{gap:3px}.arsenal-evolution button{min-height:54px}.camp-progress-card{padding:10px;gap:6px 9px}.camp-progress-card strong{font-size:15px}.camp-quest-toggle{grid-template-columns:32px minmax(0,1fr) 10px;gap:5px;padding:9px 7px}.camp-quest-toggle>canvas{width:32px;height:32px}.camp-quest-toggle strong{font-size:11px}.camp-trial-option{min-height:140px;padding:10px 7px}.camp-trial-option strong{font-size:12px}.camp-trial-modifier{font-size:11px}}
+  @media(max-width:369px){.camp-achievements{grid-template-columns:1fr}.camp-quest-toggle{grid-template-columns:42px minmax(0,1fr) 14px;min-height:76px;gap:9px;padding:8px 10px}.camp-quest-toggle>canvas{width:42px;height:42px}.camp-quest-toggle strong{font-size:12px}.camp-progress-card{grid-template-columns:48px minmax(0,1fr)}.camp-progress-card>canvas{width:48px;height:48px}.camp-option{padding:7px 5px}.camp-choice-status{font-size:9px}}
+  @media(max-width:330px){.camp-panel{padding:0 4px 12px}.camp-style-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.camp-panel h2{font-size:20px}.camp-section-nav{gap:4px}.camp-section-nav button{font-size:10px}.arsenal-evolution{gap:1px}}
+  @media(max-height:540px) and (min-width:600px){.camp-panel>header{padding:6px 0}.camp-panel h2{font-size:21px}.camp-section-nav{padding:7px 0}.camp-section-content{padding-top:8px}.camp-equipment-nav{margin-bottom:6px}}
+  #over{overflow-y:auto;justify-content:safe center;padding:20px 14px}.camp-result-panel{width:min(500px,100%);text-align:center;padding:22px;background:#fff5df;border:2px solid #9c815c;border-radius:23px}.camp-result-panel #overHero{width:min(300px,100%);height:auto}.camp-result-panel #stats{white-space:pre-line;line-height:1.7;font-size:13px}.camp-result-progress{padding:14px;border-top:1px solid #d7c39f;font-size:13px;line-height:1.6;max-width:500px}.camp-result-progress p{margin:8px 0}.camp-new-unlock{color:#557337;font-weight:700}.camp-result-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-top:16px}
+  #campLoadoutSummary,#pauseStats{white-space:pre-line}
+  .boss-reward-impact{display:block;font-size:12px;line-height:1.5;font-weight:700;color:#69502b;margin-top:8px;overflow-wrap:anywhere}
+  #runConfirm{z-index:66}.run-confirm-panel{width:min(420px,100%);max-height:calc(100dvh - 32px);overflow-y:auto;touch-action:pan-y;background:#fff4dc;border:2px solid #80694b;border-radius:20px;padding:24px;text-align:start;box-shadow:0 6px 0 #30231644}.run-confirm-panel p{max-width:none;opacity:1;margin:13px 0;line-height:1.6}.run-confirm-actions{display:flex;flex-direction:column;gap:10px;margin-top:20px}.run-confirm-actions button{min-height:48px;cursor:pointer}.run-confirm-actions button:focus-visible{outline:3px solid #39869a;outline-offset:3px}#btnCancelNewRun{background:#e8eed7;color:#495d38;border-color:#8d9e72}
+  .qa-launch{position:fixed;left:max(12px,env(safe-area-inset-left));bottom:max(12px,env(safe-area-inset-bottom));z-index:48;border:2px solid #9c622c;border-radius:10px;background:#fff1cf;color:#553921;font:800 11px system-ui;padding:9px 12px;min-height:44px;cursor:pointer}
+  body.qa-panel-ready .hud-dev{display:none!important}
+  .qa-overlay{position:fixed;inset:0;z-index:80;background:#211b20aa;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;touch-action:pan-y}
+  .qa-overlay.hidden{display:none}
+  .qa-card{width:min(650px,100%);max-height:calc(100dvh - 32px);box-sizing:border-box;overflow-y:auto;overscroll-behavior:contain;border:2px solid #8c704c;border-radius:20px;padding:20px;background:#fff3d9;color:#392e23;text-align:left;touch-action:pan-y}
+  .qa-card header{display:flex;align-items:center;justify-content:space-between;gap:12px}.qa-card h2{margin:0;font-size:20px}.qa-card h3{font-size:15px;margin:22px 0 9px}.qa-card p{max-width:none;font-size:12px;line-height:1.5;opacity:1}.qa-card button{min-height:44px;border:1px solid #ae926b;border-radius:10px;padding:10px;background:#fff9ed;color:#493620;font:600 12px system-ui;cursor:pointer;touch-action:manipulation}.qa-card button:disabled{opacity:.42;cursor:default}.qa-card button:focus-visible{outline:3px solid #35899c;outline-offset:2px}.qa-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(165px,100%),1fr));gap:8px}.qa-status{padding:10px;border-radius:10px;background:#e9e6cb;white-space:pre-line}.qa-danger{border-color:#b96641!important}.qa-card small{display:block;line-height:1.5;color:#725d40}
+  /* Camp preparation belongs to the centered play flow. */
+  #start{justify-content:flex-start}
+  #start .main-menu-shell{flex:0 0 auto;margin-block:auto;min-width:0}
+  #start h1{font-size:clamp(23px,4.7vw,40px);overflow-wrap:anywhere}
+  #menuScene{max-height:40dvh}
+  .camp-dock{width:min(540px,100%);align-self:center;justify-self:center;padding:14px 16px;border:1px solid #cbb58d;border-radius:18px;background:linear-gradient(130deg,#fff8e9e8,#efe5cdd9);box-shadow:0 4px 0 #bba17920,inset 0 1px 0 #fffdf4;text-align:start;min-width:0}
+  .camp-dock>header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;font-size:12px;color:#725936}.camp-dock>header>strong{letter-spacing:.1em;text-transform:uppercase}.camp-dock>header>span{font-size:11px;color:#718055}
+  .camp-dock-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .camp-dock-button{position:relative;min-width:0;min-height:76px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:9px 6px;border:1px solid #c3ad88;border-radius:12px;background:#fffaf0;color:#5d482e;cursor:pointer;font:600 12px/1.25 system-ui;touch-action:manipulation;box-shadow:0 2px 0 #c8b28c55;transition:background .15s,transform .15s}
+  .camp-dock-button:nth-child(1){background:#eef0de;border-color:#b0b98e}.camp-dock-button:nth-child(2){background:#f1e7d3}.camp-dock-button:nth-child(3){background:#ede6ef;border-color:#c0aac7}
+  .camp-dock-button svg{width:29px;height:29px;fill:#ffffff55;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.camp-dock-arrow{position:absolute;right:8px;top:8px;opacity:.4}.camp-dock-button strong{overflow-wrap:anywhere}.camp-dock-button:active{transform:translateY(2px)}.camp-dock-button:focus-visible{outline:3px solid #39869a;outline-offset:3px}
+  #start .camp-dock-goal{max-width:none;opacity:1;margin:11px 0 0;padding-top:10px;border-top:1px solid #d8c9ac;color:#756243;font-size:11px;text-align:start}
+  #campLoadoutSummary{display:block;max-width:none;margin-top:7px;line-height:1.55;text-align:start;font-size:10px;color:#8b785d}
+  #start .primary-menu-action,#btnMenuNewRun{width:min(430px,100%);max-width:430px;margin-top:4px}
+  @media(max-width:370px){.camp-dock{padding:11px 10px}.camp-dock-nav{gap:5px}.camp-dock-button{font-size:10px}.camp-dock>header{font-size:10px}.camp-dock>header>span{font-size:10px}#start .main-menu-shell{padding:4px}}
+  @media(max-height:540px) and (min-width:600px){#start .main-menu-shell{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}#menuScene{grid-column:1;grid-row:1/10;max-height:78dvh}#start .main-menu-shell>:not(#menuScene){grid-column:2}.camp-dock{padding:10px}.camp-dock-button{min-height:65px}#start h1{font-size:25px}}
+  /* Compact navigation: details live inside the camp, not above Play. */
+  #start .camp-dock{width:min(430px,100%);padding:0;border:0;background:none;box-shadow:none;border-radius:0}
+  #start .camp-dock>header{margin-bottom:6px;font-size:10px;padding:0 2px}
+  #start .camp-dock>header>span{font-size:10px}
+  #start .camp-dock-nav{gap:6px}
+  #start .camp-dock-button{min-height:44px;flex-direction:row;gap:6px;padding:9px 5px;font-size:11px;border-radius:10px;box-shadow:0 2px 0 #c8b28c33}
+  #start .camp-dock-button svg{width:19px;height:19px;flex:0 0 19px}
+  #start .camp-dock-arrow,#start #campNextGoal,#start #campLoadoutSummary{display:none}
+  #start .camp-dock.is-complete>header{color:#966722}
+  #start .camp-dock.is-complete .camp-dock-button{border-color:#bb954e;background:linear-gradient(135deg,#fff9e6,#f1dfae)}
+  #menuScene{max-height:48dvh}
+  .camp-overview{padding:12px 14px;border:1px solid #d7c39f;border-radius:13px;background:#f2e6cb;white-space:pre-line;font-size:12px;line-height:1.6}
+  @media(max-width:370px){#start .camp-dock-button{gap:4px;font-size:10px}#start .camp-dock-button svg{width:16px;height:16px;flex-basis:16px}}
+  @media(max-height:540px) and (min-width:600px){#menuScene{max-height:78dvh}}
+  #start .menu-settings,#pause .menu-settings{display:none}
+  .settings-launch{position:fixed;top:max(12px,env(safe-area-inset-top));right:calc(72px + env(safe-area-inset-right));z-index:24;display:flex;align-items:center;gap:7px;min-height:44px;padding:9px 14px;background:#fff8e9;border:1px solid #b6a082;border-radius:14px;color:#655035;font:700 12px system-ui;box-shadow:0 2px 0 #d8c8ac;cursor:pointer;touch-action:manipulation}.settings-launch svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.8}
+  .settings-overlay{position:fixed;inset:0;z-index:63;display:grid;place-items:center;background:#30251b88;padding:16px;touch-action:pan-y}.settings-overlay.hidden{display:none}
+  .settings-card{width:min(530px,100%);max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;background:#fff4de;border:2px solid #947851;border-radius:22px;padding:20px;text-align:start;box-shadow:0 6px 0 #30251b33}.settings-card header{display:flex;justify-content:space-between;align-items:center;gap:12px}.settings-card h2{font-size:23px}.settings-card h3{margin:16px 0 8px;font-size:14px;color:#755b36}.settings-card p{max-width:none;opacity:1;white-space:pre-line;font-size:12px;line-height:1.7;color:#705d43}
+  #settingsClose{min-width:44px;min-height:44px;border:1px solid #bba480;background:#fffaf0;border-radius:50%;font-size:24px;color:#665039;cursor:pointer}.settings-controls{display:flex;align-items:center;gap:14px;margin:18px 0 8px}.settings-controls.hidden{display:none}.settings-controls .round-setting{width:44px;height:44px}.settings-controls .language-pill{min-height:44px;max-width:calc(100% - 58px)}.settings-input-card{margin-top:14px;padding:12px 15px;background:#f2e6cc;border:1px solid #d8c29b;border-radius:14px}.settings-input-card h3{margin:0 0 6px}.settings-card button:focus-visible,.settings-launch:focus-visible{outline:3px solid #39869a;outline-offset:3px}
+  .visual-settings{display:grid;gap:8px;margin-top:12px}.visual-settings button{min-height:46px;padding:10px 14px;text-align:start;border:1px solid #bca079;border-radius:10px;background:#fff8e9;color:#54412c;font:700 13px system-ui;cursor:pointer}.visual-settings button[aria-pressed="true"]{background:#e7ecd7;border-color:#83975b}.visual-settings button:disabled{opacity:.55;cursor:default}#settingsVisualStatus:empty{display:none}#settingsVisualStatus{color:#9a4229}
+  #arenaEnding{z-index:35;background:transparent;justify-content:space-between;padding:clamp(26px,9vh,84px) 18px max(24px,env(safe-area-inset-bottom));text-align:center;overflow:hidden}
+  .ending-copy{max-width:620px;text-shadow:0 1px 10px #fff8df88;pointer-events:none}
+  #endingEyebrow{font-size:10px;letter-spacing:.18em;color:#efc87e;font-weight:800}
+  #endingTitle{margin:15px 0 10px;font-size:clamp(24px,5vw,40px);color:#fff3d5;outline:none}
+  #endingSubtitle{font-size:clamp(12px,2.7vw,15px);line-height:1.6;color:#fff3d5;max-width:480px;margin:auto}
+  #endingTitle,#endingSubtitle,#endingEyebrow{transition:color 1.2s ease}
+  .ending-day #endingTitle{color:#62462d}.ending-day #endingSubtitle{color:#77654d}.ending-day #endingEyebrow{color:#98713b}
+  #btnEndingSkip{min-height:44px;min-width:180px;background:#fff5dfeb;color:#674729;border:1px solid #b3925f;border-radius:24px;padding:12px 25px;font-weight:700;cursor:pointer;box-shadow:0 4px 18px #69502c18}
+  #btnEndingSkip:disabled{opacity:.35;cursor:default}#btnEndingSkip:focus-visible{outline:3px solid #d87321;outline-offset:4px}
+  .ending-results #dragonVictory{animation:ending-reveal .65s ease-out both}
+  @keyframes ending-reveal{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  @media(max-height:480px){#arenaEnding{padding-top:16px;padding-bottom:12px}#endingTitle{font-size:23px;margin:6px 0}#endingSubtitle{font-size:12px}}
+  @media(prefers-reduced-motion:reduce){.ending-results #dragonVictory{animation:none}}
+  #bossReward:not(.hidden){animation:trophy-reward-in .32s ease-out both}
+  @keyframes trophy-reward-in{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+  @media(prefers-reduced-motion:reduce){#bossReward:not(.hidden){animation:none}}
+</style>
+<style>
+#rankingDialog{z-index:90;background:#282c43aa;padding:18px} .ranking-card{box-sizing:border-box;width:min(520px,100%);max-height:90vh;overflow:auto;background:#fff3da;border:2px solid #ac8a51;border-radius:22px;padding:22px;color:#53422d;box-shadow:0 15px 55px #211a2233}.ranking-card h2{margin:0 0 10px}.ranking-card p{font-size:13px;line-height:1.5}.ranking-card table{width:100%;border-collapse:collapse;font-size:14px}.ranking-card td{padding:10px 6px;border-bottom:1px solid #d8c7a7;overflow-wrap:anywhere}.ranking-card td:first-child{color:#b47626;font-weight:800}.ranking-card td:last-child{text-align:right;font-weight:800}.ranking-card footer{display:flex;gap:12px;margin-top:16px}.ranking-card button{flex:1;min-height:44px;border-radius:12px;border:1px solid #b89564;background:#f2dfb6;color:#624626;font-weight:700;cursor:pointer}#radarToggle:focus-visible{outline:3px solid #3d9dbc;outline-offset:3px}
 </style>
 </head>
 <body>
 <div id="platformGate" role="status" aria-live="polite"><strong>VACKY GAMES</strong><div id="platformMessage">Загружаем игру…</div><button id="platformRetry" hidden>Повторить</button></div>
 <canvas id="c"></canvas>
-<button id="pauseBtn" class="hud-pause" title="Пауза (P)"><b></b><b></b></button>
-<button id="dragonBookBtn" class="hud-book" title="Книга спасённых драконов">📖</button>
-<button id="dragonEggBtn" class="hud-book hud-egg" data-open-home="incubator" title="Яйцо в гнезде" aria-label="Открыть яйцо в гнезде"><span class="dragon-entry-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3C11 3 5 16 5 22a11 8 0 0 0 22 0C27 16 21 3 16 3Z" fill="#f5d793" stroke="#473b29" stroke-width="2"/><path d="m14 5-3 11" stroke="#fff7d9" stroke-width="3" stroke-linecap="round"/><ellipse cx="19" cy="14" rx="2" ry="3" fill="#b98748"/><ellipse cx="11" cy="22" rx="2.5" ry="2" fill="#82a06a"/><circle cx="22" cy="24" r="2" fill="#b98748"/></svg></span></button>
-<button id="dragonHomeBtn" class="hud-book hud-home" data-open-home="warehouse" title="Моя коллекция" aria-label="Открыть коллекцию драконов"><span class="dragon-entry-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="m8 13-3-9 9 5 9-5-1 9 6 4-1 8-8 4-10-4-3-6Z" fill="#7fa36c" stroke="#473b29" stroke-width="2" stroke-linejoin="round"/><path d="m7 5 2 8 5-4m9-4-6 5 5 2" fill="#ebce89"/><path d="m11 16 5 1-3 4Z" fill="#fff5d9"/><circle cx="14" cy="18" r="1.5" fill="#302c24"/><path d="m18 25 8-3" fill="none" stroke="#473b29" stroke-width="1.5"/><circle cx="24" cy="18" r="1.3" fill="#473b29"/></svg></span></button>
+<button id="gameGuideBtn" class="help-dot guide-launch hidden" data-help="guide" aria-label="Справочник по игре">?</button>
+<section id="tutorial" class="tutorial hidden" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle" aria-describedby="tutorialText">
+  <div id="tutorialSpot" aria-hidden="true"></div>
+  <div id="tutorialCard" class="tutorial-card"><div id="tutorialTag" class="tutorial-tag">Знакомство с игрой</div><h2 id="tutorialTitle"></h2><p id="tutorialText"></p><div class="tutorial-actions"><button id="btnTutorialNext" class="btn" data-i18n="gotit">Понятно</button><button id="btnTutorialSkip" data-i18n="skip">Пропустить обучение</button></div></div>
+</section>
+<section id="gameHelp" class="game-help hidden" role="dialog" aria-modal="true" aria-labelledby="gameHelpTitle" aria-describedby="gameHelpText"><div class="game-help-card"><header><h2 id="gameHelpTitle"></h2><button id="btnCloseHelp" class="help-dot" aria-label="Закрыть подсказку">×</button></header><div id="gameHelpText"></div><button id="btnReplayTutorial" class="menu-action" data-i18n="replay">Повторить обучение</button><p id="tutorialSaveStatus" role="status"></p></div></section>
+<section id="languageDialog" class="language-dialog hidden" hidden role="dialog" aria-modal="true" aria-labelledby="languageDialogTitle">
+ <div class="language-card"><button type="button" id="btnCloseLanguage" aria-label="Закрыть / Close">×</button><h2 id="languageDialogTitle"><span aria-hidden="true">🌐</span> <span data-i18n="language">Язык</span></h2>
+ <div class="language-choices"><button type="button" id="chooseLanguageEn" data-choose-language="en" lang="en" dir="auto" aria-pressed="false">English</button><button type="button" id="chooseLanguageEs" data-choose-language="es" lang="es" dir="auto" aria-pressed="false">Español</button><button type="button" id="chooseLanguagePt" data-choose-language="pt" lang="pt" dir="auto" aria-pressed="false">Português</button><button type="button" id="chooseLanguageFr" data-choose-language="fr" lang="fr" dir="auto" aria-pressed="false">Français</button><button type="button" id="chooseLanguageDe" data-choose-language="de" lang="de" dir="auto" aria-pressed="false">Deutsch</button><button type="button" id="chooseLanguageIt" data-choose-language="it" lang="it" dir="auto" aria-pressed="false">Italiano</button><button type="button" id="chooseLanguagePl" data-choose-language="pl" lang="pl" dir="auto" aria-pressed="false">Polski</button><button type="button" id="chooseLanguageTr" data-choose-language="tr" lang="tr" dir="auto" aria-pressed="false">Türkçe</button><button type="button" id="chooseLanguageId" data-choose-language="id" lang="id" dir="auto" aria-pressed="false">Indonesia</button><button type="button" id="chooseLanguageHi" data-choose-language="hi" lang="hi" dir="auto" aria-pressed="false">हिन्दी</button><button type="button" id="chooseLanguageJa" data-choose-language="ja" lang="ja" dir="auto" aria-pressed="false">日本語</button><button type="button" id="chooseLanguageKo" data-choose-language="ko" lang="ko" dir="auto" aria-pressed="false">한국어</button><button type="button" id="chooseLanguageZh" data-choose-language="zh" lang="zh" dir="auto" aria-pressed="false">中文</button><button type="button" id="chooseLanguageAr" data-choose-language="ar" lang="ar" dir="auto" aria-pressed="false">العربية</button><button type="button" id="chooseLanguageRu" data-choose-language="ru" lang="ru" dir="auto" aria-pressed="true">Русский</button></div>
+ <p class="menu-language-status" data-language-status role="status"></p></div>
+</section>
+<button id="pauseBtn" class="hud-pause" title="Меню и пауза (P)" aria-label="Открыть меню и приостановить игру"><b></b><b></b></button>
+<button id="radarToggle" class="hidden" type="button" aria-label="Мини-карта: вся арена. Нажми для приближения" style="position:fixed;right:12px;top:72px;width:min(112px,28vw);height:min(112px,28vw);z-index:5;background:transparent;border:0;border-radius:6px;cursor:pointer;touch-action:manipulation"></button>
 <button id="devLvl" class="hud-dev" title="Тестовая кнопка: следующий уровень героя">+LV</button>
+<button id="devStage" class="hud-dev" style="top:138px;display:none" title="Тест: следующая стадия без опыта и наград. На 20-й стадии отключена.">+СТАДИЯ</button>
 <button id="devUlt" class="hud-dev" style="top:222px" title="Тестовая кнопка: зарядить ульту">+ULT</button>
 <button id="devRare" class="hud-dev" style="top:264px" title="Тестовая кнопка: редкий сундук">+RARE</button>
 <button id="devSniper" class="hud-dev" style="top:306px" title="Тест: золотая снайперка и следующая особая ульта">+SNP</button>
@@ -222,103 +377,108 @@
 <button id="devCompass" class="hud-dev" style="top:432px;border-color:#9854bd;color:#79449b" title="Тест: открыть три секрета и перенести к компасу. Сундук выдаёт настоящие заряды при подборе, один раз за забег.">+КОМПАС</button>
 <canvas id="petBadge" class="hud-badge hidden" width="176" height="176"></canvas>
 <div id="abilityDock" class="ability-dock hidden">
+ <button id="abilityToggle" class="ability-toggle" type="button" aria-label="Способности" aria-controls="abilityPanel" aria-expanded="false" title="Способности">
+  <svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><rect x="5" y="10" width="23" height="18" rx="4" fill="#e6bb67"/><path d="M11 10V6h11v4M5 17h23"/><path d="m18 12-6 9h5l-1 6 7-10h-5z" fill="#fff4cf" stroke-width="1.5"/></svg>
+  <b id="abilityTotal" aria-hidden="true">0</b>
+ </button>
+ <div id="abilityPanel" class="ability-panel" role="group" aria-label="Способности" hidden>
   <button class="ability-slot" data-ability="airstrike" title="Вызвать авиаудар"><canvas width="88" height="88"></canvas><b>0</b></button>
   <button class="ability-slot" data-ability="gas" title="Токсичный туман"><canvas width="88" height="88"></canvas><b>0</b></button>
   <button class="ability-slot" data-ability="tank" title="Вызвать танк"><canvas width="88" height="88"></canvas><b>0</b></button>
+ </div>
 </div>
 <button id="useBtn" class="hud-btn" disabled>
   <canvas id="useIco" width="72" height="72"></canvas><em id="useName">пусто</em>
 </button>
 
+<section id="settingsDialog" class="settings-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+ <div class="settings-card" id="settingsCard"><header><h2 id="settingsTitle"></h2><button id="settingsClose" type="button" aria-label="Закрыть настройки">×</button></header>
+  <div id="settingsControlsstart" class="settings-controls"></div><div id="settingsControlspause" class="settings-controls hidden"></div>
+  <p id="settingsSoundState" role="status"></p><p class="menu-language-status" data-language-status role="status"></p>
+  <div class="settings-input-card"><h3 id="settingsVisualTitle"></h3><div class="visual-settings"><button id="visual-shake" type="button" aria-pressed="true"></button><button id="visual-reduceFlash" type="button" aria-pressed="false"></button><button id="visual-lowFX" type="button" aria-pressed="false"></button></div><p id="settingsVisualHint"></p><p id="settingsVisualStatus" role="status"></p></div>
+  <div class="settings-input-card"><h3 id="settingsPCTitle"></h3><p id="settingsPCText"></p></div>
+  <div class="settings-input-card"><h3 id="settingsPhoneTitle"></h3><p id="settingsPhoneText"></p></div>
+  <p id="settingsAutoFire"></p>
+  <p id="settingsAudioCredits" style="font-size:11px;line-height:1.5;overflow-wrap:anywhere">Audio: original procedural designs and credited CC0 libraries. Details: AUDIO_CREDITS.md in source. No user-provided recordings are included.</p>
+ </div>
+</section>
 <div id="start" class="overlay">
-  <h1>STICKMAN ARENA</h1>
-  <p>Веди пальцем — человечек бежит по карте.<br>Ружьё целится само.<br>
-     20 стадий по минуте. Уничтожай врагов и прокачивай героя за опыт.<br>Через 20 минут откроется алтарь на мини-карте.<br>Проведи 2 секунды в его круге или продолжай бой — через 5 минут дракон прилетит сам.<br>
-     Ищи сундуки: мина, граната, лёд, опыт ×2.<br>Редкий сундук сразу даёт случайную постоянную способность.<br>
-     Ульта: двойной клик или развести пальцы.<br>Новый уровень — улучшение вещей или питомца.<br>Предмет — кнопка справа внизу или пробел.</p>
-  <button class="btn" id="btnStart">ИГРАТЬ</button>
-  <div class="dragon-entry-row"><button data-open-home="incubator"><span class="dragon-entry-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3C11 3 5 16 5 22a11 8 0 0 0 22 0C27 16 21 3 16 3Z" fill="#f5d793" stroke="#473b29" stroke-width="2"/><path d="m14 5-3 11" stroke="#fff7d9" stroke-width="3" stroke-linecap="round"/><ellipse cx="19" cy="14" rx="2" ry="3" fill="#b98748"/><ellipse cx="11" cy="22" rx="2.5" ry="2" fill="#82a06a"/><circle cx="22" cy="24" r="2" fill="#b98748"/></svg></span>Гнездо</button><button data-open-home="warehouse"><span class="dragon-entry-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="m8 13-3-9 9 5 9-5-1 9 6 4-1 8-8 4-10-4-3-6Z" fill="#7fa36c" stroke="#473b29" stroke-width="2" stroke-linejoin="round"/><path d="m7 5 2 8 5-4m9-4-6 5 5 2" fill="#ebce89"/><path d="m11 16 5 1-3 4Z" fill="#fff5d9"/><circle cx="14" cy="18" r="1.5" fill="#302c24"/><path d="m18 25 8-3" fill="none" stroke="#473b29" stroke-width="1.5"/><circle cx="24" cy="18" r="1.3" fill="#473b29"/></svg></span>Коллекция</button></div>
-  <div class="tag" id="verTag"></div>
+ <button id="settingsLaunchstart" class="settings-launch" type="button" aria-haspopup="dialog" aria-controls="settingsDialog"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3 1-2h4l1 2 3 2 2 1v4l-2 2 1 3-2 3-3-1-2 3H9l-1-3-3-1-2-3 2-3V7l3-1z"/><circle cx="12" cy="11" r="3"/></svg><span data-i18n="settings">Настройки</span></button>
+ <div class="main-menu-shell">
+  <div class="menu-eyebrow">VACKY GAMES</div><h1>STICKMAN ARENA</h1>
+  <p data-i18n="tagline">Выживи 20 стадий. Собери снаряжение. Дойди до финала.</p>
+  <canvas id="menuScene" width="900" height="620" role="button" tabindex="0" aria-describedby="menuBestScore" aria-label="Лагерь. Нажми на героя или собаку. Enter — помахать герою."></canvas>
+  <span id="menuBestScore" style="position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap">Лучший счёт: 0</span>
+  <p class="menu-camp-hint" data-i18n="campHint">Нажми на героя, собаку, стенд или сундук</p>
+  <p id="menuRecord" class="hidden" dir="auto"></p>
+  <section id="campDock" class="camp-dock" aria-labelledby="campDockTitle">
+   <header><strong id="campDockTitle">Мой лагерь</strong><span id="campDockProgress"></span></header>
+   <nav class="camp-dock-nav" aria-label="Мой лагерь" id="campDockNav">
+    <button id="btnCamp" class="camp-dock-button" aria-haspopup="dialog" aria-controls="campDialog"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M10 7h21v28H9V7h6m2-2h9v6h-9z"/><path d="m14 18 2 2 4-4m-6 10 2 2 4-4m4-6h4m-4 8h4"/></svg><strong id="campMenuLabel">Задания</strong><span class="camp-dock-arrow" aria-hidden="true">›</span></button>
+    <button id="btnCampEquipment" class="camp-dock-button" aria-haspopup="dialog" aria-controls="campDialog"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="m13 6 7 4 7-4 9 9-6 5-3-4v19H13V16l-3 4-6-5z"/><path d="M20 11v17m-6-5h12"/></svg><strong id="campEquipmentLabel">Снаряжение</strong><span class="camp-dock-arrow" aria-hidden="true">›</span></button>
+    <button id="btnCampTrials" class="camp-dock-button" aria-haspopup="dialog" aria-controls="campDialog"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 4 33 9v11c0 7-6 12-13 16C13 32 7 27 7 20V9z"/><path d="m22 11-8 11h6l-2 7 8-12h-6z"/></svg><strong id="campTrialsLabel">Испытания</strong><span class="camp-dock-arrow" aria-hidden="true">›</span></button>
+   </nav>
+   <p id="campNextGoal" class="camp-dock-goal"></p>
+   <small id="campLoadoutSummary"></small><p id="campMenuStatus" class="camp-save-warning" role="status"></p>
+  </section>
+  <div class="menu-action-row primary-menu-action"><button class="btn" id="btnStart"><span class="play-symbol" aria-hidden="true">▶</span><span id="mainPlayLabel" data-i18n="play">ИГРАТЬ</span></button></div>
+  <button id="btnMenuNewRun" class="menu-secondary hidden" data-i18n="newRun">НОВЫЙ ЗАБЕГ</button>
+  <p id="runCheckpointNote" class="hidden" style="font-size:12px;color:#796346;margin:2px 0;text-align:center" role="status" dir="auto"></p>
+
+  <footer class="menu-build-info" dir="ltr"><span>Vacky Games</span><span aria-hidden="true">·</span><span id="verTag"></span></footer>
+<div class="menu-settings"><div class="menu-icon-controls"><button type="button" class="language-pill" id="menuLanguagestart" data-language aria-label="Язык / Language" aria-haspopup="dialog" aria-controls="languageDialog" aria-expanded="false"><span aria-hidden="true">🌐</span><span data-language-name>Русский</span></button><button type="button" class="round-setting sound-setting" id="menuSoundstart" data-sound aria-label="Выключить звук" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="sound-waves" d="M16 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/><path class="sound-slash" d="m4 3 17 18"/></svg></button></div></div><p class="menu-language-status" data-language-status role="status"></p>
+ </div>
 </div>
 <div id="levelup" class="overlay hidden">
   <h2 id="levelTitle">НОВЫЙ УРОВЕНЬ</h2><div class="tag" id="queueTag"></div><div class="cards" id="cards"></div>
 </div>
 <div id="pause" class="overlay hidden">
-  <h2>ПАУЗА</h2>
+ <button id="settingsLaunchpause" class="settings-launch" type="button" aria-haspopup="dialog" aria-controls="settingsDialog"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3 1-2h4l1 2 3 2 2 1v4l-2 2 1 3-2 3-3-1-2 3H9l-1-3-3-1-2-3 2-3V7l3-1z"/><circle cx="12" cy="11" r="3"/></svg><span data-i18n="settings">Настройки</span></button>
+ <div class="main-menu-shell">
+  <div class="menu-eyebrow">STICKMAN ARENA</div><h2 data-i18n="pause">Пауза</h2>
   <p id="pauseStats"></p>
-  <button class="btn" id="btnResume">ПРОДОЛЖИТЬ</button>
-  <div class="dragon-entry-row"><button data-open-home="incubator"><span class="dragon-entry-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3C11 3 5 16 5 22a11 8 0 0 0 22 0C27 16 21 3 16 3Z" fill="#f5d793" stroke="#473b29" stroke-width="2"/><path d="m14 5-3 11" stroke="#fff7d9" stroke-width="3" stroke-linecap="round"/><ellipse cx="19" cy="14" rx="2" ry="3" fill="#b98748"/><ellipse cx="11" cy="22" rx="2.5" ry="2" fill="#82a06a"/><circle cx="22" cy="24" r="2" fill="#b98748"/></svg></span>Гнездо</button><button data-open-home="warehouse"><span class="dragon-entry-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="m8 13-3-9 9 5 9-5-1 9 6 4-1 8-8 4-10-4-3-6Z" fill="#7fa36c" stroke="#473b29" stroke-width="2" stroke-linejoin="round"/><path d="m7 5 2 8 5-4m9-4-6 5 5 2" fill="#ebce89"/><path d="m11 16 5 1-3 4Z" fill="#fff5d9"/><circle cx="14" cy="18" r="1.5" fill="#302c24"/><path d="m18 25 8-3" fill="none" stroke="#473b29" stroke-width="1.5"/><circle cx="24" cy="18" r="1.3" fill="#473b29"/></svg></span>Коллекция</button></div>
-  <button class="btn" id="btnRestart" style="background:#8d8178">ЗАНОВО</button>
+  <div class="menu-action-row primary-menu-action"><button class="btn" id="btnResume"><span class="play-symbol" aria-hidden="true">▶</span><span data-i18n="resume">ПРОДОЛЖИТЬ</span></button></div>
+
+  <div class="menu-action-row primary-menu-action"><button class="btn menu-secondary" id="btnMainMenu" data-i18n="mainMenu">В ГЛАВНОЕ МЕНЮ</button></div>
+  <div class="menu-action-row primary-menu-action"><button class="btn" id="btnRestart" data-i18n="restart">ЗАНОВО</button></div>
+<div class="menu-settings"><div class="menu-icon-controls"><button type="button" class="language-pill" id="menuLanguagepause" data-language aria-label="Язык / Language" aria-haspopup="dialog" aria-controls="languageDialog" aria-expanded="false"><span aria-hidden="true">🌐</span><span data-language-name>Русский</span></button><button type="button" class="round-setting sound-setting" id="menuSoundpause" data-sound aria-label="Выключить звук" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="sound-waves" d="M16 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/><path class="sound-slash" d="m4 3 17 18"/></svg></button></div></div><p class="menu-language-status" data-language-status role="status"></p>
+ </div>
 </div>
 
-<div id="dragonBook" class="overlay book-overlay hidden">
-  <div class="book-cover">
-    <header class="book-header">
-      <div><h2>Книга драконов</h2><div class="tag" id="dragonTotal">В коллекции: 0 · Спасений: 0</div></div>
-      <button class="book-close" id="btnCloseBook" aria-label="Закрыть книгу" title="Закрыть книгу">×</button>
-      <p id="craftMessage" role="status" aria-live="polite"></p>
-    </header>
-    <div class="book-recipe"><b>3 → 1</b>Одинаковые → следующая редкость</div>
-    <div class="dragon-grid" id="dragonGrid"></div>
-    <p class="book-note">Обмен расходует 3 дракона. История спасений сохраняется.<br>5 бриллиантовых драконов → яйцо в Доме.</p>
-  </div>
-</div>
-
+<section id="bossReward" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="bossRewardTitle" aria-describedby="bossRewardHint">
+ <div class="boss-reward-panel"><header class="boss-reward-heading"><canvas id="bossRewardMedal" class="boss-reward-medal" width="160" height="160" aria-hidden="true"></canvas><div><div id="bossRewardStage" class="boss-reward-stage"></div><h2 id="bossRewardTitle" tabindex="-1"></h2><p id="bossRewardHint"></p></div></header><div id="bossRewardChoices"></div><div id="bossRewardFooter" class="boss-reward-footer"></div></div>
+</section>
+<section id="rankingDialog" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="rankingTitle"><div class="ranking-card"><h2 id="rankingTitle"></h2><p id="rankingRules"></p><strong id="rankingBest"></strong><h3 id="rankingScope"></h3><table aria-label="Рейтинг / Leaderboard"><tbody id="rankingRows"></tbody></table><p id="rankingStatus" role="status"></p><footer><button id="rankingRefresh" type="button">Обновить</button><button id="rankingClose" type="button">Закрыть</button></footer></div></section>
+<section id="arenaEnding" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="endingTitle" aria-describedby="endingSubtitle">
+ <div class="ending-copy"><div id="endingEyebrow"></div><h2 id="endingTitle" tabindex="-1"></h2><p id="endingSubtitle" aria-live="polite"></p></div>
+ <button type="button" id="btnEndingSkip">К итогам →</button>
+</section>
 <div id="dragonVictory" class="overlay victory-dragon hidden">
-  <div class="tag">ПОЛНАЯ ПРОКАЧКА · ФИНАЛ ПРОЙДЕН</div>
+  <div class="tag">20 СТАДИЙ · ФИНАЛ ПРОЙДЕН</div>
   <canvas id="victoryDragonCanvas" width="420" height="245"></canvas>
-  <h2 id="victoryDragonName">ДРАКОН СПАСЁН</h2>
+  <h2 id="victoryDragonName">БОСС ПОВЕРЖЕН</h2>
   <p id="victoryDragonText"></p>
-  <button class="btn hidden" id="btnRetryDragonSave">ПОВТОРИТЬ СОХРАНЕНИЕ</button>
+  <strong id="victoryRecord"></strong><div id="victoryBosses"></div><p id="victoryWeapon"></p><div id="victoryGear"></div>
   <button class="btn" id="btnVictoryRestart">ЕЩЁ ЗАБЕГ</button>
-  <button class="btn" id="btnVictoryBook" style="background:#8d641e">ОТКРЫТЬ КНИГУ</button>
-  <div class="dragon-entry-row"><button data-open-home="incubator"><span class="dragon-entry-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3C11 3 5 16 5 22a11 8 0 0 0 22 0C27 16 21 3 16 3Z" fill="#f5d793" stroke="#473b29" stroke-width="2"/><path d="m14 5-3 11" stroke="#fff7d9" stroke-width="3" stroke-linecap="round"/><ellipse cx="19" cy="14" rx="2" ry="3" fill="#b98748"/><ellipse cx="11" cy="22" rx="2.5" ry="2" fill="#82a06a"/><circle cx="22" cy="24" r="2" fill="#b98748"/></svg></span>Гнездо</button><button data-open-home="warehouse"><span class="dragon-entry-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="m8 13-3-9 9 5 9-5-1 9 6 4-1 8-8 4-10-4-3-6Z" fill="#7fa36c" stroke="#473b29" stroke-width="2" stroke-linejoin="round"/><path d="m7 5 2 8 5-4m9-4-6 5 5 2" fill="#ebce89"/><path d="m11 16 5 1-3 4Z" fill="#fff5d9"/><circle cx="14" cy="18" r="1.5" fill="#302c24"/><path d="m18 25 8-3" fill="none" stroke="#473b29" stroke-width="1.5"/><circle cx="24" cy="18" r="1.3" fill="#473b29"/></svg></span>Коллекция</button></div>
+  <div id="victoryProgress" class="camp-result-progress"></div><button class="menu-secondary" id="btnVictoryRanking">🏆 Рейтинг / Leaderboard</button><button class="menu-secondary" id="btnVictoryMenu">В лагерь</button>
+  
 </div>
 
 <div id="over" class="overlay hidden">
-  <h2>ЗАБЕГ ОКОНЧЕН</h2><p id="stats"></p>
-  <div class="dragon-entry-row"><button data-open-home="incubator"><span class="dragon-entry-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3C11 3 5 16 5 22a11 8 0 0 0 22 0C27 16 21 3 16 3Z" fill="#f5d793" stroke="#473b29" stroke-width="2"/><path d="m14 5-3 11" stroke="#fff7d9" stroke-width="3" stroke-linecap="round"/><ellipse cx="19" cy="14" rx="2" ry="3" fill="#b98748"/><ellipse cx="11" cy="22" rx="2.5" ry="2" fill="#82a06a"/><circle cx="22" cy="24" r="2" fill="#b98748"/></svg></span>Гнездо</button><button data-open-home="warehouse"><span class="dragon-entry-icon"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="m8 13-3-9 9 5 9-5-1 9 6 4-1 8-8 4-10-4-3-6Z" fill="#7fa36c" stroke="#473b29" stroke-width="2" stroke-linejoin="round"/><path d="m7 5 2 8 5-4m9-4-6 5 5 2" fill="#ebce89"/><path d="m11 16 5 1-3 4Z" fill="#fff5d9"/><circle cx="14" cy="18" r="1.5" fill="#302c24"/><path d="m18 25 8-3" fill="none" stroke="#473b29" stroke-width="1.5"/><circle cx="24" cy="18" r="1.3" fill="#473b29"/></svg></span>Коллекция</button></div>
-  <div class="tag">ПОСТОЯННОЕ УЛУЧШЕНИЕ</div><div class="cards" id="perks"></div>
+<div class="camp-result-panel"><h2 id="overTitle">Забег окончен</h2><canvas id="overHero" width="420" height="245" aria-hidden="true"></canvas><p id="stats"></p><p id="overScoreStatus" role="status" style="font-size:13px;line-height:1.5;font-weight:700"></p><div id="overProgress" class="camp-result-progress"></div><button class="menu-secondary" id="btnOverRanking">🏆 Рейтинг / Leaderboard</button><div class="camp-result-actions"><button class="btn" id="btnOverRetry">ЕЩЁ ЗАБЕГ</button><button class="menu-secondary" id="btnOverMenu">В лагерь</button></div></div>
 </div>
+<section id="campDialog" class="camp-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="campTitle"><div class="camp-panel" id="campPanel"><header><div><h2 id="campTitle" tabindex="-1">Мой лагерь</h2></div><button id="btnCloseCamp" type="button" aria-label="Закрыть">×</button></header><div id="campContent"></div></div></section>
 
-<section id="dragonHome" class="home-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="homeTitle">
-  <div class="home-shell">
-    <header class="home-header"><div><div class="home-eyebrow">VACKY GAMES · ДРАКОНЫ</div><h2 id="homeTitle">Дом драконов</h2><div id="homeWallet" class="home-wallet"></div></div><button id="btnCloseHome">Назад ✕</button></header>
-    <div id="homeContent" class="home-layout">
-      <div class="home-scene"><canvas id="homeCanvas" width="720" height="480" tabindex="0" aria-label="Осмотр дракона. Перетаскивание вращает, два пальца или колесо приближают. Нажатие или Escape возвращает к ячейкам."></canvas><div class="home-scene-copy"><h3 id="homeSceneTitle"></h3><p id="homeSceneHint"></p></div>
-        <button id="btnCaveCollection" class="cave-collection-toggle hidden" aria-label="Вернуться к ячейкам" title="К ячейкам" aria-expanded="false" aria-controls="warehousePanel"><span aria-hidden="true">←</span><span>К ячейкам</span><span id="caveCollectionGlyph" hidden></span><span id="caveCollectionCount" hidden></span></button>
-      </div>
-        <section id="warehousePanel" class="cave-drawer hidden" aria-label="Коллекция драконов"><header><h3>Коллекция</h3><p id="warehouseCount"></p></header>
-          <label id="adminFilterRow" class="hidden">Тестовый каталог<select id="adminFamily"><option value="all">Все 107 моделей</option><option value="rescue">7 драконов финала</option></select></label>
-          <div id="exclusiveGrid" class="exclusive-grid"></div><div id="homePager" class="home-pager"><button id="homePrev" aria-label="Предыдущая страница">←</button><span id="homePageLabel"></span><button id="homeNext" aria-label="Следующая страница">→</button></div>
-        </section>
-      <div id="incubatorPanel" class="home-panel"><h3>Инкубация</h3>
-        <div id="homeAvailable" class="home-dragon-stock" role="img" aria-label="Бриллиантовые драконы: 0" title="Бриллиантовые драконы в наличии">
-          <svg class="diamond-stock-icon" viewBox="0 0 48 48" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
-            <g stroke="#2b2620" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
-              <path d="M12 26 4 18 6 34 17 40 24 36" fill="#70b8c9"/>
-              <path d="m16 18-3-13 11 9 7-10 1 14" fill="#dcf7fa"/>
-              <path d="m12 23 8-12 13 3 3 10 8 3-1 9-12 3-5 6-12-6 4-8Z" fill="#9bdde4"/>
-              <path d="m20 12 3 14 10-12M23 26l13-2M23 26l-5 5 8 14M23 26l8 13" fill="none" stroke="#e8fbfc" stroke-width="1.5"/>
-              <path d="m25 22 6 1-3 4Z" fill="#2b2620"/><path d="m35 32 6-1M19 38l6 2" fill="none"/>
-              <path d="m39 5 1.5 4.5L45 11l-4.5 1.5L39 17l-1.5-4.5L33 11l4.5-1.5Z" fill="#fff9de" stroke-width="1.4"/>
-            </g>
-          </svg><span id="homeDiamondCount" aria-hidden="true">0</span>
-        </div>
-        <div id="eggProgressText">0 / 5</div><p class="incubator-rule">5 драконов → 1 питомец</p>
-        <div class="home-progress" id="eggProgressBar" role="progressbar" aria-label="Вложено драконов" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0"><div id="eggProgress"></div></div>
-        <button id="btnFeedEgg" class="home-primary" title="Один бриллиантовый дракон будет потрачен на яйцо">Вложить · 1</button><button id="btnHomeBook" class="home-secondary">Крафт →</button>
-      </div>
-    </div>
-    <div id="homeMessage" class="home-status" role="status" aria-live="polite"></div>
-    <details id="homeAdminTools" class="home-admin"><summary>ВРЕМЕННАЯ АДМИН-ПАНЕЛЬ · ДЛЯ ТЕСТА</summary><div class="home-admin-actions"><button id="btnAdminDiamonds">+5 БРИЛЛИАНТОВЫХ ДРАКОНОВ</button><button id="btnAdminCatalog">ПОКАЗАТЬ ВСЕХ 107 ДРАКОНОВ</button></div><p>Добавление сохраняется. Просмотр всех моделей не открывает их в коллекции. Эти кнопки нужно отключить перед публичным релизом.</p></details>
-    <p id="homeSaveNote" style="max-width:none;color:#827154;font-size:10px">Прогресс сохраняется в этом браузере.</p>
-  </div>
-</section>
-
+<section id="runConfirm" class="camp-dialog hidden" role="dialog" aria-modal="true" aria-labelledby="runConfirmTitle" aria-describedby="runConfirmHint"><div class="run-confirm-panel"><h2 id="runConfirmTitle"></h2><p id="runConfirmStats"></p><p id="runConfirmHint"></p><div class="run-confirm-actions"><button id="btnCancelNewRun" class="menu-secondary" type="button"></button><button id="btnConfirmNewRun" class="btn" type="button"></button></div></div></section>
   <script src="src/playables.js"></script>
   <script type="text/vacky-module" src="src/core.js"></script>
+<script type="text/vacky-module" src="src/sound-samples.js"></script>
+<script type="text/vacky-module" src="src/sound-sample-player.js"></script>
+<script type="text/vacky-module" src="src/sound-design.js"></script>
+  <script type="text/vacky-module" src="src/language-packs.js"></script>
+  <script type="text/vacky-module" src="src/localization.js"></script>
   <script type="text/vacky-module" src="src/config.js"></script>
+  <script type="text/vacky-module" src="src/camp-progress.js"></script>
   <script type="text/vacky-module" src="src/map-art.js"></script>
   <script type="text/vacky-module" src="src/arena-secrets.js"></script>
   <script type="text/vacky-module" src="src/pets.js"></script>
@@ -330,21 +490,24 @@
   <script type="text/vacky-module" src="src/enemy-hazards.js"></script>
   <script type="text/vacky-module" src="src/combat.js"></script>
   <script type="text/vacky-module" src="src/abilities.js"></script>
-  <script type="text/vacky-module" src="src/dragon-economy.js"></script>
   <script type="text/vacky-module" src="src/dragons.js"></script>
-  <script type="text/vacky-module" src="src/dragon-breeds.js"></script>
-  <script type="text/vacky-module" src="src/dragon-camera.js"></script>
-  <script type="text/vacky-module" src="src/dragon-3d.js"></script>
-  <script type="text/vacky-module" src="src/dragon-hangar.js"></script>
-  <script type="text/vacky-module" src="src/dragon-cave.js"></script>
-  <script type="text/vacky-module" src="src/dragon-collection.js"></script>
-  <script type="text/vacky-module" src="src/dragon-home.js"></script>
+  <script type="text/vacky-module" src="src/bosses.js"></script>
+  <script type="text/vacky-module" src="src/boss-loot.js"></script>
+  <script type="text/vacky-module" src="src/arena-ending.js"></script>
   <script type="text/vacky-module" src="src/update.js"></script>
   <script type="text/vacky-module" src="src/cards.js"></script>
   <script type="text/vacky-module" src="src/draw-hero.js"></script>
   <script type="text/vacky-module" src="src/draw-foe.js"></script>
   <script type="text/vacky-module" src="src/render.js"></script>
-  <script type="text/vacky-module" src="src/ui.js"></script>
+  <script type="text/vacky-module" src="src/menu-scene.js"></script>
+  <script type="text/vacky-module" src="src/menu-help.js"></script>
+  <script type="text/vacky-module" src="src/tutorial.js"></script>
+  <script type="text/vacky-module" src="src/camp-ui.js"></script>
+  <script type="text/vacky-module" src="src/admin-ui.js"></script>
+  <script type="text/vacky-module" src="src/settings-ui.js"></script>
+ <script type="text/vacky-module" src="src/ranking.js"></script>
+ <script type="text/vacky-module" src="src/run-save.js"></script>
+ <script type="text/vacky-module" src="src/ui.js"></script>
   <script src="src/boot-source.js"></script>
 </body>
 </html>

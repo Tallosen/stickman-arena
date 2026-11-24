@@ -1,277 +1,98 @@
 "use strict";
-/* dragons.js — финальная осада, спасение драконом и постоянная книга достижений */
+/* Arena dragon models and uniform ally selection. No collection or automatic victory. */
 
 const DRAGON_TYPES = [
-  { id:"green",   name:"ЗЕЛЁНЫЙ ДРАКОН",       weight:40, rarity:"ОБЫЧНЫЙ",       col:"#4d9650", dark:"#285a35", wing:"#89bf67", accent:"#d7ee8d", breath:"#9bd866" },
-  { id:"blue",    name:"СИНИЙ ДРАКОН",         weight:20, rarity:"НЕОБЫЧНЫЙ",     col:"#397fb9", dark:"#24517d", wing:"#74b9db", accent:"#d8f5ff", breath:"#73cef2" },
-  { id:"violet",  name:"ФИОЛЕТОВЫЙ ДРАКОН",    weight:10, rarity:"РЕДКИЙ",        col:"#7545a7", dark:"#432568", wing:"#a86ed1", accent:"#edc6ff", breath:"#b678ec" },
-  { id:"pink",    name:"РОЗОВЫЙ ДРАКОН",       weight:5,  rarity:"ЭПИЧЕСКИЙ",     col:"#cf568c", dark:"#81365f", wing:"#ef8fba", accent:"#ffe0ed", breath:"#ff8fc1" },
-  { id:"blackgold",name:"ЧЁРНО-ЗОЛОТОЙ ДРАКОН",weight:3,  rarity:"ЛЕГЕНДАРНЫЙ",   col:"#26241f", dark:"#11100e", wing:"#4b4539", accent:"#e9bc35", breath:"#e4a126" },
-  { id:"gold",    name:"ЗОЛОТОЙ ДРАКОН",       weight:1.5,rarity:"МИФИЧЕСКИЙ",    col:"#d69b19", dark:"#88560a", wing:"#f0c348", accent:"#fff3a8", breath:"#ffd44d" },
-  { id:"diamond", name:"БРИЛЛИАНТОВЫЙ ДРАКОН", weight:.5, rarity:"БРИЛЛИАНТОВЫЙ",col:"#8bdde3", dark:"#377f9a", wing:"#c4f5f7", accent:"#ffffff", breath:"#b4f5ff" },
+  { id:"green",   name:"ЗЕЛЁНЫЙ ДРАКОН",       rarity:"ОБЫЧНЫЙ",       col:"#4d9650", dark:"#285a35", wing:"#89bf67", accent:"#d7ee8d", breath:"#9bd866" },
+  { id:"blue",    name:"СИНИЙ ДРАКОН",         rarity:"НЕОБЫЧНЫЙ",     col:"#397fb9", dark:"#24517d", wing:"#74b9db", accent:"#d8f5ff", breath:"#73cef2" },
+  { id:"violet",  name:"ФИОЛЕТОВЫЙ ДРАКОН",    rarity:"РЕДКИЙ",        col:"#7545a7", dark:"#432568", wing:"#a86ed1", accent:"#edc6ff", breath:"#b678ec" },
+  { id:"pink",    name:"РОЗОВЫЙ ДРАКОН",       rarity:"ЭПИЧЕСКИЙ",     col:"#cf568c", dark:"#81365f", wing:"#ef8fba", accent:"#ffe0ed", breath:"#ff8fc1" },
+  { id:"blackgold",name:"ЧЁРНО-ЗОЛОТОЙ ДРАКОН",rarity:"ЛЕГЕНДАРНЫЙ",   col:"#26241f", dark:"#11100e", wing:"#4b4539", accent:"#e9bc35", breath:"#e4a126" },
+  { id:"gold",    name:"ЗОЛОТОЙ ДРАКОН",       rarity:"МИФИЧЕСКИЙ",    col:"#d69b19", dark:"#88560a", wing:"#f0c348", accent:"#fff3a8", breath:"#ffd44d" },
+  { id:"diamond", name:"БРИЛЛИАНТОВЫЙ ДРАКОН", rarity:"БРИЛЛИАНТОВЫЙ",col:"#8bdde3", dark:"#377f9a", wing:"#c4f5f7", accent:"#ffffff", breath:"#b4f5ff" },
 ];
-const DRAGON_KEY="vacky_stickman_dragons_v1";
-const dragonCollection=dragonProfile.counts;
-let dragonFinale=null;
-let forcedDragonId=null;
-let dragonAltar=null;
+// Compatibility guards remain for arena modules; dragons no longer own victory.
+let dragonFinale=null,dragonAltar=null,forcedDragonId=null;
 const ALTAR_HOLD_MS=2000;
-
-// Один алтарь на забег; место под весь круг проверяется на препятствия.
-function unlockDragonAltar(){
-  if(dragonAltar||dragonFinale||!campaignComplete())return;
-  const clear=(x,y)=>x>150&&y>150&&x<WORLD-150&&y<WORLD-150&&
-    Math.hypot(x-P.x,y-P.y)>380&&
-    props.every(o=>Math.hypot(x-o.x,y-o.y)>o.r+130);
-  let spot=null;
-  for(let i=0;i<160&&!spot;i++){
-    const a=Math.random()*Math.PI*2,r=480+Math.random()*430;
-    const x=P.x+Math.cos(a)*r,y=P.y+Math.sin(a)*r;
-    if(clear(x,y))spot={x,y};
-  }
-  // Детерминированный запасной поиск, если герой стоит у края карты.
-  if(!spot)for(let y=180;y<WORLD-120&&!spot;y+=110)
-    for(let x=180;x<WORLD-120&&!spot;x+=110)if(clear(x,y))spot={x,y};
-  if(!spot)return;
-  dragonAltar={...spot,r:80,hold:0,notice:8500};
-  pops.push({x:P.x,y:P.y-72,txt:"АЛТАРЬ ОТКРЫТ · МЕТКА НА КАРТЕ",life:3,col:"#287e94"});
-  SFX.chest();
-}
-
-function updateDragonAltar(dt){
-  if(!running||paused||dragonFinale)return;
-  if(!dragonAltar)unlockDragonAltar();
-  const a=dragonAltar;if(!a)return;
-  a.notice=Math.max(0,a.notice-dt);
-  const inside=Math.hypot(P.x-a.x,P.y-a.y)<=a.r;
-  // Движение внутри круга разрешено; только выход обнуляет призыв.
-  if(!inside)a.hold=0;
-  else a.hold=Math.min(ALTAR_HOLD_MS,a.hold+dt);
-  if(a.hold>=ALTAR_HOLD_MS)startDragonFinale();
-}
-
-function drawDragonAltar(g){
-  const a=dragonAltar;if(!a||dragonFinale||!running)return;
-  g.save();g.translate(a.x,a.y);g.lineJoin="round";g.lineCap="round";
-  const pulse=.5+.5*Math.sin(t/420),progress=a.hold/ALTAR_HOLD_MS;
-  g.fillStyle="rgba(81,189,202,.12)";g.strokeStyle="#398994";g.lineWidth=2.5;
-  g.beginPath();g.arc(0,0,a.r,0,Math.PI*2);g.fill();g.stroke();
-  g.strokeStyle="rgba(66,157,171,.35)";g.lineWidth=7;
-  g.beginPath();g.arc(0,0,a.r+7+pulse*3,0,Math.PI*2);g.stroke();
-  for(let i=0;i<8;i++){
-    const ang=i*Math.PI/4,x=Math.cos(ang)*a.r,y=Math.sin(ang)*a.r;
-    g.save();g.translate(x,y);g.rotate(ang+Math.PI/4);
-    g.fillStyle="#f4d37f";g.strokeStyle=INK;g.lineWidth=1.5;
-    g.fillRect(-3,-3,6,6);g.strokeRect(-3,-3,6,6);g.restore();
-  }
-  if(progress>0){g.strokeStyle="#f1b840";g.lineWidth=6;g.beginPath();
-    g.arc(0,0,a.r,-Math.PI/2,-Math.PI/2+progress*Math.PI*2);g.stroke();}
-  // Стенд находится за центром круга, чтобы герой не накладывался на пьедестал.
-  g.save();g.translate(0,-30);g.scale(1.25,1.25);g.strokeStyle=INK;g.lineWidth=2.8;
-  spoly(g,[[-25,10],[25,10],[31,20],[-31,20]],"#857d72");
-  spoly(g,[[-18,-6],[18,-6],[21,10],[-21,10]],"#b9ae97");
-  spoly(g,[[-22,-9],[0,-18],[22,-9],[0,0]],"#e2ccb0");
-  const bob=Math.sin(t/430)*3;
-  g.save();g.translate(0,-32+bob);
-  g.fillStyle="rgba(77,193,216,.18)";g.beginPath();g.arc(0,0,21+pulse*3,0,7);g.fill();
-  spoly(g,[[0,-18],[12,0],[0,17],[-12,0]],"#86e0e5");
-  g.strokeStyle="#e9ffff";g.lineWidth=1.5;sline(g,0,-14,0,12);
-  // Золотые крылья — эмблема призыва на стенде.
-  g.strokeStyle=INK;g.lineWidth=1.8;
-  spoly(g,[[-12,1],[-29,-12],[-23,5],[-10,10]],"#e6bf59");
-  spoly(g,[[12,1],[29,-12],[23,5],[10,10]],"#e6bf59");g.restore();
-  g.restore();
-  g.fillStyle=INK;g.textAlign="center";g.font="800 11px system-ui";
-  g.fillText("АЛТАРЬ ДРАКОНА",0,a.r+27);
-  g.font="700 10px system-ui";g.fillText("2 СЕК В КРУГЕ · МОЖНО БЕГАТЬ",0,a.r+41);
-  g.restore();
-}
-
-function drawAltarRadar(g,x,y,s){
-  const a=dragonAltar;if(!a||dragonFinale)return;
-  g.save();g.translate(x+a.x*s,y+a.y*s);g.strokeStyle="#246f80";g.lineWidth=1.8;
-  g.fillStyle="rgba(74,179,196,.22)";g.beginPath();g.arc(0,0,7+Math.sin(t/260)*1.5,0,7);g.fill();g.stroke();
-  spoly(g,[[0,-5],[4,0],[0,5],[-4,0]],"#a7f1ef");g.restore();
-}
-
-function drawAltarGuide(g){
-  const a=dragonAltar;if(!a||dragonFinale||!running)return;
-  const d=Math.hypot(a.x-P.x,a.y-P.y),near=d<a.r+30;
-  const title=a.hold>0?"ПРИЗЫВ "+Math.ceil((ALTAR_HOLD_MS-a.hold)/1000)+"…":
-    near?"ПОБУДЬ В КРУГЕ 2 СЕК":"АЛТАРЬ ДРАКОНА · "+Math.round(d)+" м";
-  const width=Math.min(286,W-24),xx=W/2,yy=H-198;
-  g.save();g.fillStyle="rgba(253,246,232,.94)";g.strokeStyle="#398994";g.lineWidth=2;
-  g.beginPath();g.roundRect(xx-width/2,yy,width,53,10);g.fill();g.stroke();
-  g.fillStyle=INK;g.textAlign="center";g.font="800 "+(W<380?10:11)+"px system-ui";
-  g.fillText(title,xx,yy+18);
-  g.font="600 10px system-ui";g.fillText(near?"Выйди из круга, чтобы отменить":
-    "Дракон прилетит через "+formatRunTime(campaignRemaining()),xx,yy+34);
-  if(!near){
-    const angle=Math.atan2(a.y-P.y,a.x-P.x);
-    g.translate(xx,yy-17);g.rotate(angle);g.strokeStyle="#246f80";g.lineWidth=2;
-    spoly(g,[[10,0],[-7,-6],[-3,0],[-7,6]],"#a7f1ef");
-  }
-  g.restore();
-}
-
-function dragonTotal(){return dragonProfile.rescues;}
+function unlockDragonAltar(){}
+function updateDragonAltar(){}
+function drawDragonAltar(){}
+function drawAltarRadar(){}
+function drawAltarGuide(){}
+function dragonBookOpen(){return false;}
+function dragonHomeOpen(){return false;}
 function rollDragon(){
-  if(forcedDragonId){
-    const forced=DRAGON_TYPES.find(d=>d.id===forcedDragonId);forcedDragonId=null;
-    if(forced)return forced;
-  }
-  const total=DRAGON_TYPES.reduce((n,d)=>n+d.weight,0);
-  let r=Math.random()*total;
-  for(const d of DRAGON_TYPES){r-=d.weight;if(r<=0)return d;}
-  return DRAGON_TYPES[0];
+ if(forcedDragonId){const d=DRAGON_TYPES.find(d=>d.id===forcedDragonId);forcedDragonId=null;if(d)return d;}
+ return DRAGON_TYPES[Math.floor(Math.random()*DRAGON_TYPES.length)];
 }
 function forceNextDragon(id){forcedDragonId=DRAGON_TYPES.some(d=>d.id===id)?id:null;}
-
 function resetDragonFinale(){
-  dragonFinale=null;
-  dragonAltar=null;forcedDragonId=null;
-  if(typeof document!=="undefined")document.body.classList.remove("dragon-finale");
-  for(const id of ["dragonVictory","dragonBook","dragonHome"]) {
-    const el=typeof document!=="undefined"?document.getElementById(id):null;
-    if(el)el.classList.add("hidden");
-  }
-  document.getElementById("btnRetryDragonSave")?.classList.add("hidden");
+ dragonFinale=null;dragonAltar=null;forcedDragonId=null;
+ if(typeof resetBossRun==='function')resetBossRun();
+ document.body.classList.remove('dragon-finale');
+ for(const id of ['dragonVictory','dragonBook','dragonHome'])document.getElementById(id)?.classList.add('hidden');
+ document.getElementById('btnRetryDragonSave')?.classList.add('hidden');
 }
+function startDragonFinale(testPreview=false){
+ // Existing developer preview now previews assistance, never a victory or forced siege.
+ if(testPreview&&typeof startDragonAssist==='function')return startDragonAssist(true);
+ return false;
+}
+function updateDragonFinale(){}
+function finishDragonVictory(){return false;}
 
-function startDragonFinale(testPreview=false,automatic=false){
-  if(dragonFinale)return;
-  if(!testPreview&&(!campaignComplete()||(automatic?campaignRemaining()>0:!dragonAltar||dragonAltar.hold<ALTAR_HOLD_MS)))return;
-  const type=rollDragon();
-  resetEnemyHazards();
-  dragonFinale={t:0,type,nextKill:0,rewarded:false,finished:false,cleared:0,roared:false,burst:false};
-  document.body.classList.add("dragon-finale");
-  pointer.active=false;P.xp=P.xpNext;P.stagePulse=0;queuedLevels=0;
-  paused=false;userPaused=false;document.getElementById('levelup')?.classList.add('hidden');
-  if(ult.on){ult.on=false;ult.zoom=1;ult.rot=0;ult.lift=0;document.body.classList.remove("sniper-cinematic");}
-  // Доводим толпу примерно до 72 врагов: достаточно страшно, но безопасно для телефона.
-  const need=Math.max(0,72-enemies.length);
-  for(let i=0;i<need;i++){
-    const r=Math.random();spawn(r<.18?"tank":r<.55?"runner":"basic");
-    const e=enemies[enemies.length-1];e.finalSiege=1;e.speed*=1.12;e.hp=Math.ceil(e.hp*2.4);e.maxhp=e.hp;
-  }
-  pops.push({x:P.x,y:P.y-72,txt:"ПОСЛЕДНЯЯ ОСАДА",life:2.5,col:"#c8402c"});
-  shake=Math.max(shake,18);chain([110,98,82,65],"sawtooth",.075);noise(.45,.10,900,-480);
+function dragonFlightMotion(flap){
+ const cycle=flap*Math.PI*2;
+ return {cycle,wing:Math.sin(cycle)+.18*Math.sin(cycle*2),bob:Math.sin(cycle-.6)*3.2};
 }
-
-function updateDragonFinale(dt){
-  if(!dragonFinale||dragonFinale.finished)return;
-  const f=dragonFinale;f.t+=dt;pointer.active=false;
-  // Красные окружают героя, но финальная сцена не может оборваться случайной смертью.
-  P.hp=Math.max(P.hp,.5);
-  if(f.t>2050&&!f.roared){
-    f.roared=true;shake=Math.max(shake,24);noise(.65,.12,520,-330);chain([92,123,184],"sawtooth",.055);
-  }
-  if(f.t>3500&&f.t<6900){
-    f.nextKill-=dt;
-    if(f.nextKill<=0){
-      f.nextKill+=125;
-      const live=enemies.filter(e=>e.hp>0&&!e.rewarded)
-        .sort((a,b)=>(a.x+b.y*.18)-(b.x+a.y*.18));
-      for(const e of live.slice(0,4)){
-        e.launchUp=1;e.dragonKill=1;
-        const a=Math.atan2(e.y-P.y,e.x-P.x);e.kb=8;e.kbx=Math.cos(a);e.kby=Math.sin(a);
-        hit(e,e.hp+999,P.x-260,P.y-170);f.cleared++;
-      }
-      shake=Math.max(shake,13);noise(.08,.025,2400,-1600);
-    }
-  }
-  if(f.t>7000&&!f.rewardAttempted){
-    for(const e of enemies.filter(e=>e.hp>0&&!e.rewarded)){e.launchUp=1;hit(e,e.hp+999,P.x,P.y);f.cleared++;}
-    const award=awardRescueDragon(f.type.id);
-    f.rewardAttempted=true;f.rewarded=award.ok;
-    pops.push({x:P.x,y:P.y-82,txt:award.ok?f.type.name+" +1":"НАГРАДА ЖДЁТ СОХРАНЕНИЯ",life:2.6,col:f.type.accent});
-    chain([392,523,659,784,1047,1318],"sine",.07);
-  }
-  if(f.t>8950&&!f.finished)finishDragonVictory();
+// Shared transform keeps the breath attached to the animated mouth, including banking and turns.
+function dragonMouthPoint(p,d,flap){
+ const bob=dragonFlightMotion(flap).bob,lx=d.id==='diamond'?94:85,ly=d.id==='diamond'?-30:-26;
+ const c=Math.cos(p.bank),s=Math.sin(p.bank);
+ return {x:p.x+p.face*p.scale*(lx*c-ly*s),y:p.y+bob+p.scale*(lx*s+ly*c)};
 }
-
-function finishDragonVictory(){
-  const f=dragonFinale;if(!f||f.finished)return;
-  f.finished=true;running=false;paused=false;pointer.active=false;
-  document.body.classList.remove("dragon-finale");
-  meta.best=Math.max(meta.best,Math.round(P.runMs/1000));
-  if(typeof saveMeta==='function')saveMeta();
-  const title=document.getElementById("victoryDragonName");
-  const sub=document.getElementById("victoryDragonText");
-  if(title){title.textContent=f.type.name;title.style.color=f.type.id==="blackgold"?"#b88716":f.type.col;}
-  if(sub)sub.textContent=f.rewarded?`Спасение №${dragonTotal()} · ${f.type.rarity} · в коллекции: ${dragonCollection[f.type.id]}`:"Награда ещё не сохранена. Разреши хранение данных браузеру и нажми «Повторить сохранение» перед новым забегом.";
-  document.getElementById("btnRetryDragonSave").classList.toggle("hidden",!!f.rewarded);
-  const c=document.getElementById("victoryDragonCanvas");
-  if(c){const g=c.getContext("2d");g.clearRect(0,0,c.width,c.height);drawDragon(g,c.width/2-8,c.height*.62,1.25,f.type,.8,0);}
-  document.getElementById("dragonVictory").classList.remove("hidden");
+function drawDragonBreath(g,from,to,d,age,phase){
+ if(phase<0||phase>780)return;
+ const dx=to.x-from.x,dy=to.y-from.y,length=Math.hypot(dx,dy);if(length<1)return;
+ const strength=Math.min(1,(phase+25)/100,Math.max(0,(780-phase)/220)),angle=Math.atan2(dy,dx);
+ const warm=['gold','blackgold'].includes(d.id),outer=warm?'#de651d':d.dark,mid=warm?'#ffae32':d.breath;
+ g.save();g.translate(from.x,from.y);g.rotate(angle);
+ // Overlapping curling tongues, not a filled cone or a straight white beam.
+ const tongues=visualFX('lowFX')?12:24,embers=visualFX('lowFX')?6:16;
+ for(let i=0;i<tongues;i++){
+  const u=(phase/390+i/tongues)%1,spread=Math.sin(u*Math.PI),r=(4+18*spread)*strength;
+  const x=u*length,y=Math.sin(u*18-age/85+i*.7)*(3+14*spread);
+  g.save();g.translate(x,y);g.rotate(Math.sin(age/110+i)*.32);
+  g.globalAlpha=strength*(i%3?.65-.32*u:.18);g.fillStyle=i%3?mid:outer;
+  g.beginPath();g.moveTo(-r*.7,0);g.bezierCurveTo(-r,-r,r*.7,-r*.75,r*2.1,-r*.35);
+  g.quadraticCurveTo(r*.4,r*.15,r*.9,r*.6);g.quadraticCurveTo(-r*.5,r,-r*.7,0);g.fill();
+  g.globalAlpha*=.8;g.fillStyle=d.accent;g.beginPath();g.moveTo(-r*.5,0);
+  g.quadraticCurveTo(r*.2,-r*.4,r*1.5,-r*.15);g.quadraticCurveTo(r*.3,r*.45,-r*.5,0);g.fill();g.restore();
+ }
+ // Small embers peel away from the stream; their count never grows with elapsed time.
+ for(let i=0;i<embers;i++){
+  const u=(phase/510+i*.061)%1,x=u*length,y=Math.sin(i*8.3+age/140)*(12+u*34);
+  g.globalAlpha=strength*(1-u)*.85;g.fillStyle=i%2?mid:d.accent;
+  g.beginPath();g.ellipse(x,y,1.5+(i%3),1.2,0,0,7);g.fill();
+ }
+ g.restore();
+ // Short-lived licking flames at the contact point, rather than a glowing spotlight.
+ if(phase>100){
+  g.save();g.translate(to.x,to.y);g.globalAlpha=strength*.7;
+  for(let i=0;i<7;i++){
+   const x=(i-3)*10,y=Math.sin(i*2)*7,h=(13+Math.sin(age/70+i)*7)*strength;
+   g.fillStyle=i%2?mid:d.accent;g.beginPath();g.moveTo(x-5,y);g.quadraticCurveTo(x-9,y-h*.6,x+Math.sin(age/110+i)*6,y-h);
+   g.quadraticCurveTo(x+1,y-h*.3,x+5,y);g.closePath();g.fill();
+  }g.restore();
+ }
 }
-
-function retryDragonReward(){
-  const f=dragonFinale;if(!f?.finished||f.rewarded)return;
-  const result=awardRescueDragon(f.type.id);
-  if(result.ok){f.rewarded=true;document.getElementById("btnRetryDragonSave").classList.add("hidden");
-    document.getElementById("victoryDragonText").textContent=`Награда сохранена · Спасений: ${dragonTotal()} · В коллекции: ${dragonCollection[f.type.id]}`;
-  }else document.getElementById("victoryDragonText").textContent=result.message;
-}
-
-function dragonBookOpen(){return !document.getElementById("dragonBook").classList.contains("hidden");}
-function dragonBookName(d){const n=d.name.replace(/ ДРАКОН$/,'').toLowerCase();return n[0].toUpperCase()+n.slice(1);}
-function renderDragonBook(){
-  const grid=document.getElementById("dragonGrid");if(!grid)return;grid.innerHTML="";
-  document.getElementById("dragonTotal").textContent="В коллекции: "+Object.values(dragonCollection).reduce((a,b)=>a+b,0)+" · Спасений: "+dragonTotal();
-  for(const [i,d] of DRAGON_TYPES.entries()){
-    const count=dragonCollection[d.id],next=DRAGON_TYPES[i+1];
-    const card=document.createElement("div");card.className="dragon-card "+(count?"owned":"locked");
-    card.setAttribute("tabindex","-1");card.setAttribute("data-dragon",d.id);
-    card.innerHTML=`<canvas width="176" height="140" aria-hidden="true"></canvas><div class="dragon-copy"><b>${dragonBookName(d)}</b><span>${d.rarity}</span><strong aria-label="В коллекции: ${count}">×${count}</strong></div>`;
-    card.style.borderColor=count?d.dark:"#c2b297";
-    grid.appendChild(card);const g=card.querySelector("canvas").getContext("2d");
-    drawDragon(g,86,91,.54,d,.9,0);
-    const btn=document.createElement("button");btn.className="craft-btn";
-    if(next){
-      const cost=DRAGON_CRAFT_COST;
-      btn.textContent=count>=cost?`${cost} → 1 · ${dragonBookName(next)}`:`Ещё ${cost-count} для обмена → ${dragonBookName(next)}`;
-      btn.disabled=count<cost;
-      btn.setAttribute("aria-label",`Обменять ${cost}: ${dragonBookName(d)}. Получить 1: ${dragonBookName(next)}`);
-      let used=false;
-      btn.onclick=()=>{
-        if(used||btn.disabled)return;used=true;
-        const overlay=document.getElementById("dragonBook"),scroll=overlay.scrollTop;
-        const result=craftDragon(d.id);renderDragonBook();overlay.scrollTop=scroll;
-        const message=document.getElementById("craftMessage");
-        message.textContent=result.ok?`−${cost} ${dragonBookName(d).toLowerCase()} · +1 ${dragonBookName(next).toLowerCase()}. Сохранено.`:result.message;
-        message.classList.toggle("craft-error",!result.ok);
-        const replacement=grid.querySelector('[data-dragon="'+d.id+'"]');
-        replacement?.focus?.({preventScroll:true});
-      };
-    }else{
-      btn.textContent="В инкубатор · 5 → яйцо";btn.onclick=()=>openDragonHome("incubator");
-    }
-    card.appendChild(btn);
-  }
-}
-function openDragonBook(){
-  if(dragonFinale&&!dragonFinale.finished)return;
-  pointer.active=false;if(running)paused=true;renderDragonBook();
-  document.getElementById("dragonBook").classList.remove("hidden");
-  document.getElementById("craftMessage").textContent="";
-  document.getElementById("btnCloseBook").focus?.({preventScroll:true});
-}
-function closeDragonBook(){
-  document.getElementById("dragonBook").classList.add("hidden");
-  if(running&&!userPaused&&!levelOpen()&&!dragonHomeOpen())paused=false;
-}
-
-/* Бриллиантовый — отдельная модель: не органический дракон с другой краской,
-   а собранный из прозрачных кристаллов небесный змей. */
-function drawDiamondDragon(g,x,y,sc,d,flap,breath,bank=0){
-  const cy=flap*6.283,wing=Math.sin(cy),bob=Math.sin(cy*.55)*2;
+function drawDiamondDragon(g,x,y,sc,d,flap,breath,bank=0,externalBreath=false){
+  const motion=dragonFlightMotion(flap),cy=motion.cycle,wing=motion.wing,bob=motion.bob;
   g.save();g.translate(x,y+bob);g.rotate(bank);g.scale(sc,sc);g.lineJoin="round";g.lineCap="round";
-  g.globalAlpha=.16;g.fillStyle="#17465a";g.beginPath();g.ellipse(-4,39,91,13,0,0,7);g.fill();g.globalAlpha=1;
+  if(!externalBreath){g.globalAlpha=.16;g.fillStyle="#17465a";g.beginPath();g.ellipse(-4,39,91,13,0,0,7);g.fill();g.globalAlpha=1;}
 
   // Две пары кристаллических крыльев с отдельными гранями.
   const crystalWing=(side,near)=>{
-    const lift=wing*(near?26:-17),root=near?2:-9;
+    const lift=(near?wing:Math.sin(cy-.28))*26,root=near?2:-9;
     g.save();g.globalAlpha=near?.88:.48;g.strokeStyle=near?"#246f8f":"#377f9a";g.lineWidth=3;
     spoly(g,[[root,-2],[side*22,-51-lift],[side*48,-101-lift],[side*65,-43-lift*.45],[side*91,-66-lift*.3],[side*69,-10],[side*39,-21]],near?"#c7fbff":"#7fcbd5");
     g.globalAlpha=near?.48:.27;g.fillStyle="#ffffff";
@@ -304,6 +125,7 @@ function drawDiamondDragon(g,x,y,sc,d,flap,breath,bank=0){
   g.strokeStyle="#17465a";g.lineWidth=3;
   spoly(g,[[43,-51],[64,-54],[87,-40],[75,-24],[48,-27],[38,-38]],"#a9f1f3");
   spoly(g,[[70,-42],[99,-34],[80,-22],[65,-27]],"#4aa9bd");
+  g.save();g.translate(0,breath*7);spoly(g,[[69,-28],[91,-26],[78,-17],[62,-24]],'#82dbe2');g.restore();
   spoly(g,[[53,-48],[64,-54],[62,-31]],"#ffffff");
   spoly(g,[[40,-49],[29,-72],[51,-54]],"#dfffff");spoly(g,[[61,-53],[66,-80],[74,-49]],"#ffffff");
   g.shadowColor="#ffffff";g.shadowBlur=12;g.fillStyle="#ffffff";g.beginPath();g.arc(63,-42,4.5,0,7);g.fill();g.shadowBlur=0;
@@ -317,7 +139,7 @@ function drawDiamondDragon(g,x,y,sc,d,flap,breath,bank=0){
   crystalWing(-1,true);crystalWing(1,true);
 
   // Призматический луч разбивается на три цвета у края экрана.
-  if(breath>0){
+  if(breath>0&&!externalBreath){
     const len=155+breath*115,sy=-29;g.globalAlpha=.25+.28*breath;g.fillStyle="#b9fbff";
     spoly(g,[[87,sy-5],[87+len,sy-14],[87+len,sy+14],[87,sy+5]],"#b9fbff");
     const cols=["#ff8eba","#fff27a","#83e8ff"];
@@ -329,15 +151,15 @@ function drawDiamondDragon(g,x,y,sc,d,flap,breath,bank=0){
   g.restore();
 }
 
-function drawDragon(g,x,y,sc,d,flap,breath,bank=0){
-  if(d.id==="diamond")return drawDiamondDragon(g,x,y,sc,d,flap,breath,bank);
-  const cycle=flap*6.283,wing=Math.sin(cycle),bob=Math.sin(cycle*.5)*2.2;
-  const jaw=(breath||0)*5,tailWave=Math.sin(cycle*.72)*8;
+function drawDragon(g,x,y,sc,d,flap,breath,bank=0,externalBreath=false){
+  if(d.id==="diamond")return drawDiamondDragon(g,x,y,sc,d,flap,breath,bank,externalBreath);
+  const motion=dragonFlightMotion(flap),cycle=motion.cycle,wing=motion.wing,bob=motion.bob;
+  const jaw=(breath||0)*9,tailWave=Math.sin(cycle-.9)*8+Math.sin(cycle*.5)*3;
   g.save();g.translate(x,y+bob);g.rotate(bank);g.scale(sc,sc);
   g.lineCap="round";g.lineJoin="round";g.strokeStyle=INK;
 
   // Мягкая тень подчёркивает крупный силуэт, не превращая его в плоскую наклейку.
-  g.globalAlpha=.14;g.fillStyle="#17130f";g.beginPath();g.ellipse(-7,38,83,12,-.05,0,7);g.fill();g.globalAlpha=1;
+  if(!externalBreath){g.globalAlpha=.14;g.fillStyle="#17130f";g.beginPath();g.ellipse(-7,38,83,12,-.05,0,7);g.fill();g.globalAlpha=1;}
 
   // Дальний хвост — длинный, гибкий и с читаемым наконечником.
   g.strokeStyle=INK;g.lineWidth=20;g.beginPath();g.moveTo(-28,12);g.bezierCurveTo(-65,26,-89,16,-112,2+tailWave);g.stroke();
@@ -348,7 +170,7 @@ function drawDragon(g,x,y,sc,d,flap,breath,bank=0){
 
   const wingShape=(near)=>{
     const side=near?1:-1,rootX=near?2:-11;
-    const lift=(near?1:-.75)*wing;
+    const lift=near?wing:Math.sin(cycle-.28);
     g.save();if(!near)g.globalAlpha=.72;
     g.strokeStyle=INK;g.lineWidth=3.4;g.beginPath();g.moveTo(rootX,-2);
     g.bezierCurveTo(rootX-11,-32,side*18-14,-78-lift*31,side*57-14,-95-lift*42);
@@ -373,9 +195,9 @@ function drawDragon(g,x,y,sc,d,flap,breath,bank=0){
   for(let i=-2;i<3;i++){g.beginPath();g.arc(i*10+3,13,9,-.08,2.85);g.stroke();}
 
   // Задние лапы поджаты во время полёта, когти остаются видимыми.
-  const leg=(lx,flip)=>{g.strokeStyle=INK;g.lineWidth=10;g.beginPath();g.moveTo(lx,19);g.lineTo(lx-5*flip,35);g.lineTo(lx+9*flip,39);g.stroke();
+  const leg=(lx,flip)=>{g.save();g.translate(lx,19);g.rotate(Math.sin(cycle-.8+flip*.3)*.10);g.translate(-lx,-19);g.strokeStyle=INK;g.lineWidth=10;g.beginPath();g.moveTo(lx,19);g.lineTo(lx-5*flip,35);g.lineTo(lx+9*flip,39);g.stroke();
     g.strokeStyle=d.dark;g.lineWidth=5.5;g.beginPath();g.moveTo(lx,19);g.lineTo(lx-5*flip,35);g.lineTo(lx+9*flip,39);g.stroke();
-    g.strokeStyle=INK;g.lineWidth=1.8;for(let i=0;i<3;i++)sline(g,lx+7*flip+i*3*flip,38,lx+12*flip+i*4*flip,43-i);};
+    g.strokeStyle=INK;g.lineWidth=1.8;for(let i=0;i<3;i++)sline(g,lx+7*flip+i*3*flip,38,lx+12*flip+i*4*flip,43-i);g.restore();};
   leg(-17,-1);leg(17,1);
 
   // S-образная шея и угловатая голова с настоящей нижней челюстью.
@@ -429,7 +251,7 @@ function drawDragon(g,x,y,sc,d,flap,breath,bank=0){
   }
 
   // Дыхание имеет объёмный внешний поток, белое ядро и летящие искры.
-  if(breath>0){
+  if(breath>0&&!externalBreath){
     const len=145+breath*105,sy=-27+jaw*.45;
     g.globalAlpha=.20+.25*breath;g.fillStyle=d.breath;g.beginPath();g.moveTo(84,sy-7);
     g.bezierCurveTo(118,sy-36,174,sy-44,84+len,sy-6);g.bezierCurveTo(190,sy+40,120,sy+25,84,sy+5);g.closePath();g.fill();
@@ -444,137 +266,5 @@ function drawDragon(g,x,y,sc,d,flap,breath,bank=0){
   g.restore();
 }
 
-function drawDragonFinale(g){
-  if(!dragonFinale)return;const f=dragonFinale,p=f.t;
-  const special=f.type.id==="diamond"||f.type.id==="blackgold"||f.type.id==="gold";
-  // Обычные виды влетают над ареной и заранее отбрасывают огромную тень.
-  if(!special&&p>1250&&p<2350){
-    const q=(p-1250)/1100,e=1-Math.pow(1-q,3);
-    g.save();g.globalAlpha=Math.sin(q*Math.PI)*.22;g.fillStyle="#16130f";
-    g.translate(P.x-520+e*780,P.y+35);g.rotate(-.12);g.beginPath();g.ellipse(0,0,125,25,0,0,7);g.fill();
-    g.beginPath();g.moveTo(-18,0);g.lineTo(-110,-62);g.lineTo(-65,5);g.lineTo(-112,62);g.closePath();g.fill();g.restore();
-  }
-
-  // Бриллиантовый сначала рассыпает звезду, затем собирается из летящих граней.
-  if(f.type.id==="diamond"&&p>850&&p<3350){
-    const q=Math.max(0,Math.min(1,(p-1050)/1900)),ease=1-Math.pow(1-q,3);
-    const tx=P.x-62,ty=P.y-66;
-    g.save();g.globalCompositeOperation="lighter";
-    for(let i=0;i<28;i++){
-      const a=i/28*6.283+p/1150,r=(1-ease)*(220+(i%5)*42)+28;
-      const sx=tx+Math.cos(a)*r,sy=ty-210*(1-ease)+Math.sin(a)*r*.72;
-      g.save();g.translate(sx,sy);g.rotate(a-p/360+i);g.globalAlpha=.25+.7*q;
-      g.strokeStyle=i%3?"#78dce8":"#ff9cd2";g.lineWidth=1.5;
-      spoly(g,[[0,-9],[6,0],[0,9],[-6,0]],i%2?"#dfffff":"#9eeef3");g.restore();
-    }
-    g.globalAlpha=Math.sin(Math.min(1,q)*Math.PI)*.34;g.strokeStyle="#ffffff";g.lineWidth=8;
-    g.beginPath();g.arc(tx,ty,35+ease*125,0,7);g.stroke();g.restore();
-  }
-  // Чёрно-золотой выходит из собственного затмения-портала.
-  if(f.type.id==="blackgold"&&p>900&&p<3600){
-    const q=Math.max(0,Math.min(1,(p-900)/1250)),fade=Math.min(1,(3600-p)/600);
-    const px=P.x-62,py=P.y-65;g.save();g.translate(px,py);g.globalAlpha=q*fade;
-    g.fillStyle="rgba(12,10,8,.84)";g.beginPath();g.ellipse(0,0,122*q,91*q,p/900,0,7);g.fill();
-    for(let i=0;i<4;i++){g.strokeStyle=i%2?"#e9bc35":"#5a4318";g.lineWidth=8-i*1.4;g.globalAlpha=(.28+i*.12)*q*fade;
-      g.beginPath();g.ellipse(0,0,102+i*13,72+i*9,-p/(520+i*90),i*.55,i*.55+4.7);g.stroke();}
-    for(let i=0;i<12;i++){const a=i/12*6.283-p/700,r=132+(i%3)*13;g.globalAlpha=.65*q*fade;g.fillStyle="#e9bc35";
-      g.beginPath();g.arc(Math.cos(a)*r,Math.sin(a)*r*.68,2+(i%2)*2,0,7);g.fill();}g.restore();
-  }
-  // Золотой спускается в солнечном столбе и закручивает вокруг себя корону лучей.
-  if(f.type.id==="gold"&&p>700&&p<3500){
-    const q=Math.max(0,Math.min(1,(p-700)/1500)),fade=Math.min(1,(3500-p)/650),px=P.x-62;
-    g.save();g.globalAlpha=.09+.17*q*fade;g.fillStyle="#ffe477";
-    g.beginPath();g.moveTo(px-86,P.y-H*.75);g.lineTo(px+86,P.y-H*.75);g.lineTo(px+132,P.y+95);g.lineTo(px-132,P.y+95);g.closePath();g.fill();
-    g.translate(px,P.y-65);g.strokeStyle="#ffe991";g.lineWidth=5;
-    for(let i=0;i<18;i++){const a=i/18*6.283+p/1300;g.globalAlpha=(.18+(i%3)*.08)*q*fade;
-      sline(g,Math.cos(a)*65,Math.sin(a)*48,Math.cos(a)*190,Math.sin(a)*135);}
-    g.globalAlpha=.32*q*fade;g.fillStyle="#fff4b0";g.beginPath();g.arc(0,0,92+Math.sin(p/150)*8,0,7);g.fill();g.restore();
-  }
-  if((special&&p<1750)||(!special&&p<1950))return;
-  const raw=Math.min(1,(p-1950)/1250),enter=1-Math.pow(1-raw,3);
-  const leave=p>7350?Math.min(1,(p-7350)/1150):0;
-  let x=P.x-610+enter*548+Math.sin(p/410)*24+leave*410;
-  // Держим крупную модель в верхней трети, но целиком внутри кадра телефона.
-  let y=P.y-200+enter*135-Math.sin(p/330)*14-leave*150;
-  let modelScale=1.72,modelAlpha=1;
-  const breath=p>3450&&p<7100?
-    Math.sin(Math.min(1,(p-3450)/520)*Math.PI/2)*Math.min(1,(7100-p)/430):0;
-  let bank=(1-enter)*.22+Math.sin(p/680)*.045-leave*.18;
-  if(f.type.id==="diamond"){
-    const q=Math.max(0,Math.min(1,(p-1750)/1450)),e=1-Math.pow(1-q,3);
-    x=P.x-62+Math.sin(p/260)*(1-e)*85+leave*420;
-    y=P.y-410+e*344-Math.sin(p/330)*10-leave*160;
-    modelScale=.30+1.52*e;modelAlpha=Math.max(.08,q);bank=(1-e)*-.65+Math.sin(p/700)*.035-leave*.22;
-  }else if(f.type.id==="blackgold"){
-    const q=Math.max(0,Math.min(1,(p-1950)/950)),e=1-Math.pow(1-q,3);
-    const overshoot=1+Math.sin(q*Math.PI)*.16;
-    x=P.x-62+leave*410;y=P.y-65-Math.sin(p/350)*10-leave*150;
-    modelScale=Math.max(.08,1.72*e*overshoot);modelAlpha=e;bank=Math.sin(p/720)*.025-leave*.18;
-  }else if(f.type.id==="gold"){
-    const q=Math.max(0,Math.min(1,(p-1750)/1350)),e=1-Math.pow(1-q,3);
-    x=P.x-62+Math.cos(q*7)*(1-e)*190+leave*420;
-    y=P.y-430+e*365-Math.sin(p/370)*10-leave*160;
-    modelScale=.58+1.14*e;modelAlpha=Math.max(.12,q);bank=Math.sin(q*7)*(1-e)*.52-leave*.18;
-  }
-  if(p>3250&&p<7250){
-    g.save();g.globalAlpha=.12+.10*breath;g.fillStyle=f.type.breath;g.fillRect(P.x-W*.7,P.y-H*.7,W*1.4,H*1.4);g.restore();
-  }
-  g.save();g.translate(x,y);
-  if(f.type.id==="diamond"){
-    // Самая редкая версия получает отдельную призматическую корону и радужные осколки.
-    for(let i=0;i<18;i++){
-      const a=i/18*6.283+p/620,r=112+(i%3)*25;
-      g.globalAlpha=.38+.22*Math.sin(p/120+i);g.strokeStyle=`hsl(${(i*38+p/18)%360} 82% 68%)`;g.lineWidth=3.2;
-      sline(g,Math.cos(a)*48,Math.sin(a)*32,Math.cos(a)*r,Math.sin(a)*r*.72);
-      g.save();g.translate(Math.cos(a)*r,Math.sin(a)*r*.72);g.rotate(a+p/400);
-      spoly(g,[[0,-8],[5,0],[0,8],[-5,0]],i%2?"#ffffff":"#91f2ff");g.restore();
-    }
-    g.globalAlpha=.25;g.strokeStyle="#ffffff";g.lineWidth=9;g.beginPath();g.ellipse(0,-8,138,78,p/900,0,7);g.stroke();
-  }else if(f.type.id==="gold"){
-    g.strokeStyle="#ffe481";g.lineWidth=5;
-    for(let i=0;i<14;i++){const a=i/14*6.283+p/1200;g.globalAlpha=.18+(i%3)*.08;sline(g,Math.cos(a)*55,Math.sin(a)*35,Math.cos(a)*145,Math.sin(a)*100);}
-  }else if(f.type.id==="blackgold"){
-    g.globalAlpha=.20;g.fillStyle="#1a1712";g.beginPath();g.arc(0,-8,120,0,7);g.fill();
-    g.globalAlpha=.55;g.strokeStyle="#e3b52f";g.lineWidth=3;g.beginPath();g.arc(0,-8,104+p%180/18,0,7);g.stroke();
-  }else if(f.type.id==="violet"){
-    g.strokeStyle="#d7a8ff";g.lineWidth=3;
-    for(let i=0;i<6;i++){const a=i/6*6.283+p/900;g.globalAlpha=.42;sline(g,Math.cos(a)*45,Math.sin(a)*28,Math.cos(a+.18)*96,Math.sin(a+.18)*70);}
-  }else if(f.type.id==="pink"){
-    g.fillStyle="#ffd0e4";
-    for(let i=0;i<10;i++){const a=i/10*6.283+p/800,r=72+(i%3)*15;g.globalAlpha=.48;g.beginPath();g.arc(Math.cos(a)*r,Math.sin(a)*r*.64,3+(i%2)*2,0,7);g.fill();}
-  }else if(f.type.id==="blue"){
-    g.strokeStyle="#d6f5ff";g.lineWidth=2.3;
-    for(let i=0;i<10;i++){const a=i/10*6.283-p/1100,r=70+(i%3)*18;g.globalAlpha=.48;sline(g,Math.cos(a)*r-5,Math.sin(a)*r*.6,Math.cos(a)*r+5,Math.sin(a)*r*.6);}
-  }else{
-    // Зелёный тоже получает собственный природный вихрь, но спокойнее редких видов.
-    g.strokeStyle="#d7ee8d";g.lineWidth=2.4;
-    for(let i=0;i<8;i++){const a=i/8*6.283+p/1050,r=78+(i%2)*17;g.globalAlpha=.34;
-      g.beginPath();g.arc(Math.cos(a)*r,Math.sin(a)*r*.58,4,0,Math.PI);g.stroke();}
-  }
-  g.restore();
-  g.save();g.globalAlpha=modelAlpha;drawDragon(g,x,y,modelScale,f.type,p/610,breath,bank);g.restore();
-
-  // Удар проходит по арене заметной волной, а не просто мгновенно удаляет врагов.
-  if(breath>0){
-    g.save();g.translate(x+165,y-42);g.globalAlpha=.16+.20*breath;g.strokeStyle=f.type.accent;
-    for(let i=0;i<4;i++){
-      const travel=((p/7+i*150)%620),rr=18+i*5;g.lineWidth=7-i;
-      g.beginPath();g.ellipse(travel,Math.sin(p/95+i)*24,rr*2.2,rr,0,0,7);g.stroke();
-    }
-    for(let i=0;i<16;i++){
-      const px=((p*.32+i*67)%650),py=Math.sin(i*2.2+p/170)*72;
-      g.globalAlpha=.20+(i%4)*.10;g.fillStyle=i%3?f.type.breath:f.type.accent;
-      g.beginPath();g.arc(px,py,2+(i%3)*1.6,0,7);g.fill();
-    }
-    g.restore();
-  }
-}
-
-function drawDragonScreenFX(g){
-  if(!dragonFinale||dragonFinale.finished)return;const f=dragonFinale,p=f.t;
-  const a=Math.min(1,p/500,p>8250?(8950-p)/700:1);
-  g.save();g.globalAlpha=Math.max(0,a)*.82;g.fillStyle="#211d16";g.fillRect(0,0,W,44);g.fillRect(0,H-36,W,36);
-  g.textAlign="center";g.fillStyle=p<2300?"#e85b43":f.type.accent;g.font="900 13px system-ui";
-  g.fillText(p<2100?"FINAL SIEGE · HOLD THE LINE":p<7000?f.type.name+" · RESCUE":"АРЕНА ЗАЧИЩЕНА",W/2,27);
-  g.restore();
-}
+function drawDragonFinale(){}
+function drawDragonScreenFX(){}

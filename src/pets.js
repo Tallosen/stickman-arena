@@ -72,22 +72,41 @@ function updatePetTurrets(dt,S) {
     const e=petNearest(tu.x,tu.y,260,600);if(!e)continue;
     tu.a=Math.atan2(e.y-(tu.y-6),e.x-tu.x);
     if(tu.cd<=0){
-      tu.cd=S.turCd;beep(660,.04,'square',.014,-220);
+      tu.cd=S.turCd;SFX.turret?.(tu.x);
       shots.push({x:tu.x+Math.cos(tu.a)*14,y:tu.y-6+Math.sin(tu.a)*14,
         vx:Math.cos(tu.a)*7,vy:Math.sin(tu.a)*7,a:tu.a,life:650,dmg:S.turDmg,source:'pet'});
     }
   }
   turrets=turrets.filter(t=>t.life>0);
 }
+// Presentation follows real movement, so a blocked route cannot look like a
+// sprint. These values never participate in steering, damage or attack timing.
+function resetBoarAnimation(p){
+  p.boarAnim='idle';p.boarRun=0;p.boarStride=0;
+  p.boarHeading=p.face<0?Math.PI:0;
+}
+function trackBoarMovement(p,x,y,k,anim){
+  const dx=p.x-x,dy=p.y-y,d=Math.hypot(dx,dy);
+  p.boarRun=k>0?Math.min(1,d/(5.4*k)):0;
+  p.boarStride=(p.boarStride||0)+d/7;
+  if(d>.01)p.boarHeading=Math.atan2(dy,dx);
+  p.boarAnim=anim==='charge'&&d<.01?'brake':anim;
+}
 function boarDetonate(p,S) {
-  explode(p.x,p.y,S.boarR,S.boarDmg);
-  Object.assign(booms[booms.length-1],{style:'boar',duration:720,seed:p.phase});
+  explode(p.x,p.y,S.boarR,S.boarDmg,'petBlast');
+  Object.assign(booms[booms.length-1],{style:'boar',duration:720,seed:p.phase,
+    boarFace:p.face,boarHeading:Number.isFinite(p.boarHeading)?p.boarHeading:(p.face<0?Math.PI:0)});
   p.hp=0;p.dead=p.reviveMs;p.fuse=0;p.chargeTarget=null;p.nav=null;
+  resetBoarAnimation(p);
 }
 
 function updatePet(dt, k) {
   const p = P.pet; if (!p) return;
   const S = petStats(p);
+  if(p.type==='boar'){
+    if(!Number.isFinite(p.boarHeading)||p.dead>0)resetBoarAnimation(p);
+    p.boarAnim='idle';p.boarRun=0;
+  }
   updatePetTurrets(dt,S); // Independent lifetime/attacks, including recall and revival.
   if (p.dead > 0) {                       // ждём воскрешения
     p.dead -= dt;
@@ -95,7 +114,7 @@ function updatePet(dt, k) {
       p.hpMax = S.hp; p.hp = p.hpMax;
       p.x = P.x + rnd(-30, 30); p.y = P.y + rnd(-30, 30);
       pushOut(p);p.nav=null;p.chargeTarget=null;p.fuse=0;p.hurt=1500;
-      p.state = "up"; p.timer = 1200; p.burrow=null;p.emergeT=0;SFX.revive();
+      p.state = "up"; p.timer = 1200; p.burrow=null;p.emergeT=0;SFX.petVoice?.(p.type,p.x);
       for (let i = 0; i < 12; i++) {
         const a = Math.random() * 6.28;
         puffs.push({ x: p.x, y: p.y, vx: Math.cos(a) * 2, vy: Math.sin(a) * 2, life: 1, r: rnd(2, 5) });
@@ -118,9 +137,12 @@ function updatePet(dt, k) {
     p.recall -= dt;
     const dx = P.x - p.x, dy = P.y - p.y, d = Math.hypot(dx, dy);
     if (d > 40) {
+      const oldX=p.x,oldY=p.y;
       petMove(p,P.x,P.y,4.6,k,flying);
-      p.face = dx > 0 ? 1 : -1; p.phase += .4 * k;
+      if(p.type!=='boar'||Math.abs(dx)>1)p.face = dx > 0 ? 1 : -1;
+      p.phase += .4 * k;
       if (!flying) pushOut(p);
+      if(p.type==='boar')trackBoarMovement(p,oldX,oldY,k,'idle');
       return;
     }
     p.recall = 0;
@@ -149,7 +171,7 @@ function updatePet(dt, k) {
     } else if (tg) {
       if(Math.hypot(tg.x-p.x,tg.y-p.y)>tg.r+13)goto(tg.x, tg.y, 3.7);
       if (p.cd<=0 && Math.hypot(tg.x - p.x, tg.y - p.y) < tg.r + 19) {
-        hit(tg, S.dogDmg, p.x, p.y); p.cd = S.dogCd; p.bite = 220; SFX.bite();
+        hit(tg, S.dogDmg, p.x, p.y); p.cd = S.dogCd; p.bite = 220; SFX.bite(p.x);SFX.petVoice?.('dog',p.x);
       }
     } else if (Math.hypot(homeX - p.x, homeY - p.y) > 28) {
       goto(homeX, homeY, 2.5);                                    // трусит у ноги
@@ -162,7 +184,7 @@ function updatePet(dt, k) {
     if (tg) {
       p.aim = Math.atan2(tg.y - (p.y - 14), tg.x - p.x);
       if (p.cd <= 0) {
-        p.cd = S.catCd; beep(900, .035, "square", .015, -300);
+        p.cd = S.catCd; SFX.petShot?.(p.x);
         shots.push({ x: p.x + Math.cos(p.aim) * 16, y: p.y - 14 + Math.sin(p.aim) * 16,
                      vx: Math.cos(p.aim) * 7.6, vy: Math.sin(p.aim) * 7.6,
                      a: p.aim, life: 620, dmg: S.catDmg, source:'pet' });
@@ -177,14 +199,17 @@ function updatePet(dt, k) {
     if (p.drop <= 0 && mine < S.mineCap) {
       p.drop = S.dropCd;
       mines.push({ x: p.x, y: p.y + 26, arm: 500, mini: true, dmg: S.mineDmg, blastR:S.mineR, ttl:11000 });
+      SFX.petVoice?.('parrot',p.x);
     }
 
   } else if (p.type === "boar") {
     let tg=p.chargeTarget;
     const valid=e=>e&&enemies.includes(e)&&petEnemyAlive(e)&&Math.hypot(e.x-P.x,e.y-P.y)<420;
     if(!valid(tg)||p.fuse>5500||Math.hypot(p.x-P.x,p.y-P.y)>480){
+      const hadCharge=!!tg||p.fuse>0;
       if(tg&&p.fuse>5500){p.ignoredTarget=tg;p.retryCd=2000;}
       tg=null;p.chargeTarget=null;p.fuse=0;
+      if(hadCharge)resetBoarAnimation(p);
     }
     p.retryCd=Math.max(0,(p.retryCd||0)-dt);
     if(!tg&&Math.hypot(p.x-P.x,p.y-P.y)<400){
@@ -195,14 +220,24 @@ function updatePet(dt, k) {
         const priority=d*((enemyBaseKind(e.kind)==='tank'||e.kind==='elite')?.55:1);
         if(priority<best){best=priority;tg=e;}
       }
-      if(tg){p.chargeTarget=tg;p.fuse=0;p.nav=null;}
+      if(tg){p.chargeTarget=tg;p.fuse=0;p.nav=null;resetBoarAnimation(p);SFX.petVoice?.('boar',p.x);}
     }
+    const oldX=p.x,oldY=p.y;
     if(tg){
       p.fuse=(p.fuse||0)+dt;
       // Readable 0.32s wind-up, then accelerating charge with a locked target.
-      if(p.fuse>320)goto(tg.x,tg.y,Math.min(5.4,3.6+(p.fuse-320)/700));
+      if(p.fuse>320){
+        goto(tg.x,tg.y,Math.min(5.4,3.6+(p.fuse-320)/700));
+        trackBoarMovement(p,oldX,oldY,k,'charge');
+      }else{
+        p.boarAnim='windup';p.boarHeading=Math.atan2(tg.y-p.y,tg.x-p.x);
+        if(Math.abs(tg.x-p.x)>1)p.face=tg.x>p.x?1:-1;
+      }
       if(p.fuse>320&&Math.hypot(tg.x-p.x,tg.y-p.y)<tg.r+22){boarDetonate(p,S);return;}
-    }else if(Math.hypot(P.x-p.x,P.y-p.y)>60)goto(P.x,P.y,4.0);
+    }else{
+      if(Math.hypot(P.x-p.x,P.y-p.y)>60)goto(P.x,P.y,4.0);
+      trackBoarMovement(p,oldX,oldY,k,'idle');
+    }
 
   } else if (p.type === "chicken") {
     const hx = P.x - P.face * 42, hy = P.y + 24;
@@ -215,7 +250,7 @@ function updatePet(dt, k) {
       p.eggSerial=(p.eggSerial||0)+1;
       const kind=!healer&&p.eggSerial%3===0?'green':p.eggSerial%3===2?'red':'yellow';
       eggs.push({ x: p.x - p.face * 12, y: p.y + 5, t: 1500, wob: 0, kind });
-      beep(880, .06, "sine", .035, 180);
+      SFX.petVoice?.('chicken',p.x);
     }
 
   } else if (p.type === "mole") {
@@ -244,6 +279,7 @@ function updatePet(dt, k) {
       p.face=b.to.x>=b.from.x?1:-1;
       if(u>=1){
         p.state='up';p.timer=1700;p.emergeT=420;p.burrow=null;
+        SFX.petVoice?.('mole',p.x);
         for(let i=0;i<9;i++){const a=Math.random()*Math.PI*2;puffs.push({x:p.x,y:p.y,vx:Math.cos(a)*1.6,vy:Math.sin(a)*1.6-.5,life:.8,r:rnd(2,4)});}
       }
     }else {p.state='up';p.timer=400;}
@@ -260,7 +296,8 @@ function updatePet(dt, k) {
       p.hp--; p.hurt = 900;
       pops.push({ x: p.x, y: p.y - 28, txt: "-1", life: .9, col: "#c8402c" });
       if (p.hp <= 0) {
-        p.dead = p.reviveMs; SFX.dead();
+        p.dead = p.reviveMs; SFX.petDown?.(p.x);
+        if(p.type==='boar')resetBoarAnimation(p);
         for (let i = 0; i < 14; i++) {
           const a = Math.random() * 6.28, sp = rnd(.8, 2.6);
           puffs.push({ x: p.x, y: p.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, r: rnd(2, 5) });
@@ -282,7 +319,7 @@ function updateFarm(dt, k) {
       const ch={ x: eg.x, y: eg.y, r:7, hp:4, hurt:1000, life:22000, cd:0,
                     phase:rnd(0,6), face:1, kind:eg.kind, healCd:5000 };
       pushOut(ch);chicks.push(ch);
-      beep(1150, .07, "triangle", .04, 260);
+      SFX.chirp?.(eg.x);
       for (let i = 0; i < 5; i++) {
         const a = Math.random() * 6.28;
         puffs.push({ x: eg.x, y: eg.y, vx: Math.cos(a) * 1.2, vy: Math.sin(a) * 1.2, life: .7, r: rnd(2, 3.5) });
@@ -308,7 +345,7 @@ function updateFarm(dt, k) {
         go(tg.x, tg.y, 3.1);
         if (Math.hypot(tg.x-ch.x,tg.y-ch.y) < tg.r + 12) {
           const lv = P.pet ? P.pet.lvl : 1;
-          explode(ch.x, ch.y, 58 + 7 * lv, S.chickBlast);
+          explode(ch.x, ch.y, 58 + 7 * lv, S.chickBlast,'petBlast');
           ch.hp = 0;
         }
       } else if (Math.hypot(P.x - ch.x, P.y - ch.y) > 90) go(P.x, P.y, 2.5);
@@ -322,7 +359,7 @@ function updateFarm(dt, k) {
           ch.healCd=9000;if(P.pet)P.pet.healLock=9000;
           P.hp = Math.min(P.hpMax, P.hp + .5);
           pops.push({ x: P.x, y: P.y - 52, txt: "+½", life: 1.2, col: "#4e8f4a" });
-          chain([700, 950], "sine", .05);
+          SFX.heal();
           for (let i = 0; i < 6; i++) {
             const a = Math.random() * 6.28;
             puffs.push({ x: ch.x, y: ch.y - 8, vx: Math.cos(a) * 1.2, vy: Math.sin(a) * 1.2 - .6, life: .9, r: rnd(2, 3.4) });
@@ -335,7 +372,7 @@ function updateFarm(dt, k) {
       if (Math.hypot(tg.x-ch.x,tg.y-ch.y) < tg.r + 15 && ch.cd <= 0) {
         hit(tg, S.chickDmg, ch.x, ch.y);
         ch.cd = 560; ch.slash = 200;
-        beep(1300, .04, "square", .02, -300);
+        SFX.slash?.(ch.x);
       }
     } else if (Math.hypot(P.x - ch.x, P.y - ch.y) > 90) {
       go(P.x, P.y, 2.4);

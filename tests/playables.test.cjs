@@ -2,10 +2,10 @@ const fs=require('fs'),vm=require('vm'),path=require('path'),assert=require('ass
 const code=fs.readFileSync(path.join(__dirname,'../src/playables.js'),'utf8');
 const defer=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 const tick=async()=>{for(let i=0;i<12;i++)await Promise.resolve();};
-function harness({cloud=true,strict=false,raw='',loadFail=false}={}){
+function harness({cloud=true,strict=false,raw='',loadFail=false,qa=false}={}){
  const trace=[],handlers={},nodes=new Map(),raf=new Map(),timers=new Map(),db=new Map();let time=0,id=0,reads=0,writes=0,loading=defer(),save=[];
  const node=k=>{if(!nodes.has(k))nodes.set(k,{hidden:false,textContent:'',focus(){}});return nodes.get(k);};
- const box={console,performance:{now:()=>time},VACKY_REQUIRE_PLAYABLES:strict,
+ const box={console,performance:{now:()=>time},VACKY_REQUIRE_PLAYABLES:strict,VACKY_DEV:qa,
   document:{getElementById:node,addEventListener:(k,fn)=>{handlers['input:'+k]=fn;}},
   localStorage:{getItem:k=>{reads++;return db.get(k)??null;},setItem:(k,v)=>{writes++;db.set(k,v);}},
   requestAnimationFrame:fn=>{raf.set(++id,fn);return id;},cancelAnimationFrame:id=>raf.delete(id),
@@ -41,6 +41,11 @@ function harness({cloud=true,strict=false,raw='',loadFail=false}={}){
  h=harness();boot=h.P.boot(h.launch);await h.frame();h.handlers.pause();h.resolve();await tick();assert(!h.trace.includes('launch'));h.handlers.resume();await boot;assert(h.trace.includes('ready'));
  console.log('PASS: failed/corrupt/newer cloud data never overwritten, load retry, pause during loading defers game initialization');
  h=harness({cloud:false});await h.P.boot(h.launch);h.P.storage.setItem('local','yes');assert.equal(h.db.get('local'),'yes');assert(!h.trace.includes('first'));assert(!h.trace.includes('save'));
+ h=harness({cloud:false,qa:true});h.db.set('vacky_arena_camp_v1','LIVE');await h.P.boot(h.launch);
+ assert(h.P.testStorage);assert.equal(h.P.storage.getItem('vacky_arena_camp_v1'),null);
+ h.P.storage.setItem('vacky_arena_camp_v1','QA');assert.equal(h.db.get('vacky_arena_camp_v1'),'LIVE');assert.equal(h.db.get('vacky_qa_v1:vacky_arena_camp_v1'),'QA');
+ h.box.VACKY_DEV=false;assert.equal(h.P.storage.getItem('vacky_arena_camp_v1'),'QA','Namespace must not change mid-session');
+ h=harness({cloud:true,qa:true});boot=h.P.boot(h.launch);await h.frame();h.resolve();await boot;assert(!h.P.testStorage);assert.equal(h.reads+h.writes,0);
  h=harness({cloud:false,strict:true});await h.P.boot(h.launch);assert(!h.trace.includes('launch'));assert.equal(h.reads+h.writes,0);
  h=harness({cloud:false});await h.P.boot(()=>({initial(){h.P.requestFrame(()=>{});throw Error('paint failed');}}));assert(h.P.blocked);assert.equal(h.raf.size,0);assert(!h.node('platformGate').hidden);h.node('platformRetry').onclick();assert(h.trace.includes('reload'));
  console.log('PASS: GitHub/local fallback, strict YouTube package refusing non-Playables environment, failed first paint blocks input and frames');

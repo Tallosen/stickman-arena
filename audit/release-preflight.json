@@ -1,0 +1,90 @@
+{
+  "version": "0.206",
+  "checkedAt": "2026-11-24T19:49:38.203Z",
+  "artifactChecksPassed": true,
+  "publishReady": false,
+  "checks": [
+    {
+      "name": "Playgama archive has root entry and valid matching config",
+      "passed": true
+    },
+    {
+      "name": "Public build uses one Playgama SDK and excludes QA flag",
+      "passed": true
+    },
+    {
+      "name": "QA keeps admin and isolated test storage",
+      "passed": true
+    },
+    {
+      "name": "Both builds carry current version",
+      "passed": true
+    },
+    {
+      "name": "Current full regression run passed without source changes",
+      "passed": true
+    },
+    {
+      "name": "Audio manifest provenance and referenced file hashes",
+      "passed": true
+    },
+    {
+      "name": "Package below platform size limit",
+      "passed": true
+    }
+  ],
+  "blockers": [
+    {
+      "id": "platform-project",
+      "status": "pending",
+      "detail": "Create the Playgama game card; verify uploaded build in QA Tool and real host."
+    },
+    {
+      "id": "leaderboard",
+      "status": "pending",
+      "detail": "Configure Bridge SaaS leaderboard and public token; test higher/lower scores, retry and two player accounts."
+    },
+    {
+      "id": "audio-assets",
+      "status": "pending",
+      "detail": "Replace code-generated synthesis with licensed recorded/produced compressed audio, add background music and audition on actual devices. Current bank is not compliant with the current sound requirement."
+    },
+    {
+      "id": "localization",
+      "status": "pending",
+      "detail": "Complete and review every player-facing English string and English fallback, declare only fully verified languages."
+    },
+    {
+      "id": "live-storage-ads",
+      "status": "pending",
+      "detail": "Verify real Bridge save/reload, pause/audio and interstitial finish/failure; mocks do not establish host compliance."
+    },
+    {
+      "id": "device-playthrough",
+      "status": "pending",
+      "detail": "Full ordinary run through stage 20 and death run in current desktop/mobile browsers; check rotation, touch, low FPS and long sessions."
+    },
+    {
+      "id": "submission-materials",
+      "status": "pending",
+      "detail": "Prepare final icon, cover, screenshots, RU/EN descriptions and device/orientation choices from the final approved build."
+    }
+  ],
+  "artifacts": [
+    {
+      "file": "dist/playgama/index.html",
+      "bytes": 7782786,
+      "sha256": "ded78e110c15dbbfd29f2f57d9786f528ae5649c6e3e9a1fff108edcc47742a9"
+    },
+    {
+      "file": "dist/playgama/playgama-bridge-config.json",
+      "bytes": 79,
+      "sha256": "2fd83cc2d8d1c72fee284045bfc2cd48a9110adcef16674fc77a7dcd72a424bb"
+    },
+    {
+      "file": "dist/StickmanArena_v0.206_QA.html",
+      "bytes": 7779719,
+      "sha256": "fba33c877ddcc69b2d04c947cca47c5cb31362a1680f1e4d1dd5b49a9a692c75"
+    }
+  ]
+}

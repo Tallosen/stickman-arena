@@ -1,6 +1,23 @@
 "use strict";
 let flashes = [], hitStop = 0;
 let enemyRouteBudget=2;
+// A single damage event drives HP, sound and feedback. Invulnerability is not a hit.
+function hurtHero(damage,source={},roundHalf=false){
+  if(P.hp<=0||P.invT>0||P.hurt>0||!Number.isFinite(damage)||damage<=0)return false;
+  const before=P.hp,next=before-damage;
+  P.hp=Math.max(0,roundHalf?Math.round(next*2)/2:next);
+  const lost=before-P.hp;if(lost<=0)return false;
+  P.damageHits=(P.damageHits||0)+1;
+  const dx=source.x-P.x,dy=source.y-P.y;
+  P.damageFeedback={life:1000,before,amount:lost,area:!!source.area||!Number.isFinite(dx+dy)||Math.hypot(dx,dy)<1,
+    angle:Math.atan2(dy,dx)};
+  P.hurt=P.iframe;shake=Math.max(shake,Math.min(6,3+lost));SFX.hurt();
+  pops.push({x:P.x,y:P.y-46,txt:lost===.5?'-½':'-'+Math.round(lost*10)/10,life:1,col:FOE});
+  if(P.hp<=0){gameOver();return true;}return false;
+}
+function updateDamageFeedback(dt){
+  if(P.damageFeedback){P.damageFeedback.life=Math.max(0,P.damageFeedback.life-dt);if(!P.damageFeedback.life)P.damageFeedback=null;}
+}
 // Local depenetration handles exact centres and overlapping rock hulls.
 function enemyFreePoint(x,y,r){
   const q={x:Math.max(r,Math.min(WORLD-r,x)),y:Math.max(r,Math.min(WORLD-r,y)),r};
@@ -82,7 +99,7 @@ function spawn(kind) {
   const speedScale = (1 + Math.min(.46, (stage - 1) * .045))*(1+Math.min(.08,Math.max(0,stage-7)*.006));
   const hp = Math.ceil(K.hp * hpScale);
   enemies.push({ kind, x, y, r: K.r, xp: K.xp, hp, maxhp: hp,
-    speed: K.spd * speedScale, phase: rnd(0, 6),
+    speed: K.spd * speedScale * (typeof campModifier==='function'?campModifier('speed'):1), phase: rnd(0, 6),
     face: 1, flash: 0, kb: 0, kbx: 0, kby: 0, orbCd: 0, slip: 0,
     lx: x, ly: y, stuckT: 0, wander: 0, wanderT: 0, bob: rnd(0, 6),
     attackState:'chase',attackT:0,attackCd:rnd(900,1800),flankSide:Math.random()<.5?-1:1,
@@ -90,6 +107,7 @@ function spawn(kind) {
   enemyResolveRocks(enemies[enemies.length-1]);
 }
 function enemyMovementIntent(e,tx,ty,dt){
+  if(e.boss)return bossMovementIntent(e,tx,ty,dt);
   const dx=tx-e.x,dy=ty-e.y,d=Math.hypot(dx,dy)||1;
   let vx=dx/d,vy=dy/d,pace=1,locked=false;
   if(e.kind==='pyro')return pyroMovementIntent(e,tx,ty,dt);
@@ -125,6 +143,7 @@ function enemyMovementIntent(e,tx,ty,dt){
 function popEnemy(e) {
   if (e.rewarded) return;
   e.rewarded = true;
+  if(!e.boss)P.redKills=(P.redKills||0)+1;
   gainXP(e.xp);
   if (e.xp >= 150)
     pops.push({ x:e.x, y:e.y-e.r-24, txt:"XP +"+e.xp, life:1.15, col:"#c79018" });
@@ -151,7 +170,7 @@ function popEnemy(e) {
       const an = Math.random() * 6.28, sp = rnd(1.5, 5);
       puffs.push({ x: e.x, y: e.y, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, life: 1, r: rnd(2, 5) });
     }
-    score++; SFX.pop();
+    score++; SFX.pop(e.x);
     return;
   }
   const c = { kind: e.kind, x: e.x, y: e.y, face: e.face, sc: e.r / 11,
@@ -177,11 +196,13 @@ function popEnemy(e) {
     const a = Math.random() * 6.28, s = rnd(.6, 3);
     puffs.push({ x: e.x, y: e.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1, r: rnd(2, 5) });
   }
-  score++; shake = Math.max(shake, e.kind === "elite" ? 16 : 3); SFX.pop();
+  score++; shake = Math.max(shake, e.kind === "elite" ? 16 : 3); SFX.pop(e.x);
   if (!ult.on) ult.charge = Math.min(ULT_FULL, ult.charge + ULT_PER_KILL);
 }
-function hit(e, dmg, hx, hy) {
+function hit(e, dmg, hx, hy, allowVulnerability=true, bossCap=null) {
   if (e.hp <= 0 || e.rewarded) return;
+  // Cinematic executions remain lethal to mobs, never one-shot a stage boss.
+  if(e.boss)dmg=Math.min(dmg*(allowVulnerability&&e.vulnerableT>0?1.4:1),bossCap??e.maxhp*(e.bossSpec.stage>=15?.025:.055));
   if(e.kind==='shield'&&Number.isFinite(hx)&&Number.isFinite(hy)){
     const a=Math.atan2(hy-e.y,hx-e.x),front=Math.cos(a-(e.guardAngle||0));
     if(front>.45){dmg*=.6;e.shieldFlash=150;}
@@ -190,13 +211,16 @@ function hit(e, dmg, hx, hy) {
     e.attackState='recover';e.attackT=550;e.attackCd=2600;
   }
   e.hp -= dmg; e.flash = 110; e.flinch = 1;
-  if (hx !== undefined) { const a = Math.atan2(e.y - hy, e.x - hx); e.kb = 3.4; e.kbx = Math.cos(a); e.kby = Math.sin(a); }
+  // A lethal hit has one death/contact cue, not two stacked impacts.
+  if(e.hp>0)SFX.hit?.(e.x);
+  if (hx !== undefined) { const a = Math.atan2(e.y - hy, e.x - hx); e.kb = e.boss?.35:3.4; e.kbx = Math.cos(a); e.kby = Math.sin(a); }
   pops.push({ x: e.x, y: e.y - e.r - 10, txt: Math.round(dmg * 10) / 10, life: 1, col: INK });
   if (e.hp <= 0) popEnemy(e);
 }
 
 /* ── предметы ─────────────────────────────────────────────── */
 function useItem() {
+  if(typeof bossLootLocked==='function'&&bossLootLocked())return;
   if (!running || paused || !P.item) return;
   const it = P.item; P.item = null;
   if (it === "mine") {mines.push({ x: P.x, y: P.y, arm: 700 });triggerArenaSecret('mine',P.x,P.y);}
@@ -205,12 +229,14 @@ function useItem() {
     for (const e of enemies) { const d = dist(e, P); if (d < bd) { bd = d; tg = e; } }
     const a = tg ? Math.atan2(tg.y - P.y, tg.x - P.x) : P.aim;
     nades.push({ x: P.x, y: P.y, vx: Math.cos(a) * 5.5, vy: Math.sin(a) * 5.5, fuse: 700 });
+    SFX.grenadeThrow?.(P.x);
   } else if (it === "ice") { ices.push({ x: P.x, y: P.y, r: 150, life: 11000 });triggerArenaSecret('ice',P.x,P.y,150); SFX.ice(); }
   else if (it === "xp") { xpBoost = 20000; SFX.chest(); }
 }
-function explode(x, y, r, dmg) {
+function explode(x, y, r, dmg, sound='boom') {
   booms.push({ x, y, r: 10, max: r, life: 1 });
-  shake = Math.max(shake, 14); SFX.boom();
+  shake = Math.max(shake, 14);
+  if(['grenadeBlast','airstrikeImpact','mineBlast','mineMini','petBlast'].includes(sound))SFX[sound]?.(x);else SFX.boom();
   for (const e of enemies) if (Math.hypot(e.x - x, e.y - y) < r + e.r) hit(e, dmg, x, y);
   for (let i = 0; i < 16; i++) {
     const a = Math.random() * 6.28, s = rnd(1, 4);

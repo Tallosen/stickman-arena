@@ -2,12 +2,18 @@
 /* Painted terrain is visual only. Fixed world coordinates keep it still while
    the camera moves; a bounded tile cache avoids redrawing detail each frame. */
 const MAP_TILE_SIZE=256,MAP_TILE_LIMIT=64,mapTiles=new Map();
+// Shared by terrain painting and roadside scenery placement.
+const MAP_TRAILS=[
+ [[-120,620],[620,420],[640,1510],[1400,1400],[2040,1300],[2250,2080],[2920,1850]],
+ [[2060,-100],[1950,780],[1500,960],[1400,1400],[1320,1830],[500,2130],[660,2920]]
+];
 function mapTrail(g,width,color){
   g.strokeStyle=color;g.lineWidth=width;g.lineCap='round';
-  g.beginPath();g.moveTo(-120,620);g.bezierCurveTo(620,420,640,1510,1400,1400);
-  g.bezierCurveTo(2040,1300,2250,2080,2920,1850);g.stroke();
-  g.beginPath();g.moveTo(2060,-100);g.bezierCurveTo(1950,780,1500,960,1400,1400);
-  g.bezierCurveTo(1320,1830,500,2130,660,2920);g.stroke();
+  for(const trail of MAP_TRAILS){
+    g.beginPath();g.moveTo(...trail[0]);
+    for(let i=1;i<trail.length;i+=3)g.bezierCurveTo(...trail[i],...trail[i+1],...trail[i+2]);
+    g.stroke();
+  }
 }
 function paintMapTile(g,tx,ty){
   const size=MAP_TILE_SIZE+2,x0=tx*MAP_TILE_SIZE-1,y0=ty*MAP_TILE_SIZE-1;

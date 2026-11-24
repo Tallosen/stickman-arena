@@ -1,22 +1,39 @@
 "use strict";
-/* Active play time is independent of XP, simulation slow motion and upgrade choices. */
-function campaignComplete(){return (P.runMs||0)>=RUN_MAIN_MS;}
-function campaignRemaining(){return Math.max(0,RUN_LIMIT_MS-(P.runMs||0));}
-function stageRemaining(){return campaignComplete()?campaignRemaining():STAGE_MS-(P.runMs||0)%STAGE_MS;}
+function campaignComplete(){return !!P.runWon;}
+function campaignRemaining(){return Math.max(0,(RUN_STAGES-P.stage)*STAGE_MS+stageRemaining());}
+function stageRemaining(){return isBossStage(P.stage)?0:Math.max(0,STAGE_MS-(P.stageMs||0));}
 function formatRunTime(ms){const s=Math.max(0,Math.ceil(ms/1000));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
+function enterRunStage(stage){
+ if(typeof requestRunCheckpoint==='function')requestRunCheckpoint();
+ P.stage=stage;P.stageMs=0;P.stagePulse=1600;
+ spawnT=Math.min(spawnT,stageWave(stage).interval);eliteT=Math.min(eliteT,stageWave(stage).eliteInterval);
+ if(isBossStage(stage))startStageBoss();
+ if(typeof checkpointCamp==='function')checkpointCamp();
+}
 function updateRunProgress(dt){
-  if(!running||paused||dragonFinale)return;
-  if(typeof dragonHomeOpen==='function'&&dragonHomeOpen())return;
-  if(typeof dragonBookOpen==='function'&&dragonBookOpen())return;
-  P.runMs=Math.min(RUN_LIMIT_MS,(P.runMs||0)+Math.max(0,Number(dt)||0));
-  const stage=Math.min(RUN_STAGES,1+Math.floor(P.runMs/STAGE_MS));
-  if(stage!==P.stage){
-    P.stage=stage;P.stagePulse=1600;
-    spawnT=Math.min(spawnT,stageWave(stage).interval);
-    eliteT=Math.min(eliteT,stageWave(stage).eliteInterval);
+ if(typeof runSaveAction==='function'&&!runSaveDepth)return runSaveAction(()=>updateRunProgress(dt));
+ if(!running||paused||P.runWon)return;
+ if(typeof bossLootLocked==='function'&&bossLootLocked())return;
+ if(typeof dragonHomeOpen==='function'&&dragonHomeOpen())return;
+ if(typeof dragonBookOpen==='function'&&dragonBookOpen())return;
+ const elapsed=Math.max(0,Number(dt)||0);P.runMs=(P.runMs||0)+elapsed;
+ if(isBossStage(P.stage)){
+  if(!stageBoss)startStageBoss();
+  if(stageBoss?.enemy.hp<=0&&stageBoss.enemy.rewarded){
+   const stage=P.stage,e=stageBoss.enemy;defeatedBossStages.add(stage);bossMarks=[];bossProjectiles=[];dragonAssist=null;stageBoss=null;
+   bossRunLog.push({stage,id:e.bossSpec.id,ms:Math.max(0,(P.runMs||0)-e.enteredAt),clean:(P.damageHits||0)===(e.campEntryHits||0)});
+   if(typeof checkpointCamp==='function')checkpointCamp();
+   dropBossLoot(stage,e);
+   if(typeof requestRunCheckpoint==='function')requestRunCheckpoint();
+   if(stage<20)enterRunStage(stage+1);
   }
-  if(campaignComplete()){
-    unlockDragonAltar();
-    if(campaignRemaining()<=0)startDragonFinale(false,true);
-  }
+  return;
+ }
+ P.stageMs=(P.stageMs||0)+elapsed;
+ // Fractional frame steps can land a few nanoseconds below the boundary.
+ while(P.stageMs+1e-6>=STAGE_MS&&P.stage<RUN_STAGES){
+  const remainder=Math.max(0,P.stageMs-STAGE_MS);enterRunStage(P.stage+1);
+  if(isBossStage(P.stage))break;
+  P.stageMs=remainder;
+ }
 }

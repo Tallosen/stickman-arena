@@ -11,6 +11,10 @@ function cleanDragonProfile(raw){
   const p={version:2,revision:count(raw.revision),counts:{},rescues:count(raw.rescues),exclusives:{},egg:null};
   for(const id of DRAGON_IDS)p.counts[id]=count(raw.counts[id]);
   for(let id=0;id<100;id++)if(count(raw.exclusives[id]))p.exclusives[id]=count(raw.exclusives[id]);
+  p.care={};
+  p.personalities={};
+  for(let id=0;id<100;id++)if(p.exclusives[id]&&Number.isInteger(raw.personalities?.[id])&&raw.personalities[id]>0&&raw.personalities[id]<2147483647)p.personalities[id]=raw.personalities[id];
+  for(let id=0;id<100;id++)if(p.exclusives[id]&&Number.isSafeInteger(raw.care?.[id]))p.care[id]=Math.max(0,Math.min(30,raw.care[id]));
   if(raw.egg){
     const e=raw.egg;
     if(![0,1,2].includes(e.shell)||!Number.isInteger(e.fed)||e.fed<0||e.fed>5||
@@ -74,7 +78,8 @@ function hatchDragonEgg(){
   let id=null;
   const result=dragonTransaction(p=>{
     if(!p.egg||p.egg.fed!==5)return "Нет готового яйца";
-    id=p.egg.reward;p.exclusives[id]=(p.exclusives[id]||0)+1;p.egg=null;return true;
+    id=p.egg.reward;p.exclusives[id]=(p.exclusives[id]||0)+1;p.egg=null;
+    p.personalities=p.personalities||{};if(!p.personalities[id])p.personalities[id]=1+Math.floor(Math.random()*2147483646);return true;
   });
   return {...result,id:result.ok?id:null};
 }

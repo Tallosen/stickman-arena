@@ -1,10 +1,10 @@
 const fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('assert');
-const noop=()=>{},ctx=new Proxy({}, {get:(o,k)=>o[k]||noop,set:(o,k,v)=>(o[k]=v,true)});
+const noop=()=>{},ctx=new Proxy({measureText:s=>({width:String(s).length*7}),createLinearGradient:()=>({addColorStop:noop}),createRadialGradient:()=>({addColorStop:noop})}, {get:(o,k)=>o[k]||noop,set:(o,k,v)=>(o[k]=v,true)});
 const element=()=>({style:{},classList:{add:noop,remove:noop,contains:()=>true},addEventListener:noop,getContext:()=>ctx,appendChild:noop});
 const box={console,assert,document:{body:element(),getElementById:()=>element(),createElement:element,addEventListener:noop},
  innerWidth:390,innerHeight:844,devicePixelRatio:1,addEventListener:noop,requestAnimationFrame:noop,setTimeout:noop,
  localStorage:{getItem:()=>null,setItem:noop},hud:noop};box.window=box;vm.createContext(box);
-const modules=['core.js','config.js','map-art.js','arena-secrets.js','pets.js','draw-pets.js','ult.js','state.js','progression.js','world.js','enemy-hazards.js','combat.js','abilities.js','dragon-economy.js','dragons.js','update.js','draw-hero.js','draw-foe.js','render.js'];
+const modules=['core.js','config.js','map-art.js','arena-secrets.js','pets.js','draw-pets.js','ult.js','state.js','progression.js','world.js','enemy-hazards.js','combat.js','abilities.js','dragon-economy.js','dragons.js','bosses.js','boss-loot.js','update.js','draw-hero.js','draw-foe.js','render.js'];
 for(const f of modules)vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',f),'utf8'),box,{filename:f});
 vm.runInContext(`
 function offerCards(){queuedLevels=0;paused=false;}

@@ -1,6 +1,6 @@
 // Offline renderer preview only; not a browser layout test.
 const fs=require('fs'),vm=require('vm'),path=require('path');
-const {createCanvas}=require('C:/Users/Fla/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/@napi-rs/canvas');
+const {createCanvas}=require('@napi-rs/canvas');
 const box={console,Math};vm.createContext(box);
 for(const f of ['dragon-breeds.js','dragon-camera.js','dragon-3d.js','dragon-collection.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../src',f),'utf8'),box);
 const canvas=createCanvas(740,640),g=canvas.getContext('2d');g.fillStyle='#f5ecdd';g.fillRect(0,0,740,640);g.fillStyle='#493b28';g.font='bold 28px Arial';g.fillText('Моя коллекция',24,40);

@@ -14,19 +14,22 @@ function heroCombatPoint(x,y){
 }
 function heroGunTip(){
   const L=P.gear.gun,w=P.wtype;
-  const tip=w==='sniper'?40+L*3.5:w==='shotgun'?24+L*2.5:w==='minigun'?38+L*2:[16,22,30,34,38][L];
+  const tip=gunMuzzlePoint(w,L).x;
   const push=P.gear.jacket?6.5:3.5,a=P.aim;
-  return heroCombatPoint(2*P.face+Math.cos(a)*(push+tip*1.3)+Math.sin(a)*2.6*P.face,
-    -27+Math.sin(a)*(push+tip*1.3)-Math.cos(a)*2.6*P.face);
+  const anchor=heroRestWeaponAnchor(w,L,P.gear.jacket,a,P.face);
+  return heroCombatPoint(anchor[0]*P.face+Math.cos(a)*(push+tip*1.3)+Math.sin(a)*2.6*P.face,
+    anchor[1]+Math.sin(a)*(push+tip*1.3)-Math.cos(a)*2.6*P.face);
 }
 function makeHeroShot(origin,a,dmg,kind,extra={}){
-  const sp=kind==='sniper'?13:kind==='pellet'?7.4:7.2;
+  const sp=kind==='laser'?23:kind==='arrow'?9:kind==='sniper'?13:kind==='pellet'?7.4:7.2;
   const s={x:origin.x,y:origin.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,a,
-    life:kind==='sniper'?1400:850,dmg,kind,pierce:kind==='sniper',hit:[],
-    crit:kind==='sniper'&&Math.random()<.22+.05*P.gear.gun,...extra};
+    life:kind==='sniper'?1400:kind==='arrow'?1200:kind==='laser'?450:850,dmg,kind,pierce:kind==='sniper'||kind==='laser'&&P.gear.gun>=3,hit:[],
+    crit:kind==='sniper'&&Math.random()<.22+.05*P.gear.gun,weaponType:P.wtype,...extra};
+  if(kind==='pellet'&&extra.source==='hand')s.falloff={x:P.x,y:P.y,start:120,end:P.range};
   shots.push(s);return s;
 }
 function updateHeroFire(dt){
+  P.laserBeam=null;
   P.backpackCooldown=Math.max(0,(P.backpackCooldown||0)-dt);
   P.backpackFlash=(P.backpackFlash||[0,0,0]).map(v=>Math.max(0,v-dt));
   P.backpackQueue=P.backpackQueue||[];
@@ -50,17 +53,20 @@ function updateHeroFire(dt){
   // Separate auxiliary cadence. Haste and fast minigun cycles cannot flood pods.
   if(P.gear.clip>0&&packNear.length&&P.backpackCooldown<=0){
     P.backpackCooldown=backpackSalvoCooldown(P.fireRate);
-    const kind=P.wtype==='minigun'?'mini':P.wtype==='shotgun'?'pellet':P.wtype;
+    const kind='basic'; // These are the same guided modules, not copies of the hand weapon.
     for(let i=0;i<P.gear.clip;i++)P.backpackQueue.push({slot:i,delay:65+i*45,
-      target:packNear[i+1]||packNear[0],dmg:P.damage,kind});
+      target:packNear[i+1]||packNear[0],dmg:P.backpackDamage,kind});
   }
-  shotT-=dt;if(shotT>0||!near.length)return;
-  shotT=P.fireRate*(P.hasteT>0?.55:1);SFX.shot();
+  if(!near.length){shotT=0;P.laserTick=0;P.beamSoundT=0;return;}
+  if(P.wtype==='laser'&&P.gear.gun===4){updateLaserBeam(dt,near[0]);return;}
+  shotT-=dt;if(shotT>0)return;
+  // Carry the fraction of a frame, but never bank shots while there is no target.
+  shotT+=P.fireRate*(P.hasteT>0?.55:1);SFX.shot();
   P.muzzle=P.wtype==='minigun'?60:100;
-  P.recoilT=P.wtype==='sniper'?170:P.wtype==='shotgun'?140:80;
+  P.recoilT=['sniper','goldSniper'].includes(P.wtype)&&P.gear.gun>=2?170:['shotgun','dropShotgun'].includes(P.wtype)?140:80;
   const origin=heroGunTip(),a=Math.atan2(near[0].y-origin.y,near[0].x-origin.x);
-  const kind=P.wtype==='minigun'?'mini':P.wtype==='shotgun'?'pellet':P.wtype;
-  if(P.wtype==='shotgun'){
+  const kind=weaponShotKind(P.wtype,P.gear.gun);
+  if(kind==='pellet'){
     for(let i=0;i<P.pellets;i++)makeHeroShot(origin,a+(i/(P.pellets-1)-.5)*P.spread+rnd(-.05,.05),P.damage,kind,{source:'hand'});
     P.recoil=1;
   }else{
@@ -70,7 +76,56 @@ function updateHeroFire(dt){
   }
   puffs.push({x:origin.x,y:origin.y,vx:Math.cos(a)*1.2,vy:Math.sin(a)*1.2-.3,life:.5,r:rnd(2,4)});
 }
+function updateLaserBeam(dt,target){
+ const origin=heroGunTip(),a=Math.atan2(target.y-origin.y,target.x-origin.x),reach=P.range;
+ const end={x:origin.x+Math.cos(a)*reach,y:origin.y+Math.sin(a)*reach};
+ const ray={...end,hit:[],source:'hand'},contacts=heroShotContacts(ray,origin.x,origin.y).slice(0,P.gear.gun>=3?2:1);
+ const last=contacts[contacts.length-1];
+ if(last){end.x=origin.x+(end.x-origin.x)*last.u;end.y=origin.y+(end.y-origin.y)*last.u;}
+ P.laserBeam={x:origin.x,y:origin.y,ex:end.x,ey:end.y,age:t};P.muzzle=60;P.recoilT=0;
+ P.beamSoundT=(P.beamSoundT||0)-dt;if(P.beamSoundT<=0){SFX.shot();P.beamSoundT=150;}
+ P.laserTick=(P.laserTick||0)+Math.max(0,dt);
+ const ticks=Math.min(10,Math.floor(P.laserTick/100));P.laserTick-=ticks*100;
+ if(ticks)for(const {e} of contacts)if(e.hp>0)hit(e,P.damage*1000/P.fireRate*.1*ticks*(P.hasteT>0?1/.55:1),e.x,e.y);
+}
 function backpackTargetInRange(s,e){return e.hp>0&&dist(e,s.anchor)<=s.range;}
+function heroShotContacts(s,x0,y0){
+  const dx=s.x-x0,dy=s.y-y0,length2=dx*dx+dy*dy,contacts=[];
+  for(const e of enemies){
+    if(e.hp<=0||s.hit?.includes(e)||(s.source==='backpack'&&!backpackTargetInRange(s,e)))continue;
+    const ex=e.x-x0,ey=e.y-y0,r=e.r+4;
+    if(length2<1e-10){if(ex*ex+ey*ey<=r*r)contacts.push({e,u:0});continue;}
+    const u=(ex*dx+ey*dy)/length2,perp2=Math.max(0,ex*ex+ey*ey-u*u*length2);
+    if(perp2>r*r)continue;
+    const half=Math.sqrt((r*r-perp2)/length2),entry=Math.max(0,u-half);
+    if(entry<=1&&u+half>=0)contacts.push({e,u:entry});
+  }
+  return contacts.sort((a,b)=>a.u-b.u);
+}
+function updateHeroProjectiles(dt,k){
+  for(const s of shots){
+    steerBackpackShot(s,dt,k);
+    const x0=s.x,y0=s.y;s.x+=s.vx*k;s.y+=s.vy*k;s.life-=dt;
+    if(s.source==='backpack'&&(s.life<=0||dist(s,s.anchor)>s.range+48)){s.life=0;continue;}
+    for(const {e,u} of heroShotContacts(s,x0,y0)){
+      const x=x0+(s.x-x0)*u,y=y0+(s.y-y0)*u;
+      const fall=s.falloff,falloff=fall?1-.55*Math.max(0,Math.min(1,(Math.hypot(x-fall.x,y-fall.y)-fall.start)/Math.max(1,fall.end-fall.start))):1;
+      const damage=(s.dmg||P.damage)*falloff;
+      const impact=d=>s.ultCast?hitUlt(e,d,x,y,s.ultCast):hit(e,d,x,y);
+      if(s.pierce){
+        s.hit.push(e);
+        const big=enemyBaseKind(e.kind)==='tank'||e.kind==='elite';
+        if(s.crit&&big){
+          impact(damage*3);
+          pops.push({x:e.x,y:e.y-e.r-26,txt:'КРИТ!',life:1.4,col:'#8a53c4'});
+          shake=Math.max(shake,15); // impact() already emitted the one contact/death cue
+        }else impact(damage);
+        if(s.kind==='laser'&&s.hit.length>=2){s.life=0;break;}
+      }else{impact(damage);s.life=0;break;}
+    }
+  }
+  shots=shots.filter(s=>s.life>0);
+}
 function steerBackpackShot(s,dt,k){
   if(s.source!=='backpack')return;
   s.age+=dt;
