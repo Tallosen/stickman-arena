@@ -49,6 +49,7 @@ function finishBossLootOpening(){
  }else{
   // Roll only when opened, against the current build. Keep it on save retry.
   if(!q.reward){const pool=bossRewardOptions(q.stage,true);q.reward=pool[Math.floor(Math.random()*pool.length)];}
+  if(typeof localizedBossReward==='function')q.reward=localizedBossReward(q.reward);
   const option=q.reward,notice={stage:q.stage,title:option.title,impact:bossRewardImpact(option),category:bossRewardCategory(option),age:0};
   const icon=document.createElement('canvas');icon.width=icon.height=96;drawBossRewardIcon(icon.getContext('2d'),option,96);notice.icon=icon;
   if(!grantBossReward(option)){q.error=true;q.retryAt=q.age+1500;return false;}

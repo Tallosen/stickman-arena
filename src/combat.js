@@ -117,7 +117,7 @@ function updateHeroProjectiles(dt,k){
         const big=enemyBaseKind(e.kind)==='tank'||e.kind==='elite';
         if(s.crit&&big){
           impact(damage*3);
-          pops.push({x:e.x,y:e.y-e.r-26,txt:'КРИТ!',life:1.4,col:'#8a53c4'});
+          pops.push({x:e.x,y:e.y-e.r-26,txt:gameText('КРИТ!','CRIT!'),life:1.4,col:'#8a53c4'});
           shake=Math.max(shake,15); // impact() already emitted the one contact/death cue
         }else impact(damage);
         if(s.kind==='laser'&&s.hit.length>=2){s.life=0;break;}

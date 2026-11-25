@@ -81,6 +81,14 @@ function applyLanguage(){
  if(typeof refreshMenuRecord==='function')refreshMenuRecord();
  if(typeof refreshCampMenu==='function')refreshCampMenu();
  if(typeof refreshRunCheckpointLabel==='function')refreshRunCheckpointLabel();
+ const ru=uiLanguage==='ru';
+ const pause=document.getElementById('pauseBtn');
+ pause?.setAttribute('title',ru?'Меню и пауза (P)':'Menu and pause (P)');
+ pause?.setAttribute('aria-label',ru?'Открыть меню и приостановить игру':'Open menu and pause the game');
+ document.getElementById('btnCloseCamp')?.setAttribute('aria-label',uiLabel('close'));
+ const finale=document.getElementById('victoryTag');
+ if(finale)finale.textContent=ru?'20 СТАДИЙ · ФИНАЛ ПРОЙДЕН':'20 STAGES · FINALE COMPLETE';
+ if(typeof syncHUD==='function')syncHUD();
 }
 function setGameLanguage(lang){
  if(!LANGUAGE_NAMES[lang]||(typeof Playables!=="undefined"&&Playables.blocked))return false;

@@ -1,14 +1,14 @@
 {
-  "version": "0.206",
+  "version": "0.207",
   "artifactHashes": {
-    "dist/playgama/index.html": "ded78e110c15dbbfd29f2f57d9786f528ae5649c6e3e9a1fff108edcc47742a9",
+    "dist/playgama/index.html": "0194e6fbc43454675fb4d5537d4e99e60380a541081befc6734e3dfadbbf2cb2",
     "dist/playgama/playgama-bridge-config.json": "2fd83cc2d8d1c72fee284045bfc2cd48a9110adcef16674fc77a7dcd72a424bb",
-    "dist/StickmanArena_v0.206_QA.html": "fba33c877ddcc69b2d04c947cca47c5cb31362a1680f1e4d1dd5b49a9a692c75"
+    "dist/StickmanArena_v0.207_QA.html": "5cf9e423b6a34b8bd71bf89517725608c169d1e1b6fe766b6703a32843d4f87b"
   },
-  "startedAt": "2026-11-24T19:49:25.212Z",
-  "finishedAt": "2026-11-24T19:49:37.245Z",
+  "startedAt": "2026-11-25T09:44:16.560Z",
+  "finishedAt": "2026-11-25T09:44:28.417Z",
   "node": "v26.13.0",
-  "sourceFingerprint": "50a6b2d448e17083e8c35fb64c928bb7377051bc11da1d57ce7abdd486dcb59b",
+  "sourceFingerprint": "106c5e5a1ddc41f893da3e3ad1fe81ca15c02df0b7255e772040f610c53f3675",
   "sourceUnchanged": true,
   "exitCode": 0,
   "signal": null,
@@ -104,7 +104,8 @@
     "tests/hero-shoulders.test.cjs",
     "tests/camp-presentation.test.cjs",
     "tests/playables-transaction.test.cjs",
-    "tests/run-checkpoint-bundle.test.cjs"
+    "tests/run-checkpoint-bundle.test.cjs",
+    "tests/gameplay-language.test.cjs"
   ],
   "scope": "Automated Node/VM and native Canvas checks; not a browser, device or live platform certification."
 }

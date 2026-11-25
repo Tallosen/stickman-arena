@@ -3,6 +3,9 @@
 
 /* ── интерфейс ────────────────────────────────────────────── */
 const hudHeight = () => 84;
+// Keep canvas labels live when the language changes; isolated UI previews may
+// load this module without config/localization.
+const hudText=(ru,en)=>typeof gameText==='function'?gameText(ru,en):(typeof uiLanguage==='undefined'||uiLanguage==='ru'?ru:en);
 function topHUDLayout(width) {
   const margin=width<360?8:12,gap=8,rightW=width<380?122:146;
   return {left:{x:margin,y:8,w:Math.min(264,width-margin*2-gap-rightW),h:54},
@@ -23,7 +26,7 @@ function drawTopHUD(g,width,p) {
   const bx=L.x+25,by=L.y+27;
   g.fillStyle='#f1dfb8';g.strokeStyle='#b37d30';g.lineWidth=1.8;
   g.beginPath();g.arc(bx,by,17,0,Math.PI*2);g.fill();g.stroke();
-  g.textAlign='center';g.fillStyle='#8b693a';g.font='800 8px system-ui';g.fillText('УР',bx,by-5);
+  g.textAlign='center';g.fillStyle='#8b693a';g.font='800 8px system-ui';g.fillText(hudText('УР','LV'),bx,by-5);
   g.fillStyle=INK;g.font='900 15px system-ui';g.fillText(String(p.lvl),bx,by+10,29);
   const x=L.x+51,edge=L.x+L.w-11,hpMax=Math.max(1,p.hpMax||1);
   const hp=Math.max(0,Math.min(hpMax,p.hp||0)),healthW=Math.max(8,edge-x-39);
@@ -58,7 +61,7 @@ function drawTopHUD(g,width,p) {
   if(full){g.fillStyle='#f8f3e7';g.textAlign='center';g.font='800 7px system-ui';g.fillText('MAX',barX+barW/2,barY+6.5);}
   const done=isBossStage(p.stage),cx=R.x+12;
   g.textAlign='left';g.fillStyle=done?'#287e94':INK;g.font='900 11px system-ui';
-  g.fillText((done?'БОСС ':'СТАДИЯ ')+p.stage+' / '+RUN_STAGES,cx,R.y+20,R.w-24);
+  g.fillText((done?hudText('БОСС ','BOSS '):hudText('СТАДИЯ ','STAGE '))+p.stage+' / '+RUN_STAGES,cx,R.y+20,R.w-24);
   g.fillStyle='#88735a';g.font='700 8px system-ui';
   const tempo=typeof stageTempo==='function'?stageTempo(p.stage,p.stageMs).phase:'steady';
   const ru=typeof uiLanguage==='undefined'||uiLanguage==='ru';
@@ -92,12 +95,12 @@ function hud() {
     ctx.textAlign = "left";
     by += 18;
   };
-  buff(xpBoost, 20000, "#f0c443", "ОПЫТ ×2");
-  buff(P.hasteT, 7000, "#f0a83a", "УСКОРЕНИЕ");
-  buff(P.invT, 6000, "#a9dcf0", "НЕУЯЗВИМОСТЬ");
+  buff(xpBoost, 20000, "#f0c443", hudText("ОПЫТ ×2", "XP ×2"));
+  buff(P.hasteT, 7000, "#f0a83a", hudText("УСКОРЕНИЕ", "HASTE"));
+  buff(P.invT, 6000, "#a9dcf0", hudText("НЕУЯЗВИМОСТЬ", "INVULNERABLE"));
   const tankHP=allyTanks.reduce((s,q)=>s+Math.max(0,q.hp),0);
   const tankMax=allyTanks.reduce((s,q)=>s+q.hpMax,0);
-  buff(tankHP, tankMax || 1, "#6b97c7", "ТАНК ×"+allyTanks.length,
+  buff(tankHP, tankMax || 1, "#6b97c7", hudText("ТАНК ×", "TANK ×")+allyTanks.length,
        Math.ceil(tankHP)+"/"+Math.ceil(tankMax));
   if (P.stagePulse > 0) {
     const a=Math.min(1,P.stagePulse/300,(1600-P.stagePulse)/260);
@@ -105,8 +108,8 @@ function hud() {
     ctx.fillStyle="rgba(253,246,232,.94)";ctx.strokeStyle="#d2691e";ctx.lineWidth=3;
     const ww=Math.min(310,W-34),yy=H*.25;
     ctx.beginPath();ctx.roundRect(W/2-ww/2,yy-34,ww,68,14);ctx.fill();ctx.stroke();
-    ctx.fillStyle="#d2691e";ctx.font="900 22px system-ui";ctx.fillText("СТАДИЯ "+P.stage+" / "+RUN_STAGES,W/2,yy-3);
-    ctx.fillStyle=INK;ctx.font="700 10px system-ui";ctx.fillText("НОВАЯ ВОЛНА",W/2,yy+17);ctx.restore();
+    ctx.fillStyle="#d2691e";ctx.font="900 22px system-ui";ctx.fillText(hudText("СТАДИЯ ","STAGE ")+P.stage+" / "+RUN_STAGES,W/2,yy-3);
+    ctx.fillStyle=INK;ctx.font="700 10px system-ui";ctx.fillText(hudText("НОВАЯ ВОЛНА","NEW WAVE"),W/2,yy+17);ctx.restore();
   }
   radar(); ultGauge(); syncHUD();
 }
@@ -140,7 +143,7 @@ function ultGauge() {
   ctx.restore();
   if (ready && !ult.on) {
     ctx.fillStyle = "#7b3fb5"; ctx.font = "800 10px system-ui"; ctx.textAlign = "center";
-    ctx.fillText(touchMode ? "РАЗВЕДИ ПАЛЬЦЫ" : "ДВОЙНОЙ КЛИК", cx, cy + R + 15);
+    ctx.fillText(touchMode ? hudText("РАЗВЕДИ ПАЛЬЦЫ","SPREAD TWO FINGERS") : hudText("ДВОЙНОЙ КЛИК","DOUBLE CLICK"), cx, cy + R + 15);
     ctx.textAlign = "left";
   }
   ctx.restore();
@@ -351,7 +354,7 @@ function devLaunchFinale(forcedId=null){
   P.lvl=Math.max(P.lvl,FULL_BUILD_CHOICES+1);
   applyGear();P.hp=P.hpMax;
   const forced=forcedId&&DRAGON_TYPES.find(d=>d.id===forcedId);
-  pops.push({x:P.x,y:P.y-62,txt:forced?"ТЕСТ · "+forced.name:"ФУЛЛ 33/33",life:1.2,col:forced?forced.accent:"#b88716"});
+  pops.push({x:P.x,y:P.y-62,txt:forced?hudText("ТЕСТ · ","TEST · ")+forced.name:hudText("ФУЛЛ 33/33","FULL 33/33"),life:1.2,col:forced?forced.accent:"#b88716"});
   // +FULL equips the hero without skipping boss progression; +DRG previews assistance.
   if(forcedId)startDragonFinale(true);
 }
@@ -421,20 +424,21 @@ petBadge.addEventListener("pointerdown", e => {
   if (!p || p.dead > 0 || !running) return;
   p.recall = 3000;
   // The mole finishes its marked tunnel before answering the recall.
-  pops.push({ x: P.x, y: P.y - 60, txt: "КО МНЕ!", life: 1.2, col: HERO });
+  pops.push({ x: P.x, y: P.y - 60, txt: hudText("КО МНЕ!","COME HERE!"), life: 1.2, col: HERO });
   SFX.petVoice?.(p.type,p.x);
 });
 
-let lastItem = "x", lastInventory = "";
+let lastItem = "x", lastItemLanguage = "", lastInventory = "";
 function syncHUD() {
   syncRadarButton();
-  if (P.item !== lastItem) {
-    lastItem = P.item;
+  const itemLanguage=typeof uiLanguage==='undefined'?'ru':uiLanguage;
+  if (P.item !== lastItem || itemLanguage !== lastItemLanguage) {
+    lastItem = P.item; lastItemLanguage = itemLanguage;
     useBtn.disabled = !P.item;
     const ig = useIco.getContext("2d");
     ig.setTransform(2, 0, 0, 2, 0, 0); ig.clearRect(0, 0, 36, 36);
     if (P.item) drawItemIcon(ig, P.item, 18, 18, 1.35);
-    useName.textContent = P.item ? ITEMS[P.item].name : "пусто";
+    useName.textContent = P.item ? ITEMS[P.item].name : hudText("пусто","empty");
   }
   pauseBtn.style.display = running ? "flex" : "none";
   devLvl.style.display = running&&DRAGON_ADMIN_ENABLED ? "block" : "none";
@@ -462,6 +466,7 @@ function syncHUD() {
       const kind=slot.dataset.ability, n=inventory[kind];
       slot.disabled = !available || n <= 0;
       slot.setAttribute('aria-label',ABILITIES[kind].name+' · '+n);
+      slot.title=ABILITIES[kind].name;
       slot.querySelector("b").textContent = n > 99 ? "99+" : n;
     }
   }
@@ -471,7 +476,7 @@ function syncHUD() {
 // если какой-то модуль не долетел, скажем об этом прямо
 for (const [name, ref] of [["ult.js", typeof ult], ["cards.js", typeof offerCards],
                            ["pets.js", typeof updatePet], ["world.js", typeof spawn]])
-  if (ref === "undefined") fatal("Не загружен модуль src/" + name);
+  if (ref === "undefined") fatal(hudText("Не загружен модуль src/","Module failed to load: src/") + name);
 
 document.title = "Stickman Arena v" + VERSION + " — Vacky Games";
 {
@@ -542,8 +547,9 @@ function gameOver() {
   rememberRunStage();
   running = false; if(!P.testRun)meta.best = Math.max(meta.best, Math.round(P.runMs / 1000));
   saveMeta();
-  document.getElementById("stats").textContent =
-    `${formatRunTime(P.runMs)} · лопнул ${score} · стадия ${P.stage}/${RUN_STAGES} · ур. ${P.lvl} · прокачка ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · рекорд ${meta.best} с`;
+  document.getElementById("stats").textContent = hudText(
+    `${formatRunTime(P.runMs)} · лопнул ${score} · стадия ${P.stage}/${RUN_STAGES} · ур. ${P.lvl} · прокачка ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · рекорд ${meta.best} с`,
+    `${formatRunTime(P.runMs)} · defeated ${score} · stage ${P.stage}/${RUN_STAGES} · LV ${P.lvl} · upgrades ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · best ${meta.best} s`);
   if(typeof checkpointCamp==='function'){
    checkpointCamp();renderCampResult('overProgress');
    document.getElementById('overTitle').textContent=campText('over');
@@ -585,6 +591,7 @@ function platformGameHooks(){
       if(typeof refreshRunScoreReceipt==='function')refreshRunScoreReceipt();
     },
     audio:platformAudio,
+    language:()=>uiLanguage,
     catalogue(){},
   };
 }

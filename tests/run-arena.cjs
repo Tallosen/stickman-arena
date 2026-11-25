@@ -64,6 +64,7 @@ names.push('hero-arm-reach');
 names.push('hero-shoulders');
 names.push('camp-presentation');
 names.push('playables-transaction','run-checkpoint-bundle');
+names.push('gameplay-language');
 const startedAt=new Date().toISOString(),before=fingerprint();
 const version=fs.readFileSync(path.join(root,'src/config.js'),'utf8').match(/VERSION = "([^"]+)"/)[1];
 const artifacts=['dist/playgama/index.html','dist/playgama/playgama-bridge-config.json','dist/StickmanArena_v'+version+'_QA.html'];

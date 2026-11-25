@@ -64,7 +64,7 @@ function offerCards(savedOffer=null) {
   }
   paused = true;pointer.active=false;
   const title = document.getElementById("levelTitle");
-  if (title) title.textContent = "УРОВЕНЬ " + P.lvl;
+  if (title) title.textContent = gameText("УРОВЕНЬ ","LEVEL ") + P.lvl;
   const pool = GK.filter(upgradeableGear);
   const pick = [];
   while (pick.length < Math.min(3, pool.length)) {
@@ -103,8 +103,8 @@ function offerCards(savedOffer=null) {
       const isGold = W2.rarity === "gold"&&P.gear.gun>=3;
       const gain=Math.round((weaponCombatRating(w)/Math.max(.01,weaponCombatRating(P.wtype))-1)*100);
       card(box, heroIcon({ ...P.gear, _w: w }),
-        `${weaponFormName(w,P.gear.gun)} <span class="rr">${isGold ? "ЗОЛОТОЕ" : "РЕДКОЕ"}</span>`,
-        W2.desc+(isGold?" · высший класс":` · сейчас сильнее на ${Math.max(4,gain)}%`), () => {
+        `${weaponFormName(w,P.gear.gun)} <span class="rr">${isGold ? gameText("ЗОЛОТОЕ","GOLD") : gameText("РЕДКОЕ","RARE")}</span>`,
+        W2.desc+(isGold?gameText(" · высший класс"," · top tier"):gameText(` · сейчас сильнее на ${Math.max(4,gain)}%`,` · ${Math.max(4,gain)}% stronger now`)), () => {
           if(P.campRun&&w!=='shotgun')P.campRun.shotgunOnly=false;
           P.wtype = w; applyGear();
           ult.bag = []; // новый тип оружия сразу получает правильный набор ульт
@@ -118,9 +118,9 @@ function offerCards(savedOffer=null) {
       const lv = P.pet ? P.pet.lvl + 1 : 1;
       const isRare = !!PETS[ty].rare && !P.pet;
       const title = `${PETS[ty].name} ${"★".repeat(lv)}` +
-                    (isRare ? ' <span class="rr">РЕДКИЙ</span>' : "");
+                    (isRare ? ' <span class="rr">'+gameText('РЕДКИЙ','RARE')+'</span>' : "");
       card(box, petIcon(ty, lv), title,
-        P.pet ? "Питомец становится сильнее" : PETS[ty].desc, () => {
+        P.pet ? gameText("Питомец становится сильнее","Your pet grows stronger") : PETS[ty].desc, () => {
           if (P.pet) { P.pet.lvl++; P.pet.hpMax = petStats(P.pet).hp; P.pet.hp = P.pet.hpMax; }
           else { P.pet = makePet(ty); if (isRare) { SFX.chest(); (typeof Playables==='undefined'?setTimeout:Playables.delay)(() => SFX.level(), 160); } }
           close();
@@ -134,8 +134,8 @@ function offerCards(savedOffer=null) {
     });
   }
   document.getElementById("queueTag").textContent =
-    queuedLevels > 1 ? `ещё уровней в очереди: ${queuedLevels - 1}` :
-    `ПРОКАЧКА ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · выбери усиление`;
+    queuedLevels > 1 ? gameText(`ещё уровней в очереди: ${queuedLevels - 1}`,`more levels queued: ${queuedLevels - 1}`) :
+    gameText(`ПРОКАЧКА ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · выбери усиление`,`UPGRADES ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · choose a boost`);
   document.getElementById("levelup").classList.remove("hidden");
 }
 

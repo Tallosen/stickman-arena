@@ -526,6 +526,23 @@ function resetBossExperience(){
  if(typeof resetBossLoot==='function')resetBossLoot();
  bossRewardPending=null;bossRunLog=[];document.getElementById('bossReward')?.classList.add('hidden');
 }
+// Saved reward IDs are language-neutral; rebuild copy when a saved bag opens.
+function localizedBossReward(option){
+ const result={...option};
+ if(option.kind==='gear'){
+  result.title=GEAR[option.key].name+' +1';
+  result.desc=bossText('Улучшение снаряжения на этот забег','Equipment upgrade for this run');
+ }else if(option.kind==='supply'){
+  result.title=ABILITIES[option.key].name+' +1';
+  result.desc=bossText('Заряд сохранится для следующих забегов','Charge carries over to future runs');
+ }else{
+  const copy={heal:[bossText('Восстановить здоровье','Restore health'),bossText('До 4 сердец, не выше максимума','Up to 4 hearts, capped at maximum')],
+   ult:[bossText('Зарядить ульту','Charge ultimate'),bossText('+50% шкалы ульты','+50% ultimate charge')],
+   continue:[bossText('Продолжить','Continue'),bossText('Все запасы уже заполнены','All supplies are already full')]}[option.kind];
+  if(copy)[result.title,result.desc]=copy;
+ }
+ return result;
+}
 function bossRewardOptions(stage,randomPool=false){
  const options=[],gearNames=['Weapon','Helmet','Jacket','Gloves','Boots','Scope','Backpack','Cape'];
  if(stage<20){

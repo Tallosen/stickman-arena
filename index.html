@@ -352,7 +352,7 @@
 </style>
 </head>
 <body>
-<div id="platformGate" role="status" aria-live="polite"><strong>VACKY GAMES</strong><div id="platformMessage">Загружаем игру…</div><button id="platformRetry" hidden>Повторить</button></div>
+<div id="platformGate" role="status" aria-live="polite"><strong>VACKY GAMES</strong><div id="platformMessage">Loading game…</div><button id="platformRetry" hidden>Retry</button></div>
 <canvas id="c"></canvas>
 <button id="gameGuideBtn" class="help-dot guide-launch hidden" data-help="guide" aria-label="Справочник по игре">?</button>
 <section id="tutorial" class="tutorial hidden" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle" aria-describedby="tutorialText">
@@ -454,14 +454,14 @@
  <button type="button" id="btnEndingSkip">К итогам →</button>
 </section>
 <div id="dragonVictory" class="overlay victory-dragon hidden">
-  <div class="tag">20 СТАДИЙ · ФИНАЛ ПРОЙДЕН</div>
+  <div id="victoryTag" class="tag">20 STAGES · FINALE COMPLETE</div>
   <canvas id="victoryDragonCanvas" width="420" height="245"></canvas>
   <h2 id="victoryDragonName">БОСС ПОВЕРЖЕН</h2>
   <p id="victoryDragonText"></p>
   <strong id="victoryRecord"></strong><div id="victoryBosses"></div><p id="victoryWeapon"></p><div id="victoryGear"></div>
   <button class="btn" id="btnVictoryRestart">ЕЩЁ ЗАБЕГ</button>
   <div id="victoryProgress" class="camp-result-progress"></div><button class="menu-secondary" id="btnVictoryRanking">🏆 Рейтинг / Leaderboard</button><button class="menu-secondary" id="btnVictoryMenu">В лагерь</button>
-  
+
 </div>
 
 <div id="over" class="overlay hidden">

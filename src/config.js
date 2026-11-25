@@ -1,7 +1,8 @@
 "use strict";
 /* Версия проекта. Меняется здесь и только здесь — дальше сама
    расходится в заголовок вкладки, на стартовый экран и в имя сборки. */
-const VERSION = "0.206";
+const VERSION = "0.207";
+function gameText(ru,en){return typeof uiLanguage==='undefined'||uiLanguage==='ru'?ru:en;}
 // Renderer defaults also work in isolated tests without the settings UI module.
 function visualFX(key){return typeof visualSettings==='undefined'?key==='shake':visualSettings[key];}
 const MAP_RARE_CHEST_CHANCE = .015;
@@ -55,27 +56,27 @@ function stageEnemyKind(stage,roll,variantRoll){
 
 /* ── одежда ───────────────────────────────────────────────── */
 const GEAR = {
-  gun:    { name: "Ружьё",    desc: "Урон больше",         max: 4 },
-  helm:   { name: "Шапка",    desc: "+1 сердце",           max: 4 },
-  jacket: { name: "Куртка",   desc: "Дольше неуязвим",     max: 3 },
-  gloves: { name: "Перчатки", desc: "Стреляешь чаще",      max: 4 },
-  boots:  { name: "Сапоги",   desc: "Бежишь быстрее",      max: 4 },
-  scope:  { name: "Прицел",   desc: "Дальность больше",    max: 3 },
-  clip:   { name: "Боевой рюкзак", desc: "+1 модуль с самонаводящейся пулей", max: 3 },
-  cape:   { name: "Плащ",     desc: "+10% опыта",          max: 3 },
+  gun:    { get name(){return gameText("Ружьё","Weapon");}, get desc(){return gameText("Урон больше","More damage");}, max: 4 },
+  helm:   { get name(){return gameText("Шапка","Helmet");}, get desc(){return gameText("+1 сердце","+1 heart");}, max: 4 },
+  jacket: { get name(){return gameText("Куртка","Jacket");}, get desc(){return gameText("Дольше неуязвим","Longer invulnerability");}, max: 3 },
+  gloves: { get name(){return gameText("Перчатки","Gloves");}, get desc(){return gameText("Стреляешь чаще","Faster fire rate");}, max: 4 },
+  boots:  { get name(){return gameText("Сапоги","Boots");}, get desc(){return gameText("Бежишь быстрее","Faster movement");}, max: 4 },
+  scope:  { get name(){return gameText("Прицел","Scope");}, get desc(){return gameText("Дальность больше","Longer range");}, max: 3 },
+  clip:   { get name(){return gameText("Боевой рюкзак","Combat backpack");}, get desc(){return gameText("+1 модуль с самонаводящейся пулей","+1 homing-shot module");}, max: 3 },
+  cape:   { get name(){return gameText("Плащ","Cape");}, get desc(){return gameText("+10% опыта","+10% XP");}, max: 3 },
 };
 const GK = Object.keys(GEAR);
 
 /* Редкие стволы. Базовый есть всегда, редкие выпадают нечасто
    и полностью меняют способ стрельбы.                          */
 const WEAPONS = {
-  basic:   { name: "Ружьё",     rare: 0, rarity: "common", desc: "Надёжный ствол" },
-  shotgun: { name: "Дробовик",  rare: 0, rarity: "common", desc: "Веер дроби, но близко" },
-  sniper:  { name: "Точная ветка", rare: 0, rarity: "common", desc: "От лука до снайперской винтовки" },
-  minigun: { name: "Миниган",   rare: 1, rarity: "rare", desc: "Шквал огня в упор" },
-  laser:   { name: "Лазер", rare: 0, rarity: "common", desc: "От импульсного бластера до луча Призмы" },
-  dropShotgun:{name:'Штурмовой дробовик',rare:1,rarity:'gold',desc:'Авиадроп · плотная картечь'},
-  goldSniper:{name:'Золотая снайперка',rare:1,rarity:'gold',desc:'Авиадроп · тяжёлый пробой'},
+  basic:   { get name(){return gameText("Ружьё","Rifle");}, rare: 0, rarity: "common", get desc(){return gameText("Надёжный ствол","Reliable firepower");} },
+  shotgun: { get name(){return gameText("Дробовик","Shotgun");}, rare: 0, rarity: "common", get desc(){return gameText("Веер дроби, но близко","A short-range spread of pellets");} },
+  sniper:  { get name(){return gameText("Точная ветка","Precision branch");}, rare: 0, rarity: "common", get desc(){return gameText("От лука до снайперской винтовки","From a bow to a sniper rifle");} },
+  minigun: { get name(){return gameText("Миниган","Minigun");}, rare: 1, rarity: "rare", get desc(){return gameText("Шквал огня в упор","A close-range hail of bullets");} },
+  laser:   { get name(){return gameText("Лазер","Laser");}, rare: 0, rarity: "common", get desc(){return gameText("От импульсного бластера до луча Призмы","From a pulse blaster to the Prism beam");} },
+  dropShotgun:{get name(){return gameText('Штурмовой дробовик','Assault shotgun');},rare:1,rarity:'gold',get desc(){return gameText('Авиадроп · плотная картечь','Airdrop · heavy buckshot');}},
+  goldSniper:{get name(){return gameText('Золотая снайперка','Gold sniper');},rare:1,rarity:'gold',get desc(){return gameText('Авиадроп · тяжёлый пробой','Airdrop · powerful piercing shots');}},
 };
 const DROP_WEAPONS=['minigun','dropShotgun','goldSniper'];
 const DROP_UPGRADE_MS=75000;
@@ -107,10 +108,10 @@ const GOLD_WEAPON_CHANCE = .025;
 const TIER = ["#8a8178", "#4e8f4a", "#3d78bd", "#8a53c4", "#dfa128"];
 
 const PERKS = {
-  hp:   { name: "Закалка",  desc: "+1 сердце навсегда" },
-  dmg:  { name: "Сила",     desc: "+15% урона навсегда" },
-  spd:  { name: "Резвость", desc: "+8% скорости навсегда" },
-  luck: { name: "Удача",    desc: "Сундуки чаще" },
+  hp:   { get name(){return gameText("Закалка","Toughness");}, get desc(){return gameText("+1 сердце навсегда","+1 heart permanently");} },
+  dmg:  { get name(){return gameText("Сила","Strength");}, get desc(){return gameText("+15% урона навсегда","+15% damage permanently");} },
+  spd:  { get name(){return gameText("Резвость","Agility");}, get desc(){return gameText("+8% скорости навсегда","+8% speed permanently");} },
+  luck: { get name(){return gameText("Удача","Luck");}, get desc(){return gameText("Сундуки чаще","More frequent chests");} },
 };
 const meta = { hp: 0, dmg: 0, spd: 0, luck: 0, best: 0, bestStage: 0, bestClearMs:0 };
 const META_KEY='vacky_meta_v1';
@@ -128,18 +129,18 @@ function rememberRunStage(){
 }
 
 const ITEMS = {
-  mine: { name: "Мина",    col: "#c8402c" },
-  nade: { name: "Граната", col: "#4e8f4a" },
-  ice:  { name: "Лёд",     col: "#4aa8cf" },
-  xp:   { name: "Опыт ×2", col: "#dfa128" },
+  mine: { get name(){return gameText("Мина","Mine");}, col: "#c8402c" },
+  nade: { get name(){return gameText("Граната","Grenade");}, col: "#4e8f4a" },
+  ice:  { get name(){return gameText("Лёд","Ice");}, col: "#4aa8cf" },
+  xp:   { get name(){return gameText("Опыт ×2","XP ×2");}, col: "#dfa128" },
 };
 
 /* Эксклюзивные расходуемые способности из редкого сундука.
    Инвентарь хранится отдельно от забега и переживает смерть/перезагрузку. */
 const ABILITIES = {
-  airstrike:{ name: "АВИАУДАР", short: "УДАР", col: "#d2691e", desc: "Серия ракет бьёт по скоплениям врагов" },
-  gas:    { name: "ТОКСИЧНЫЙ ТУМАН", short: "ГАЗ", col: "#4e8f4a", desc: "Химкостюм и смертельный дым" },
-  tank:   { name: "БОЕВОЙ ТАНК", short: "ТАНК", col: "#3d78bd", desc: "Бронированный союзник живёт, пока есть прочность" },
+  airstrike:{ get name(){return gameText("АВИАУДАР","AIRSTRIKE");}, get short(){return gameText("УДАР","STRIKE");}, col: "#d2691e", get desc(){return gameText("Серия ракет бьёт по скоплениям врагов","A barrage of missiles hits enemy groups");} },
+  gas:    { get name(){return gameText("ТОКСИЧНЫЙ ТУМАН","TOXIC FOG");}, get short(){return gameText("ГАЗ","GAS");}, col: "#4e8f4a", get desc(){return gameText("Химкостюм и смертельный дым","A hazmat suit and deadly fumes");} },
+  tank:   { get name(){return gameText("БОЕВОЙ ТАНК","BATTLE TANK");}, get short(){return gameText("ТАНК","TANK");}, col: "#3d78bd", get desc(){return gameText("Бронированный союзник живёт, пока есть прочность","An armored ally that fights until destroyed");} },
 };
 const ABILITY_KEYS = Object.keys(ABILITIES);
 const INVENTORY_KEY = "vacky_stickman_inventory_v1";
@@ -168,12 +169,12 @@ loadInventory();
 
 /* ── питомцы ──────────────────────────────────────────────── */
 const PETS = {
-  dog:    { name: "Собака",  desc: "Защищает вблизи, быстро кусает", revive: 8500 },
-  cat:    { name: "Кошка",   desc: "Точно стреляет на средней дистанции", revive: 10000 },
-  parrot: { name: "Попугай", desc: "Минирует путь, сдерживает толпу", revive: 10000 },
-  mole:   { name: "Крот",    desc: "Закрепляет зону огнём турелей", revive: 10000 },
-  boar:   { name: "Кабан",   desc: "Прорывается к тяжёлым врагам и взрывается", revive: 8500 },
-  chicken:{ name: "Курица",  desc: "Редкий отряд: бойцы, подрывники и лекарь", rare: 1, revive: 8000 },
+  dog:    { get name(){return gameText("Собака","Dog");}, get desc(){return gameText("Защищает вблизи, быстро кусает","Defends you up close with quick bites");}, revive: 8500 },
+  cat:    { get name(){return gameText("Кошка","Cat");}, get desc(){return gameText("Точно стреляет на средней дистанции","Fires accurate shots at medium range");}, revive: 10000 },
+  parrot: { get name(){return gameText("Попугай","Parrot");}, get desc(){return gameText("Минирует путь, сдерживает толпу","Lays mines to hold back the crowd");}, revive: 10000 },
+  mole:   { get name(){return gameText("Крот","Mole");}, get desc(){return gameText("Закрепляет зону огнём турелей","Holds an area with turret fire");}, revive: 10000 },
+  boar:   { get name(){return gameText("Кабан","Boar");}, get desc(){return gameText("Прорывается к тяжёлым врагам и взрывается","Charges tough enemies and explodes");}, revive: 8500 },
+  chicken:{ get name(){return gameText("Курица","Chicken");}, get desc(){return gameText("Редкий отряд: бойцы, подрывники и лекарь","A rare squad: fighters, bombers and a healer");}, rare: 1, revive: 8000 },
 };
 const PET_MAX = 5;
 const RARE_PET_CHANCE = .04;   // 4% на новый редкий выбор; повтор подряд исключён в rollPet

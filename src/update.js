@@ -36,7 +36,7 @@ function arenaFrameActive(){
     draw();
   } catch (err) {
     running = false;
-    fatal("Сбой в кадре: " + err.message);
+    fatal((typeof uiLanguage==='undefined'||uiLanguage==='ru'?"Сбой в кадре: ":"Frame error: ") + err.message);
     throw err;
   }
 });
@@ -129,11 +129,11 @@ function update(dt,activeMs=dt) {
       SFX.pickup?.(h.x);
     } else if (h.kind === "haste") {
       P.hasteT = 7000;
-      pops.push({ x: P.x, y: P.y - 52, txt: "УСКОРЕНИЕ", life: 1.4, col: "#a8761a" });
+      pops.push({ x: P.x, y: P.y - 52, txt: gameText("УСКОРЕНИЕ","HASTE"), life: 1.4, col: "#a8761a" });
       SFX.pickup?.(h.x);
     } else {
       P.invT = 6000; P.seen = { x: P.x, y: P.y };
-      pops.push({ x: P.x, y: P.y - 52, txt: "НЕУЯЗВИМОСТЬ", life: 1.4, col: "#2f7d9c" });
+      pops.push({ x: P.x, y: P.y - 52, txt: gameText("НЕУЯЗВИМОСТЬ","INVULNERABLE"), life: 1.4, col: "#2f7d9c" });
       SFX.pickup?.(h.x);
     }
   }
@@ -266,7 +266,7 @@ function update(dt,activeMs=dt) {
     if(c.elite){
       if(c.dropT>0){c.dropT=Math.max(0,c.dropT-dt);
         if(c.dropT===0){SFX.crateLand?.(c.x);shake=Math.max(shake,7);
-          pops.push({x:c.x,y:c.y-60,txt:'ЭЛИТНЫЙ СУНДУК',life:2,col:'#8650b1'});}
+          pops.push({x:c.x,y:c.y-60,txt:gameText('ЭЛИТНЫЙ СУНДУК','ELITE CHEST'),life:2,col:'#8650b1'});}
         continue;
       }
       if(c.landT>0){c.landT=Math.max(0,c.landT-dt);continue;}

@@ -21,14 +21,22 @@ const Playables = (() => {
       Promise.resolve(promise).then(value=>{nativeClear(timer);resolve(value);},error=>{nativeClear(timer);reject(error);});
     });
   }
+  function platformText(ru,en){
+    let selected=hooks.language?.();
+    // Use only records already loaded by the save boundary. Displaying a message
+    // must not read browser storage in cloud/strict builds or migrate any keys.
+    if(!selected)selected=(cloud?records:localRecords).vacky_language_v1;
+    const fallback=cloud?language:(typeof navigator==='undefined'?'ru':navigator.language);
+    return String(selected||fallback||'en').toLowerCase().split(/[-_]/)[0]==='ru'?ru:en;
+  }
   const blocked=()=>!started||hostPaused||adPending||revision>savedRevision||!!saveError||!!pendingCommit;
   const el=id=>document.getElementById(id);
   function status(text,canRetry=false){
     if(hostPaused)return;
     const gate=el('platformGate'),message=el('platformMessage'),retry=el('platformRetry');
-    if(message)message.textContent=text;if(retry)retry.hidden=!canRetry;
+    if(message)message.textContent=text;if(retry){retry.hidden=!canRetry;retry.textContent=platformText('Повторить','Retry');}
     if(gate)gate.hidden=!text;
-    const note=el('homeSaveNote');if(note)note.textContent=cloud?'Коллекция и инвентарь сохраняются через '+provider+'.':'Прогресс сохраняется в этом браузере.';
+    const note=el('homeSaveNote');if(note)note.textContent=cloud?platformText('Прогресс сохраняется через ','Progress is saved through ')+provider+'.':platformText('Прогресс сохраняется в этом браузере.','Progress is saved in this browser.');
   }
   function freeze(){
     for(const f of frames.values())if(f.native!==null){nativeCancel(f.native);f.native=null;}
@@ -49,37 +57,37 @@ const Playables = (() => {
     finishAdContinuation();if(blocked())return;
     hooks.resume?.();hooks.audio?.(audioEnabled);status('');
     for(const [id,f] of frames)scheduleFrame(id,f);for(const [id,t] of timers)scheduleTimer(id,t);
-    if(cloud&&!ready){ready=true;Promise.resolve(sdk.game.gameReady()).catch(()=>{started=false;freeze();status('Платформа не подтвердила запуск. Перезагрузи игру.',true);});}
+    if(cloud&&!ready){ready=true;Promise.resolve(sdk.game.gameReady()).catch(()=>{started=false;freeze();status(platformText("Платформа не подтвердила запуск. Перезагрузи игру.","The platform did not confirm launch. Reload the game."),true);});}
   }
   function parseCloud(raw){
     if(raw==null||raw==='')return Object.create(null);
     const p=JSON.parse(raw);let data;
     if(p?.format==='vacky-playables'&&p.version===1&&p.records&&typeof p.records==='object'&&!Array.isArray(p.records))data=p.records;
     else if(p?.version===2&&p.counts&&p.exclusives)data={[PROFILE]:JSON.stringify(p)}; // earlier standalone dragon profile
-    else throw Error('Неизвестный формат сохранения. Оно не будет перезаписано.');
+    else throw Error(platformText("Неизвестный формат сохранения. Оно не будет перезаписано.","Unknown save format. It will not be overwritten."));
     const out=Object.create(null);
     for(const [key,value] of Object.entries(data)){
-      if(typeof value!=='string')throw Error('Некорректное сохранение.');out[key]=value;
+      if(typeof value!=='string')throw Error(platformText("Некорректное сохранение.","Invalid save data."));out[key]=value;
     }
     if(Object.hasOwn(out,PROFILE)){
       const q=JSON.parse(out[PROFILE]);
-      if(q?.version!==2||!q.counts||!q.exclusives||typeof q.counts!=='object'||typeof q.exclusives!=='object'||Array.isArray(q.counts)||Array.isArray(q.exclusives))throw Error('Не удалось прочитать коллекцию.');
-      for(const key of ['rescues','revision'])if(q[key]!==undefined&&(!Number.isSafeInteger(q[key])||q[key]<0))throw Error('Повреждена история коллекции.');
-      for(const n of [...Object.values(q.counts),...Object.values(q.exclusives)])if(!Number.isSafeInteger(n)||n<0)throw Error('Повреждён счётчик драконов.');
-      if(q.egg&&(![0,1,2].includes(q.egg.shell)||!Number.isInteger(q.egg.fed)||q.egg.fed<0||q.egg.fed>5||(q.egg.fed===5&&(!Number.isInteger(q.egg.reward)||q.egg.reward<0||q.egg.reward>=100))))throw Error('Не удалось прочитать яйцо.');
+      if(q?.version!==2||!q.counts||!q.exclusives||typeof q.counts!=='object'||typeof q.exclusives!=='object'||Array.isArray(q.counts)||Array.isArray(q.exclusives))throw Error(platformText("Не удалось прочитать коллекцию.","Could not read the collection."));
+      for(const key of ['rescues','revision'])if(q[key]!==undefined&&(!Number.isSafeInteger(q[key])||q[key]<0))throw Error(platformText("Повреждена история коллекции.","The collection history is damaged."));
+      for(const n of [...Object.values(q.counts),...Object.values(q.exclusives)])if(!Number.isSafeInteger(n)||n<0)throw Error(platformText("Повреждён счётчик драконов.","The dragon count is damaged."));
+      if(q.egg&&(![0,1,2].includes(q.egg.shell)||!Number.isInteger(q.egg.fed)||q.egg.fed<0||q.egg.fed>5||(q.egg.fed===5&&(!Number.isInteger(q.egg.reward)||q.egg.reward<0||q.egg.reward>=100))))throw Error(platformText("Не удалось прочитать яйцо.","Could not read the egg."));
     }
-    for(const key of [INVENTORY,META,LEGACY])if(Object.hasOwn(out,key)){const value=JSON.parse(out[key]);if(!value||typeof value!=='object'||Array.isArray(value)||Object.values(value).some(n=>!Number.isSafeInteger(n)||n<0))throw Error('Повреждён прогресс.');}
+    for(const key of [INVENTORY,META,LEGACY])if(Object.hasOwn(out,key)){const value=JSON.parse(out[key]);if(!value||typeof value!=='object'||Array.isArray(value)||Object.values(value).some(n=>!Number.isSafeInteger(n)||n<0))throw Error(platformText("Повреждён прогресс.","Progress data is damaged."));}
     return out;
   }
   function payload(data){
     const text=JSON.stringify({format:'vacky-playables',version:1,records:data});
     // Current saves are a few KiB; conservative bound also fits the exit flush budget.
-    if(text.length*3>60000)throw Error('Сохранение слишком велико. Изменение не принято.');return text;
+    if(text.length*3>60000)throw Error(platformText("Сохранение слишком велико. Изменение не принято.","Save data is too large. The change was not accepted."));return text;
   }
   const localKey=key=>(qaBuild?qaPrefix:'')+key;
   function localPayload(data){
     const text=JSON.stringify({format:'vacky-atomic',version:1,records:data});
-    if(text.length*3>60000)throw Error('Сохранение слишком велико. Изменение не принято.');return text;
+    if(text.length*3>60000)throw Error(platformText("Сохранение слишком велико. Изменение не принято.","Save data is too large. The change was not accepted."));return text;
   }
   function loadLocalRecords(){
     if(localLoaded)return;
@@ -88,18 +96,18 @@ const Playables = (() => {
     const raw=window.localStorage.getItem(localKey(ATOMIC)),next=Object.create(null);
     if(raw!==null){
       const p=JSON.parse(raw);
-      if(p?.format!=='vacky-atomic'||p.version!==1||!p.records||typeof p.records!=='object'||Array.isArray(p.records))throw Error('Неизвестное сохранение забега. Оно не будет перезаписано.');
+      if(p?.format!=='vacky-atomic'||p.version!==1||!p.records||typeof p.records!=='object'||Array.isArray(p.records))throw Error(platformText("Неизвестное сохранение забега. Оно не будет перезаписано.","Unknown run save. It will not be overwritten."));
       for(const [key,value] of Object.entries(p.records)){
-        if(key===ATOMIC||typeof value!=='string')throw Error('Повреждено сохранение забега. Данные не перезаписаны.');
+        if(key===ATOMIC||typeof value!=='string')throw Error(platformText("Повреждено сохранение забега. Данные не перезаписаны.","The run save is damaged. Original data was preserved."));
         next[key]=value;
       }
       localPayload(next);
     }
     localRecords=next;localLoaded=true;
   }
-  function recordKey(key){key=String(key);if(key===ATOMIC)throw Error('Зарезервированный ключ сохранения.');return key;}
+  function recordKey(key){key=String(key);if(key===ATOMIC)throw Error(platformText("Зарезервированный ключ сохранения.","Reserved save key."));return key;}
   function readRecord(key){
-    if(cloud){if(!loaded)throw Error('Облачный прогресс ещё не загружен');return (pendingCommit?.next||records)[key]??null;}
+    if(cloud){if(!loaded)throw Error(platformText("Облачный прогресс ещё не загружен","Cloud progress has not loaded yet."));return (pendingCommit?.next||records)[key]??null;}
     loadLocalRecords();const data=pendingCommit?.next||localRecords;
     return Object.hasOwn(data,key)?data[key]:window.localStorage.getItem(localKey(key));
   }
@@ -110,8 +118,8 @@ const Playables = (() => {
   }
   function commitRecords(changes,next){
     if(cloud){
-      if(!loaded)throw Error('Запись до загрузки запрещена');payload(next);
-      records=next;revision++;freeze();status('Сохраняем прогресс: '+provider+'…');
+      if(!loaded)throw Error(platformText("Запись до загрузки запрещена","Cannot save before progress has loaded."));payload(next);
+      records=next;revision++;freeze();status(platformText('Сохраняем прогресс: ','Saving progress: ')+provider+'…');
       // End-of-turn coalescing keeps multiple synchronous batches serialized.
       Promise.resolve().then(()=>flush());
     }else{
@@ -119,7 +127,7 @@ const Playables = (() => {
       localRecords=next;mirrorLocal(changes);
     }
   }
-  function pendingSaveMessage(error){return 'Не удалось сохранить забег. Не закрывай игру; нажми «Повторить». '+(error?.message||'');}
+  function pendingSaveMessage(error){return platformText('Не удалось сохранить забег. Не закрывай игру; нажми «Повторить». ','Could not save the run. Keep the game open and press Retry. ')+(error?.message||'');}
   function retryPendingCommit(){
     if(!pendingCommit)return true;
     const pending=pendingCommit;
@@ -130,10 +138,10 @@ const Playables = (() => {
     if(pendingCommit&&!retryPendingCommit())return Promise.resolve();
     if(!cloud||!loaded||revision===savedRevision||inflight||(hostPaused&&!atPause))return inflight||Promise.resolve();
     const sent=revision,text=payload(records);saveError='';
-    status('Сохраняем прогресс: '+provider+'…');
+    status(platformText('Сохраняем прогресс: ','Saving progress: ')+provider+'…');
     inflight=Promise.resolve().then(()=>sdk.game.saveData(text)).then(()=>{
       savedRevision=sent;if(!pendingCommit)saveError='';
-    },()=>{saveError=provider+' не подтвердил сохранение. Не закрывай игру; повтори отправку.';}).finally(()=>{
+    },()=>{saveError=provider+platformText(' не подтвердил сохранение. Не закрывай игру; повтори отправку.',' did not confirm the save. Keep the game open and retry.');}).finally(()=>{
       inflight=null;
       if(saveError){status(saveError,true);return;}
       if(revision>savedRevision){if(!hostPaused)flush();return;}wake();
@@ -144,7 +152,7 @@ const Playables = (() => {
     setItem(key,value){
       key=recordKey(key);value=String(value);
       if(transaction){if(value===readRecord(key))delete transaction.changes[key];else transaction.changes[key]=value;return;}
-      if(pendingCommit)throw Error('Предыдущее сохранение ожидает повтора.');
+      if(pendingCommit)throw Error(platformText("Предыдущее сохранение ожидает повтора.","The previous save is awaiting a retry."));
       if(!cloud){
         loadLocalRecords();
         // Preserve old single-record behavior until a key joins an atomic batch.
@@ -160,8 +168,8 @@ const Playables = (() => {
         try{const result=action();if(result&&typeof result.then==='function')throw TypeError('Storage transactions must be synchronous.');return result;}
         catch(error){owner.changes=before;throw error;}
       }
-      if(pendingCommit)throw Error('Предыдущее сохранение ожидает повтора.');
-      if(cloud&&!loaded)throw Error('Запись до загрузки запрещена');
+      if(pendingCommit)throw Error(platformText("Предыдущее сохранение ожидает повтора.","The previous save is awaiting a retry."));
+      if(cloud&&!loaded)throw Error(platformText("Запись до загрузки запрещена","Cannot save before progress has loaded."));
       if(!cloud)loadLocalRecords();
       const owner={changes:Object.create(null)};transaction=owner;let result;
       try{
@@ -187,7 +195,7 @@ const Playables = (() => {
   };
   function install(){
     sdk=adapter||(typeof ytgame!=='undefined'?ytgame:null);cloud=!!sdk?.IN_PLAYABLES_ENV;
-    if(window.VACKY_REQUIRE_PLAYABLES&&!cloud)throw Error('Эта сборка запускается через YouTube Playables или его Test Suite.');
+    if(window.VACKY_REQUIRE_PLAYABLES&&!cloud)throw Error(platformText("Эта сборка запускается через YouTube Playables или его Test Suite.","This build runs through YouTube Playables or its Test Suite."));
     if(!cloud){installed=true;return;}
     audioEnabled=sdk.system.isAudioEnabled();
     sdk.system.onAudioEnabledChange(value=>{audioEnabled=!!value;if(started&&!hostPaused)hooks.audio?.(!blocked()&&audioEnabled);});
@@ -219,7 +227,7 @@ const Playables = (() => {
     if(startGame)launch=startGame;if(booting||started)return;booting=true;
     try{
       if(window.VACKY_REQUIRE_PLAYGAMA&&!adapter){adapter=await startupDeadline(createPlaygamaAdapter(),'Playgama is taking too long to connect. Retry; your progress has not been changed.');provider=adapter.provider;language=adapter.language;}
-      if(!installed)install();status(cloud?'Загружаем прогресс: '+provider+'…':'Загружаем игру…');
+      if(!installed)install();status(cloud?platformText('Загружаем прогресс: ','Loading progress: ')+provider+'…':platformText('Загружаем игру…','Loading game…'));
       if(cloud&&!first){await new Promise(resolve=>nativeFrame(resolve));if(hostPaused)await new Promise(resolve=>resumeWaiters.push(resolve));sdk.game.firstFrameReady();first=true;}
       if(cloud){
         const pendingLoad=sdk.game.loadData();
@@ -230,7 +238,7 @@ const Playables = (() => {
       launchAttempted=true;hooks=await launch();
       if(hostPaused)await new Promise(resolve=>resumeWaiters.push(resolve));
       started=true;status('');hooks.initial?.();wake();
-    }catch(error){started=false;freeze();status('Не удалось запустить игру. '+(error?.message||'Повтори загрузку.'),true);}
+    }catch(error){started=false;freeze();status(platformText('Не удалось запустить игру. ','Could not start the game. ')+(error?.message||platformText('Повтори загрузку.','Please retry.')),true);}
     finally{booting=false;}
   }
   function inputGuard(event){if(blocked()){event.preventDefault();event.stopImmediatePropagation();}}

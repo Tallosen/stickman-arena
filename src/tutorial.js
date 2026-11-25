@@ -28,7 +28,7 @@ let tutorialProgress=loadTutorial(),tutorialActive=null,tutorialCheckAt=0,tutori
 function tutorialOpen(){return tutorialActive!==null;}
 function saveTutorial(){
  try{tutorialStore().setItem(TUTORIAL_KEY,JSON.stringify(tutorialProgress));document.getElementById("tutorialSaveStatus").textContent="";}
- catch(_){document.getElementById("tutorialSaveStatus").textContent="Не удалось сохранить обучение. После перезагрузки подсказки могут повториться.";}
+ catch(_){document.getElementById("tutorialSaveStatus").textContent=typeof uiLabel==='function'?uiLabel('saveTutorial'):"Не удалось сохранить обучение. После перезагрузки подсказки могут повториться.";}
 }
 function tutorialVisible(id){const el=document.getElementById(id);return !!el&&!el.classList.contains("hidden");}
 function tutorialContext(){

@@ -1,6 +1,6 @@
 {
-  "version": "0.206",
-  "checkedAt": "2026-11-24T19:49:38.203Z",
+  "version": "0.207",
+  "checkedAt": "2026-11-25T09:44:29.337Z",
   "artifactChecksPassed": true,
   "publishReady": false,
   "checks": [
@@ -73,8 +73,8 @@
   "artifacts": [
     {
       "file": "dist/playgama/index.html",
-      "bytes": 7782786,
-      "sha256": "ded78e110c15dbbfd29f2f57d9786f528ae5649c6e3e9a1fff108edcc47742a9"
+      "bytes": 7790951,
+      "sha256": "0194e6fbc43454675fb4d5537d4e99e60380a541081befc6734e3dfadbbf2cb2"
     },
     {
       "file": "dist/playgama/playgama-bridge-config.json",
@@ -82,9 +82,9 @@
       "sha256": "2fd83cc2d8d1c72fee284045bfc2cd48a9110adcef16674fc77a7dcd72a424bb"
     },
     {
-      "file": "dist/StickmanArena_v0.206_QA.html",
-      "bytes": 7779719,
-      "sha256": "fba33c877ddcc69b2d04c947cca47c5cb31362a1680f1e4d1dd5b49a9a692c75"
+      "file": "dist/StickmanArena_v0.207_QA.html",
+      "bytes": 7787884,
+      "sha256": "5cf9e423b6a34b8bd71bf89517725608c169d1e1b6fe766b6703a32843d4f87b"
     }
   ]
 }

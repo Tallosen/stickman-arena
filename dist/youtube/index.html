@@ -353,7 +353,7 @@
 </style>
 </head>
 <body>
-<div id="platformGate" role="status" aria-live="polite"><strong>VACKY GAMES</strong><div id="platformMessage">Загружаем игру…</div><button id="platformRetry" hidden>Повторить</button></div>
+<div id="platformGate" role="status" aria-live="polite"><strong>VACKY GAMES</strong><div id="platformMessage">Loading game…</div><button id="platformRetry" hidden>Retry</button></div>
 <canvas id="c"></canvas>
 <button id="gameGuideBtn" class="help-dot guide-launch hidden" data-help="guide" aria-label="Справочник по игре">?</button>
 <section id="tutorial" class="tutorial hidden" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle" aria-describedby="tutorialText">
@@ -455,14 +455,14 @@
  <button type="button" id="btnEndingSkip">К итогам →</button>
 </section>
 <div id="dragonVictory" class="overlay victory-dragon hidden">
-  <div class="tag">20 СТАДИЙ · ФИНАЛ ПРОЙДЕН</div>
+  <div id="victoryTag" class="tag">20 STAGES · FINALE COMPLETE</div>
   <canvas id="victoryDragonCanvas" width="420" height="245"></canvas>
   <h2 id="victoryDragonName">БОСС ПОВЕРЖЕН</h2>
   <p id="victoryDragonText"></p>
   <strong id="victoryRecord"></strong><div id="victoryBosses"></div><p id="victoryWeapon"></p><div id="victoryGear"></div>
   <button class="btn" id="btnVictoryRestart">ЕЩЁ ЗАБЕГ</button>
   <div id="victoryProgress" class="camp-result-progress"></div><button class="menu-secondary" id="btnVictoryRanking">🏆 Рейтинг / Leaderboard</button><button class="menu-secondary" id="btnVictoryMenu">В лагерь</button>
-  
+
 </div>
 
 <div id="over" class="overlay hidden">
@@ -495,14 +495,22 @@ const Playables = (() => {
       Promise.resolve(promise).then(value=>{nativeClear(timer);resolve(value);},error=>{nativeClear(timer);reject(error);});
     });
   }
+  function platformText(ru,en){
+    let selected=hooks.language?.();
+    // Use only records already loaded by the save boundary. Displaying a message
+    // must not read browser storage in cloud/strict builds or migrate any keys.
+    if(!selected)selected=(cloud?records:localRecords).vacky_language_v1;
+    const fallback=cloud?language:(typeof navigator==='undefined'?'ru':navigator.language);
+    return String(selected||fallback||'en').toLowerCase().split(/[-_]/)[0]==='ru'?ru:en;
+  }
   const blocked=()=>!started||hostPaused||adPending||revision>savedRevision||!!saveError||!!pendingCommit;
   const el=id=>document.getElementById(id);
   function status(text,canRetry=false){
     if(hostPaused)return;
     const gate=el('platformGate'),message=el('platformMessage'),retry=el('platformRetry');
-    if(message)message.textContent=text;if(retry)retry.hidden=!canRetry;
+    if(message)message.textContent=text;if(retry){retry.hidden=!canRetry;retry.textContent=platformText('Повторить','Retry');}
     if(gate)gate.hidden=!text;
-    const note=el('homeSaveNote');if(note)note.textContent=cloud?'Коллекция и инвентарь сохраняются через '+provider+'.':'Прогресс сохраняется в этом браузере.';
+    const note=el('homeSaveNote');if(note)note.textContent=cloud?platformText('Прогресс сохраняется через ','Progress is saved through ')+provider+'.':platformText('Прогресс сохраняется в этом браузере.','Progress is saved in this browser.');
   }
   function freeze(){
     for(const f of frames.values())if(f.native!==null){nativeCancel(f.native);f.native=null;}
@@ -523,37 +531,37 @@ const Playables = (() => {
     finishAdContinuation();if(blocked())return;
     hooks.resume?.();hooks.audio?.(audioEnabled);status('');
     for(const [id,f] of frames)scheduleFrame(id,f);for(const [id,t] of timers)scheduleTimer(id,t);
-    if(cloud&&!ready){ready=true;Promise.resolve(sdk.game.gameReady()).catch(()=>{started=false;freeze();status('Платформа не подтвердила запуск. Перезагрузи игру.',true);});}
+    if(cloud&&!ready){ready=true;Promise.resolve(sdk.game.gameReady()).catch(()=>{started=false;freeze();status(platformText("Платформа не подтвердила запуск. Перезагрузи игру.","The platform did not confirm launch. Reload the game."),true);});}
   }
   function parseCloud(raw){
     if(raw==null||raw==='')return Object.create(null);
     const p=JSON.parse(raw);let data;
     if(p?.format==='vacky-playables'&&p.version===1&&p.records&&typeof p.records==='object'&&!Array.isArray(p.records))data=p.records;
     else if(p?.version===2&&p.counts&&p.exclusives)data={[PROFILE]:JSON.stringify(p)}; // earlier standalone dragon profile
-    else throw Error('Неизвестный формат сохранения. Оно не будет перезаписано.');
+    else throw Error(platformText("Неизвестный формат сохранения. Оно не будет перезаписано.","Unknown save format. It will not be overwritten."));
     const out=Object.create(null);
     for(const [key,value] of Object.entries(data)){
-      if(typeof value!=='string')throw Error('Некорректное сохранение.');out[key]=value;
+      if(typeof value!=='string')throw Error(platformText("Некорректное сохранение.","Invalid save data."));out[key]=value;
     }
     if(Object.hasOwn(out,PROFILE)){
       const q=JSON.parse(out[PROFILE]);
-      if(q?.version!==2||!q.counts||!q.exclusives||typeof q.counts!=='object'||typeof q.exclusives!=='object'||Array.isArray(q.counts)||Array.isArray(q.exclusives))throw Error('Не удалось прочитать коллекцию.');
-      for(const key of ['rescues','revision'])if(q[key]!==undefined&&(!Number.isSafeInteger(q[key])||q[key]<0))throw Error('Повреждена история коллекции.');
-      for(const n of [...Object.values(q.counts),...Object.values(q.exclusives)])if(!Number.isSafeInteger(n)||n<0)throw Error('Повреждён счётчик драконов.');
-      if(q.egg&&(![0,1,2].includes(q.egg.shell)||!Number.isInteger(q.egg.fed)||q.egg.fed<0||q.egg.fed>5||(q.egg.fed===5&&(!Number.isInteger(q.egg.reward)||q.egg.reward<0||q.egg.reward>=100))))throw Error('Не удалось прочитать яйцо.');
+      if(q?.version!==2||!q.counts||!q.exclusives||typeof q.counts!=='object'||typeof q.exclusives!=='object'||Array.isArray(q.counts)||Array.isArray(q.exclusives))throw Error(platformText("Не удалось прочитать коллекцию.","Could not read the collection."));
+      for(const key of ['rescues','revision'])if(q[key]!==undefined&&(!Number.isSafeInteger(q[key])||q[key]<0))throw Error(platformText("Повреждена история коллекции.","The collection history is damaged."));
+      for(const n of [...Object.values(q.counts),...Object.values(q.exclusives)])if(!Number.isSafeInteger(n)||n<0)throw Error(platformText("Повреждён счётчик драконов.","The dragon count is damaged."));
+      if(q.egg&&(![0,1,2].includes(q.egg.shell)||!Number.isInteger(q.egg.fed)||q.egg.fed<0||q.egg.fed>5||(q.egg.fed===5&&(!Number.isInteger(q.egg.reward)||q.egg.reward<0||q.egg.reward>=100))))throw Error(platformText("Не удалось прочитать яйцо.","Could not read the egg."));
     }
-    for(const key of [INVENTORY,META,LEGACY])if(Object.hasOwn(out,key)){const value=JSON.parse(out[key]);if(!value||typeof value!=='object'||Array.isArray(value)||Object.values(value).some(n=>!Number.isSafeInteger(n)||n<0))throw Error('Повреждён прогресс.');}
+    for(const key of [INVENTORY,META,LEGACY])if(Object.hasOwn(out,key)){const value=JSON.parse(out[key]);if(!value||typeof value!=='object'||Array.isArray(value)||Object.values(value).some(n=>!Number.isSafeInteger(n)||n<0))throw Error(platformText("Повреждён прогресс.","Progress data is damaged."));}
     return out;
   }
   function payload(data){
     const text=JSON.stringify({format:'vacky-playables',version:1,records:data});
     // Current saves are a few KiB; conservative bound also fits the exit flush budget.
-    if(text.length*3>60000)throw Error('Сохранение слишком велико. Изменение не принято.');return text;
+    if(text.length*3>60000)throw Error(platformText("Сохранение слишком велико. Изменение не принято.","Save data is too large. The change was not accepted."));return text;
   }
   const localKey=key=>(qaBuild?qaPrefix:'')+key;
   function localPayload(data){
     const text=JSON.stringify({format:'vacky-atomic',version:1,records:data});
-    if(text.length*3>60000)throw Error('Сохранение слишком велико. Изменение не принято.');return text;
+    if(text.length*3>60000)throw Error(platformText("Сохранение слишком велико. Изменение не принято.","Save data is too large. The change was not accepted."));return text;
   }
   function loadLocalRecords(){
     if(localLoaded)return;
@@ -562,18 +570,18 @@ const Playables = (() => {
     const raw=window.localStorage.getItem(localKey(ATOMIC)),next=Object.create(null);
     if(raw!==null){
       const p=JSON.parse(raw);
-      if(p?.format!=='vacky-atomic'||p.version!==1||!p.records||typeof p.records!=='object'||Array.isArray(p.records))throw Error('Неизвестное сохранение забега. Оно не будет перезаписано.');
+      if(p?.format!=='vacky-atomic'||p.version!==1||!p.records||typeof p.records!=='object'||Array.isArray(p.records))throw Error(platformText("Неизвестное сохранение забега. Оно не будет перезаписано.","Unknown run save. It will not be overwritten."));
       for(const [key,value] of Object.entries(p.records)){
-        if(key===ATOMIC||typeof value!=='string')throw Error('Повреждено сохранение забега. Данные не перезаписаны.');
+        if(key===ATOMIC||typeof value!=='string')throw Error(platformText("Повреждено сохранение забега. Данные не перезаписаны.","The run save is damaged. Original data was preserved."));
         next[key]=value;
       }
       localPayload(next);
     }
     localRecords=next;localLoaded=true;
   }
-  function recordKey(key){key=String(key);if(key===ATOMIC)throw Error('Зарезервированный ключ сохранения.');return key;}
+  function recordKey(key){key=String(key);if(key===ATOMIC)throw Error(platformText("Зарезервированный ключ сохранения.","Reserved save key."));return key;}
   function readRecord(key){
-    if(cloud){if(!loaded)throw Error('Облачный прогресс ещё не загружен');return (pendingCommit?.next||records)[key]??null;}
+    if(cloud){if(!loaded)throw Error(platformText("Облачный прогресс ещё не загружен","Cloud progress has not loaded yet."));return (pendingCommit?.next||records)[key]??null;}
     loadLocalRecords();const data=pendingCommit?.next||localRecords;
     return Object.hasOwn(data,key)?data[key]:window.localStorage.getItem(localKey(key));
   }
@@ -584,8 +592,8 @@ const Playables = (() => {
   }
   function commitRecords(changes,next){
     if(cloud){
-      if(!loaded)throw Error('Запись до загрузки запрещена');payload(next);
-      records=next;revision++;freeze();status('Сохраняем прогресс: '+provider+'…');
+      if(!loaded)throw Error(platformText("Запись до загрузки запрещена","Cannot save before progress has loaded."));payload(next);
+      records=next;revision++;freeze();status(platformText('Сохраняем прогресс: ','Saving progress: ')+provider+'…');
       // End-of-turn coalescing keeps multiple synchronous batches serialized.
       Promise.resolve().then(()=>flush());
     }else{
@@ -593,7 +601,7 @@ const Playables = (() => {
       localRecords=next;mirrorLocal(changes);
     }
   }
-  function pendingSaveMessage(error){return 'Не удалось сохранить забег. Не закрывай игру; нажми «Повторить». '+(error?.message||'');}
+  function pendingSaveMessage(error){return platformText('Не удалось сохранить забег. Не закрывай игру; нажми «Повторить». ','Could not save the run. Keep the game open and press Retry. ')+(error?.message||'');}
   function retryPendingCommit(){
     if(!pendingCommit)return true;
     const pending=pendingCommit;
@@ -604,10 +612,10 @@ const Playables = (() => {
     if(pendingCommit&&!retryPendingCommit())return Promise.resolve();
     if(!cloud||!loaded||revision===savedRevision||inflight||(hostPaused&&!atPause))return inflight||Promise.resolve();
     const sent=revision,text=payload(records);saveError='';
-    status('Сохраняем прогресс: '+provider+'…');
+    status(platformText('Сохраняем прогресс: ','Saving progress: ')+provider+'…');
     inflight=Promise.resolve().then(()=>sdk.game.saveData(text)).then(()=>{
       savedRevision=sent;if(!pendingCommit)saveError='';
-    },()=>{saveError=provider+' не подтвердил сохранение. Не закрывай игру; повтори отправку.';}).finally(()=>{
+    },()=>{saveError=provider+platformText(' не подтвердил сохранение. Не закрывай игру; повтори отправку.',' did not confirm the save. Keep the game open and retry.');}).finally(()=>{
       inflight=null;
       if(saveError){status(saveError,true);return;}
       if(revision>savedRevision){if(!hostPaused)flush();return;}wake();
@@ -618,7 +626,7 @@ const Playables = (() => {
     setItem(key,value){
       key=recordKey(key);value=String(value);
       if(transaction){if(value===readRecord(key))delete transaction.changes[key];else transaction.changes[key]=value;return;}
-      if(pendingCommit)throw Error('Предыдущее сохранение ожидает повтора.');
+      if(pendingCommit)throw Error(platformText("Предыдущее сохранение ожидает повтора.","The previous save is awaiting a retry."));
       if(!cloud){
         loadLocalRecords();
         // Preserve old single-record behavior until a key joins an atomic batch.
@@ -634,8 +642,8 @@ const Playables = (() => {
         try{const result=action();if(result&&typeof result.then==='function')throw TypeError('Storage transactions must be synchronous.');return result;}
         catch(error){owner.changes=before;throw error;}
       }
-      if(pendingCommit)throw Error('Предыдущее сохранение ожидает повтора.');
-      if(cloud&&!loaded)throw Error('Запись до загрузки запрещена');
+      if(pendingCommit)throw Error(platformText("Предыдущее сохранение ожидает повтора.","The previous save is awaiting a retry."));
+      if(cloud&&!loaded)throw Error(platformText("Запись до загрузки запрещена","Cannot save before progress has loaded."));
       if(!cloud)loadLocalRecords();
       const owner={changes:Object.create(null)};transaction=owner;let result;
       try{
@@ -661,7 +669,7 @@ const Playables = (() => {
   };
   function install(){
     sdk=adapter||(typeof ytgame!=='undefined'?ytgame:null);cloud=!!sdk?.IN_PLAYABLES_ENV;
-    if(window.VACKY_REQUIRE_PLAYABLES&&!cloud)throw Error('Эта сборка запускается через YouTube Playables или его Test Suite.');
+    if(window.VACKY_REQUIRE_PLAYABLES&&!cloud)throw Error(platformText("Эта сборка запускается через YouTube Playables или его Test Suite.","This build runs through YouTube Playables or its Test Suite."));
     if(!cloud){installed=true;return;}
     audioEnabled=sdk.system.isAudioEnabled();
     sdk.system.onAudioEnabledChange(value=>{audioEnabled=!!value;if(started&&!hostPaused)hooks.audio?.(!blocked()&&audioEnabled);});
@@ -693,7 +701,7 @@ const Playables = (() => {
     if(startGame)launch=startGame;if(booting||started)return;booting=true;
     try{
       if(window.VACKY_REQUIRE_PLAYGAMA&&!adapter){adapter=await startupDeadline(createPlaygamaAdapter(),'Playgama is taking too long to connect. Retry; your progress has not been changed.');provider=adapter.provider;language=adapter.language;}
-      if(!installed)install();status(cloud?'Загружаем прогресс: '+provider+'…':'Загружаем игру…');
+      if(!installed)install();status(cloud?platformText('Загружаем прогресс: ','Loading progress: ')+provider+'…':platformText('Загружаем игру…','Loading game…'));
       if(cloud&&!first){await new Promise(resolve=>nativeFrame(resolve));if(hostPaused)await new Promise(resolve=>resumeWaiters.push(resolve));sdk.game.firstFrameReady();first=true;}
       if(cloud){
         const pendingLoad=sdk.game.loadData();
@@ -704,7 +712,7 @@ const Playables = (() => {
       launchAttempted=true;hooks=await launch();
       if(hostPaused)await new Promise(resolve=>resumeWaiters.push(resolve));
       started=true;status('');hooks.initial?.();wake();
-    }catch(error){started=false;freeze();status('Не удалось запустить игру. '+(error?.message||'Повтори загрузку.'),true);}
+    }catch(error){started=false;freeze();status(platformText('Не удалось запустить игру. ','Could not start the game. ')+(error?.message||platformText('Повтори загрузку.','Please retry.')),true);}
     finally{booting=false;}
   }
   function inputGuard(event){if(blocked()){event.preventDefault();event.stopImmediatePropagation();}}
@@ -2320,6 +2328,14 @@ function applyLanguage(){
  if(typeof refreshMenuRecord==='function')refreshMenuRecord();
  if(typeof refreshCampMenu==='function')refreshCampMenu();
  if(typeof refreshRunCheckpointLabel==='function')refreshRunCheckpointLabel();
+ const ru=uiLanguage==='ru';
+ const pause=document.getElementById('pauseBtn');
+ pause?.setAttribute('title',ru?'Меню и пауза (P)':'Menu and pause (P)');
+ pause?.setAttribute('aria-label',ru?'Открыть меню и приостановить игру':'Open menu and pause the game');
+ document.getElementById('btnCloseCamp')?.setAttribute('aria-label',uiLabel('close'));
+ const finale=document.getElementById('victoryTag');
+ if(finale)finale.textContent=ru?'20 СТАДИЙ · ФИНАЛ ПРОЙДЕН':'20 STAGES · FINALE COMPLETE';
+ if(typeof syncHUD==='function')syncHUD();
 }
 function setGameLanguage(lang){
  if(!LANGUAGE_NAMES[lang]||(typeof Playables!=="undefined"&&Playables.blocked))return false;
@@ -2397,7 +2413,8 @@ HELP_EN.run.text[4]='Rare chests grant an airstrike, toxic fog or tank charge. T
 "use strict";
 /* Версия проекта. Меняется здесь и только здесь — дальше сама
    расходится в заголовок вкладки, на стартовый экран и в имя сборки. */
-const VERSION = "0.206";
+const VERSION = "0.207";
+function gameText(ru,en){return typeof uiLanguage==='undefined'||uiLanguage==='ru'?ru:en;}
 // Renderer defaults also work in isolated tests without the settings UI module.
 function visualFX(key){return typeof visualSettings==='undefined'?key==='shake':visualSettings[key];}
 const MAP_RARE_CHEST_CHANCE = .015;
@@ -2451,27 +2468,27 @@ function stageEnemyKind(stage,roll,variantRoll){
 
 /* ── одежда ───────────────────────────────────────────────── */
 const GEAR = {
-  gun:    { name: "Ружьё",    desc: "Урон больше",         max: 4 },
-  helm:   { name: "Шапка",    desc: "+1 сердце",           max: 4 },
-  jacket: { name: "Куртка",   desc: "Дольше неуязвим",     max: 3 },
-  gloves: { name: "Перчатки", desc: "Стреляешь чаще",      max: 4 },
-  boots:  { name: "Сапоги",   desc: "Бежишь быстрее",      max: 4 },
-  scope:  { name: "Прицел",   desc: "Дальность больше",    max: 3 },
-  clip:   { name: "Боевой рюкзак", desc: "+1 модуль с самонаводящейся пулей", max: 3 },
-  cape:   { name: "Плащ",     desc: "+10% опыта",          max: 3 },
+  gun:    { get name(){return gameText("Ружьё","Weapon");}, get desc(){return gameText("Урон больше","More damage");}, max: 4 },
+  helm:   { get name(){return gameText("Шапка","Helmet");}, get desc(){return gameText("+1 сердце","+1 heart");}, max: 4 },
+  jacket: { get name(){return gameText("Куртка","Jacket");}, get desc(){return gameText("Дольше неуязвим","Longer invulnerability");}, max: 3 },
+  gloves: { get name(){return gameText("Перчатки","Gloves");}, get desc(){return gameText("Стреляешь чаще","Faster fire rate");}, max: 4 },
+  boots:  { get name(){return gameText("Сапоги","Boots");}, get desc(){return gameText("Бежишь быстрее","Faster movement");}, max: 4 },
+  scope:  { get name(){return gameText("Прицел","Scope");}, get desc(){return gameText("Дальность больше","Longer range");}, max: 3 },
+  clip:   { get name(){return gameText("Боевой рюкзак","Combat backpack");}, get desc(){return gameText("+1 модуль с самонаводящейся пулей","+1 homing-shot module");}, max: 3 },
+  cape:   { get name(){return gameText("Плащ","Cape");}, get desc(){return gameText("+10% опыта","+10% XP");}, max: 3 },
 };
 const GK = Object.keys(GEAR);
 
 /* Редкие стволы. Базовый есть всегда, редкие выпадают нечасто
    и полностью меняют способ стрельбы.                          */
 const WEAPONS = {
-  basic:   { name: "Ружьё",     rare: 0, rarity: "common", desc: "Надёжный ствол" },
-  shotgun: { name: "Дробовик",  rare: 0, rarity: "common", desc: "Веер дроби, но близко" },
-  sniper:  { name: "Точная ветка", rare: 0, rarity: "common", desc: "От лука до снайперской винтовки" },
-  minigun: { name: "Миниган",   rare: 1, rarity: "rare", desc: "Шквал огня в упор" },
-  laser:   { name: "Лазер", rare: 0, rarity: "common", desc: "От импульсного бластера до луча Призмы" },
-  dropShotgun:{name:'Штурмовой дробовик',rare:1,rarity:'gold',desc:'Авиадроп · плотная картечь'},
-  goldSniper:{name:'Золотая снайперка',rare:1,rarity:'gold',desc:'Авиадроп · тяжёлый пробой'},
+  basic:   { get name(){return gameText("Ружьё","Rifle");}, rare: 0, rarity: "common", get desc(){return gameText("Надёжный ствол","Reliable firepower");} },
+  shotgun: { get name(){return gameText("Дробовик","Shotgun");}, rare: 0, rarity: "common", get desc(){return gameText("Веер дроби, но близко","A short-range spread of pellets");} },
+  sniper:  { get name(){return gameText("Точная ветка","Precision branch");}, rare: 0, rarity: "common", get desc(){return gameText("От лука до снайперской винтовки","From a bow to a sniper rifle");} },
+  minigun: { get name(){return gameText("Миниган","Minigun");}, rare: 1, rarity: "rare", get desc(){return gameText("Шквал огня в упор","A close-range hail of bullets");} },
+  laser:   { get name(){return gameText("Лазер","Laser");}, rare: 0, rarity: "common", get desc(){return gameText("От импульсного бластера до луча Призмы","From a pulse blaster to the Prism beam");} },
+  dropShotgun:{get name(){return gameText('Штурмовой дробовик','Assault shotgun');},rare:1,rarity:'gold',get desc(){return gameText('Авиадроп · плотная картечь','Airdrop · heavy buckshot');}},
+  goldSniper:{get name(){return gameText('Золотая снайперка','Gold sniper');},rare:1,rarity:'gold',get desc(){return gameText('Авиадроп · тяжёлый пробой','Airdrop · powerful piercing shots');}},
 };
 const DROP_WEAPONS=['minigun','dropShotgun','goldSniper'];
 const DROP_UPGRADE_MS=75000;
@@ -2503,10 +2520,10 @@ const GOLD_WEAPON_CHANCE = .025;
 const TIER = ["#8a8178", "#4e8f4a", "#3d78bd", "#8a53c4", "#dfa128"];
 
 const PERKS = {
-  hp:   { name: "Закалка",  desc: "+1 сердце навсегда" },
-  dmg:  { name: "Сила",     desc: "+15% урона навсегда" },
-  spd:  { name: "Резвость", desc: "+8% скорости навсегда" },
-  luck: { name: "Удача",    desc: "Сундуки чаще" },
+  hp:   { get name(){return gameText("Закалка","Toughness");}, get desc(){return gameText("+1 сердце навсегда","+1 heart permanently");} },
+  dmg:  { get name(){return gameText("Сила","Strength");}, get desc(){return gameText("+15% урона навсегда","+15% damage permanently");} },
+  spd:  { get name(){return gameText("Резвость","Agility");}, get desc(){return gameText("+8% скорости навсегда","+8% speed permanently");} },
+  luck: { get name(){return gameText("Удача","Luck");}, get desc(){return gameText("Сундуки чаще","More frequent chests");} },
 };
 const meta = { hp: 0, dmg: 0, spd: 0, luck: 0, best: 0, bestStage: 0, bestClearMs:0 };
 const META_KEY='vacky_meta_v1';
@@ -2524,18 +2541,18 @@ function rememberRunStage(){
 }
 
 const ITEMS = {
-  mine: { name: "Мина",    col: "#c8402c" },
-  nade: { name: "Граната", col: "#4e8f4a" },
-  ice:  { name: "Лёд",     col: "#4aa8cf" },
-  xp:   { name: "Опыт ×2", col: "#dfa128" },
+  mine: { get name(){return gameText("Мина","Mine");}, col: "#c8402c" },
+  nade: { get name(){return gameText("Граната","Grenade");}, col: "#4e8f4a" },
+  ice:  { get name(){return gameText("Лёд","Ice");}, col: "#4aa8cf" },
+  xp:   { get name(){return gameText("Опыт ×2","XP ×2");}, col: "#dfa128" },
 };
 
 /* Эксклюзивные расходуемые способности из редкого сундука.
    Инвентарь хранится отдельно от забега и переживает смерть/перезагрузку. */
 const ABILITIES = {
-  airstrike:{ name: "АВИАУДАР", short: "УДАР", col: "#d2691e", desc: "Серия ракет бьёт по скоплениям врагов" },
-  gas:    { name: "ТОКСИЧНЫЙ ТУМАН", short: "ГАЗ", col: "#4e8f4a", desc: "Химкостюм и смертельный дым" },
-  tank:   { name: "БОЕВОЙ ТАНК", short: "ТАНК", col: "#3d78bd", desc: "Бронированный союзник живёт, пока есть прочность" },
+  airstrike:{ get name(){return gameText("АВИАУДАР","AIRSTRIKE");}, get short(){return gameText("УДАР","STRIKE");}, col: "#d2691e", get desc(){return gameText("Серия ракет бьёт по скоплениям врагов","A barrage of missiles hits enemy groups");} },
+  gas:    { get name(){return gameText("ТОКСИЧНЫЙ ТУМАН","TOXIC FOG");}, get short(){return gameText("ГАЗ","GAS");}, col: "#4e8f4a", get desc(){return gameText("Химкостюм и смертельный дым","A hazmat suit and deadly fumes");} },
+  tank:   { get name(){return gameText("БОЕВОЙ ТАНК","BATTLE TANK");}, get short(){return gameText("ТАНК","TANK");}, col: "#3d78bd", get desc(){return gameText("Бронированный союзник живёт, пока есть прочность","An armored ally that fights until destroyed");} },
 };
 const ABILITY_KEYS = Object.keys(ABILITIES);
 const INVENTORY_KEY = "vacky_stickman_inventory_v1";
@@ -2564,12 +2581,12 @@ loadInventory();
 
 /* ── питомцы ──────────────────────────────────────────────── */
 const PETS = {
-  dog:    { name: "Собака",  desc: "Защищает вблизи, быстро кусает", revive: 8500 },
-  cat:    { name: "Кошка",   desc: "Точно стреляет на средней дистанции", revive: 10000 },
-  parrot: { name: "Попугай", desc: "Минирует путь, сдерживает толпу", revive: 10000 },
-  mole:   { name: "Крот",    desc: "Закрепляет зону огнём турелей", revive: 10000 },
-  boar:   { name: "Кабан",   desc: "Прорывается к тяжёлым врагам и взрывается", revive: 8500 },
-  chicken:{ name: "Курица",  desc: "Редкий отряд: бойцы, подрывники и лекарь", rare: 1, revive: 8000 },
+  dog:    { get name(){return gameText("Собака","Dog");}, get desc(){return gameText("Защищает вблизи, быстро кусает","Defends you up close with quick bites");}, revive: 8500 },
+  cat:    { get name(){return gameText("Кошка","Cat");}, get desc(){return gameText("Точно стреляет на средней дистанции","Fires accurate shots at medium range");}, revive: 10000 },
+  parrot: { get name(){return gameText("Попугай","Parrot");}, get desc(){return gameText("Минирует путь, сдерживает толпу","Lays mines to hold back the crowd");}, revive: 10000 },
+  mole:   { get name(){return gameText("Крот","Mole");}, get desc(){return gameText("Закрепляет зону огнём турелей","Holds an area with turret fire");}, revive: 10000 },
+  boar:   { get name(){return gameText("Кабан","Boar");}, get desc(){return gameText("Прорывается к тяжёлым врагам и взрывается","Charges tough enemies and explodes");}, revive: 8500 },
+  chicken:{ get name(){return gameText("Курица","Chicken");}, get desc(){return gameText("Редкий отряд: бойцы, подрывники и лекарь","A rare squad: fighters, bombers and a healer");}, rare: 1, revive: 8000 },
 };
 const PET_MAX = 5;
 const RARE_PET_CHANCE = .04;   // 4% на новый редкий выбор; повтор подряд исключён в rollPet
@@ -2968,12 +2985,12 @@ function triggerArenaSecret(kind,x,y,r=0){
   if(!s)return false;
   s.lit=true;s.age=0;
   const count=arenaSecrets.filter(s=>s.lit).length;
-  const name={mine:'СОЛНЕЧНЫЙ КОМПАС',nade:'КОРОЛЬ ТАЙНИКА',ice:'ЛУННЫЙ ИСТОЧНИК'}[kind];
+  const name={mine:gameText('СОЛНЕЧНЫЙ КОМПАС','SUN COMPASS'),nade:gameText('КОРОЛЬ ТАЙНИКА','CACHE KING'),ice:gameText('ЛУННЫЙ ИСТОЧНИК','MOON SPRING')}[kind];
   pops.push({x:s.x,y:s.y-65,txt:name+' · '+count+'/3',life:2.5,col:kind==='ice'?'#438fa7':'#aa7a27'});
   if(kind==='ice')SFX.ice();else SFX.chest();
   if(count===3){arenaSecretComplete=true;arenaSecretTime=0;
     queueCompassDrop();
-    pops.push({x:P.x,y:P.y-85,txt:'ЭЛИТНЫЙ ДРОП · В ЦЕНТР КОМПАСА',life:3.5,col:'#8650b1'});}
+    pops.push({x:P.x,y:P.y-85,txt:gameText('ЭЛИТНЫЙ ДРОП · В ЦЕНТР КОМПАСА','ELITE DROP · AT THE COMPASS CENTER'),life:3.5,col:'#8650b1'});}
   return true;
 }
 function queueCompassDrop(){
@@ -5600,7 +5617,7 @@ function updateHeroProjectiles(dt,k){
         const big=enemyBaseKind(e.kind)==='tank'||e.kind==='elite';
         if(s.crit&&big){
           impact(damage*3);
-          pops.push({x:e.x,y:e.y-e.r-26,txt:'КРИТ!',life:1.4,col:'#8a53c4'});
+          pops.push({x:e.x,y:e.y-e.r-26,txt:gameText('КРИТ!','CRIT!'),life:1.4,col:'#8a53c4'});
           shake=Math.max(shake,15); // impact() already emitted the one contact/death cue
         }else impact(damage);
         if(s.kind==='laser'&&s.hit.length>=2){s.life=0;break;}
@@ -5745,7 +5762,7 @@ function updateAbilities(dt, k) {
     if (q.hp <= 0) {
       if (!q.dead) {
         q.dead = true; explode(q.x, q.y, 145, 9 + P.lvl * 1.5);
-        pops.push({x:q.x,y:q.y-42,txt:"ТАНК УНИЧТОЖЕН",life:1.5,col:"#3d78bd"});
+        pops.push({x:q.x,y:q.y-42,txt:gameText("ТАНК УНИЧТОЖЕН","TANK DESTROYED"),life:1.5,col:"#3d78bd"});
       }
       continue;
     }
@@ -6746,6 +6763,23 @@ function resetBossExperience(){
  if(typeof resetBossLoot==='function')resetBossLoot();
  bossRewardPending=null;bossRunLog=[];document.getElementById('bossReward')?.classList.add('hidden');
 }
+// Saved reward IDs are language-neutral; rebuild copy when a saved bag opens.
+function localizedBossReward(option){
+ const result={...option};
+ if(option.kind==='gear'){
+  result.title=GEAR[option.key].name+' +1';
+  result.desc=bossText('Улучшение снаряжения на этот забег','Equipment upgrade for this run');
+ }else if(option.kind==='supply'){
+  result.title=ABILITIES[option.key].name+' +1';
+  result.desc=bossText('Заряд сохранится для следующих забегов','Charge carries over to future runs');
+ }else{
+  const copy={heal:[bossText('Восстановить здоровье','Restore health'),bossText('До 4 сердец, не выше максимума','Up to 4 hearts, capped at maximum')],
+   ult:[bossText('Зарядить ульту','Charge ultimate'),bossText('+50% шкалы ульты','+50% ultimate charge')],
+   continue:[bossText('Продолжить','Continue'),bossText('Все запасы уже заполнены','All supplies are already full')]}[option.kind];
+  if(copy)[result.title,result.desc]=copy;
+ }
+ return result;
+}
 function bossRewardOptions(stage,randomPool=false){
  const options=[],gearNames=['Weapon','Helmet','Jacket','Gloves','Boots','Scope','Backpack','Cape'];
  if(stage<20){
@@ -6965,6 +6999,7 @@ function finishBossLootOpening(){
  }else{
   // Roll only when opened, against the current build. Keep it on save retry.
   if(!q.reward){const pool=bossRewardOptions(q.stage,true);q.reward=pool[Math.floor(Math.random()*pool.length)];}
+  if(typeof localizedBossReward==='function')q.reward=localizedBossReward(q.reward);
   const option=q.reward,notice={stage:q.stage,title:option.title,impact:bossRewardImpact(option),category:bossRewardCategory(option),age:0};
   const icon=document.createElement('canvas');icon.width=icon.height=96;drawBossRewardIcon(icon.getContext('2d'),option,96);notice.icon=icon;
   if(!grantBossReward(option)){q.error=true;q.retryAt=q.age+1500;return false;}
@@ -7245,7 +7280,7 @@ function arenaFrameActive(){
     draw();
   } catch (err) {
     running = false;
-    fatal("Сбой в кадре: " + err.message);
+    fatal((typeof uiLanguage==='undefined'||uiLanguage==='ru'?"Сбой в кадре: ":"Frame error: ") + err.message);
     throw err;
   }
 });
@@ -7338,11 +7373,11 @@ function update(dt,activeMs=dt) {
       SFX.pickup?.(h.x);
     } else if (h.kind === "haste") {
       P.hasteT = 7000;
-      pops.push({ x: P.x, y: P.y - 52, txt: "УСКОРЕНИЕ", life: 1.4, col: "#a8761a" });
+      pops.push({ x: P.x, y: P.y - 52, txt: gameText("УСКОРЕНИЕ","HASTE"), life: 1.4, col: "#a8761a" });
       SFX.pickup?.(h.x);
     } else {
       P.invT = 6000; P.seen = { x: P.x, y: P.y };
-      pops.push({ x: P.x, y: P.y - 52, txt: "НЕУЯЗВИМОСТЬ", life: 1.4, col: "#2f7d9c" });
+      pops.push({ x: P.x, y: P.y - 52, txt: gameText("НЕУЯЗВИМОСТЬ","INVULNERABLE"), life: 1.4, col: "#2f7d9c" });
       SFX.pickup?.(h.x);
     }
   }
@@ -7475,7 +7510,7 @@ function update(dt,activeMs=dt) {
     if(c.elite){
       if(c.dropT>0){c.dropT=Math.max(0,c.dropT-dt);
         if(c.dropT===0){SFX.crateLand?.(c.x);shake=Math.max(shake,7);
-          pops.push({x:c.x,y:c.y-60,txt:'ЭЛИТНЫЙ СУНДУК',life:2,col:'#8650b1'});}
+          pops.push({x:c.x,y:c.y-60,txt:gameText('ЭЛИТНЫЙ СУНДУК','ELITE CHEST'),life:2,col:'#8650b1'});}
         continue;
       }
       if(c.landT>0){c.landT=Math.max(0,c.landT-dt);continue;}
@@ -7635,7 +7670,7 @@ function offerCards(savedOffer=null) {
   }
   paused = true;pointer.active=false;
   const title = document.getElementById("levelTitle");
-  if (title) title.textContent = "УРОВЕНЬ " + P.lvl;
+  if (title) title.textContent = gameText("УРОВЕНЬ ","LEVEL ") + P.lvl;
   const pool = GK.filter(upgradeableGear);
   const pick = [];
   while (pick.length < Math.min(3, pool.length)) {
@@ -7674,8 +7709,8 @@ function offerCards(savedOffer=null) {
       const isGold = W2.rarity === "gold"&&P.gear.gun>=3;
       const gain=Math.round((weaponCombatRating(w)/Math.max(.01,weaponCombatRating(P.wtype))-1)*100);
       card(box, heroIcon({ ...P.gear, _w: w }),
-        `${weaponFormName(w,P.gear.gun)} <span class="rr">${isGold ? "ЗОЛОТОЕ" : "РЕДКОЕ"}</span>`,
-        W2.desc+(isGold?" · высший класс":` · сейчас сильнее на ${Math.max(4,gain)}%`), () => {
+        `${weaponFormName(w,P.gear.gun)} <span class="rr">${isGold ? gameText("ЗОЛОТОЕ","GOLD") : gameText("РЕДКОЕ","RARE")}</span>`,
+        W2.desc+(isGold?gameText(" · высший класс"," · top tier"):gameText(` · сейчас сильнее на ${Math.max(4,gain)}%`,` · ${Math.max(4,gain)}% stronger now`)), () => {
           if(P.campRun&&w!=='shotgun')P.campRun.shotgunOnly=false;
           P.wtype = w; applyGear();
           ult.bag = []; // новый тип оружия сразу получает правильный набор ульт
@@ -7689,9 +7724,9 @@ function offerCards(savedOffer=null) {
       const lv = P.pet ? P.pet.lvl + 1 : 1;
       const isRare = !!PETS[ty].rare && !P.pet;
       const title = `${PETS[ty].name} ${"★".repeat(lv)}` +
-                    (isRare ? ' <span class="rr">РЕДКИЙ</span>' : "");
+                    (isRare ? ' <span class="rr">'+gameText('РЕДКИЙ','RARE')+'</span>' : "");
       card(box, petIcon(ty, lv), title,
-        P.pet ? "Питомец становится сильнее" : PETS[ty].desc, () => {
+        P.pet ? gameText("Питомец становится сильнее","Your pet grows stronger") : PETS[ty].desc, () => {
           if (P.pet) { P.pet.lvl++; P.pet.hpMax = petStats(P.pet).hp; P.pet.hp = P.pet.hpMax; }
           else { P.pet = makePet(ty); if (isRare) { SFX.chest(); (typeof Playables==='undefined'?setTimeout:Playables.delay)(() => SFX.level(), 160); } }
           close();
@@ -7705,8 +7740,8 @@ function offerCards(savedOffer=null) {
     });
   }
   document.getElementById("queueTag").textContent =
-    queuedLevels > 1 ? `ещё уровней в очереди: ${queuedLevels - 1}` :
-    `ПРОКАЧКА ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · выбери усиление`;
+    queuedLevels > 1 ? gameText(`ещё уровней в очереди: ${queuedLevels - 1}`,`more levels queued: ${queuedLevels - 1}`) :
+    gameText(`ПРОКАЧКА ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · выбери усиление`,`UPGRADES ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · choose a boost`);
   document.getElementById("levelup").classList.remove("hidden");
 }
 
@@ -10269,7 +10304,7 @@ let tutorialProgress=loadTutorial(),tutorialActive=null,tutorialCheckAt=0,tutori
 function tutorialOpen(){return tutorialActive!==null;}
 function saveTutorial(){
  try{tutorialStore().setItem(TUTORIAL_KEY,JSON.stringify(tutorialProgress));document.getElementById("tutorialSaveStatus").textContent="";}
- catch(_){document.getElementById("tutorialSaveStatus").textContent="Не удалось сохранить обучение. После перезагрузки подсказки могут повториться.";}
+ catch(_){document.getElementById("tutorialSaveStatus").textContent=typeof uiLabel==='function'?uiLabel('saveTutorial'):"Не удалось сохранить обучение. После перезагрузки подсказки могут повториться.";}
 }
 function tutorialVisible(id){const el=document.getElementById(id);return !!el&&!el.classList.contains("hidden");}
 function tutorialContext(){
@@ -11297,6 +11332,9 @@ function initSettingsUI(){
 
 /* ── интерфейс ────────────────────────────────────────────── */
 const hudHeight = () => 84;
+// Keep canvas labels live when the language changes; isolated UI previews may
+// load this module without config/localization.
+const hudText=(ru,en)=>typeof gameText==='function'?gameText(ru,en):(typeof uiLanguage==='undefined'||uiLanguage==='ru'?ru:en);
 function topHUDLayout(width) {
   const margin=width<360?8:12,gap=8,rightW=width<380?122:146;
   return {left:{x:margin,y:8,w:Math.min(264,width-margin*2-gap-rightW),h:54},
@@ -11317,7 +11355,7 @@ function drawTopHUD(g,width,p) {
   const bx=L.x+25,by=L.y+27;
   g.fillStyle='#f1dfb8';g.strokeStyle='#b37d30';g.lineWidth=1.8;
   g.beginPath();g.arc(bx,by,17,0,Math.PI*2);g.fill();g.stroke();
-  g.textAlign='center';g.fillStyle='#8b693a';g.font='800 8px system-ui';g.fillText('УР',bx,by-5);
+  g.textAlign='center';g.fillStyle='#8b693a';g.font='800 8px system-ui';g.fillText(hudText('УР','LV'),bx,by-5);
   g.fillStyle=INK;g.font='900 15px system-ui';g.fillText(String(p.lvl),bx,by+10,29);
   const x=L.x+51,edge=L.x+L.w-11,hpMax=Math.max(1,p.hpMax||1);
   const hp=Math.max(0,Math.min(hpMax,p.hp||0)),healthW=Math.max(8,edge-x-39);
@@ -11352,7 +11390,7 @@ function drawTopHUD(g,width,p) {
   if(full){g.fillStyle='#f8f3e7';g.textAlign='center';g.font='800 7px system-ui';g.fillText('MAX',barX+barW/2,barY+6.5);}
   const done=isBossStage(p.stage),cx=R.x+12;
   g.textAlign='left';g.fillStyle=done?'#287e94':INK;g.font='900 11px system-ui';
-  g.fillText((done?'БОСС ':'СТАДИЯ ')+p.stage+' / '+RUN_STAGES,cx,R.y+20,R.w-24);
+  g.fillText((done?hudText('БОСС ','BOSS '):hudText('СТАДИЯ ','STAGE '))+p.stage+' / '+RUN_STAGES,cx,R.y+20,R.w-24);
   g.fillStyle='#88735a';g.font='700 8px system-ui';
   const tempo=typeof stageTempo==='function'?stageTempo(p.stage,p.stageMs).phase:'steady';
   const ru=typeof uiLanguage==='undefined'||uiLanguage==='ru';
@@ -11386,12 +11424,12 @@ function hud() {
     ctx.textAlign = "left";
     by += 18;
   };
-  buff(xpBoost, 20000, "#f0c443", "ОПЫТ ×2");
-  buff(P.hasteT, 7000, "#f0a83a", "УСКОРЕНИЕ");
-  buff(P.invT, 6000, "#a9dcf0", "НЕУЯЗВИМОСТЬ");
+  buff(xpBoost, 20000, "#f0c443", hudText("ОПЫТ ×2", "XP ×2"));
+  buff(P.hasteT, 7000, "#f0a83a", hudText("УСКОРЕНИЕ", "HASTE"));
+  buff(P.invT, 6000, "#a9dcf0", hudText("НЕУЯЗВИМОСТЬ", "INVULNERABLE"));
   const tankHP=allyTanks.reduce((s,q)=>s+Math.max(0,q.hp),0);
   const tankMax=allyTanks.reduce((s,q)=>s+q.hpMax,0);
-  buff(tankHP, tankMax || 1, "#6b97c7", "ТАНК ×"+allyTanks.length,
+  buff(tankHP, tankMax || 1, "#6b97c7", hudText("ТАНК ×", "TANK ×")+allyTanks.length,
        Math.ceil(tankHP)+"/"+Math.ceil(tankMax));
   if (P.stagePulse > 0) {
     const a=Math.min(1,P.stagePulse/300,(1600-P.stagePulse)/260);
@@ -11399,8 +11437,8 @@ function hud() {
     ctx.fillStyle="rgba(253,246,232,.94)";ctx.strokeStyle="#d2691e";ctx.lineWidth=3;
     const ww=Math.min(310,W-34),yy=H*.25;
     ctx.beginPath();ctx.roundRect(W/2-ww/2,yy-34,ww,68,14);ctx.fill();ctx.stroke();
-    ctx.fillStyle="#d2691e";ctx.font="900 22px system-ui";ctx.fillText("СТАДИЯ "+P.stage+" / "+RUN_STAGES,W/2,yy-3);
-    ctx.fillStyle=INK;ctx.font="700 10px system-ui";ctx.fillText("НОВАЯ ВОЛНА",W/2,yy+17);ctx.restore();
+    ctx.fillStyle="#d2691e";ctx.font="900 22px system-ui";ctx.fillText(hudText("СТАДИЯ ","STAGE ")+P.stage+" / "+RUN_STAGES,W/2,yy-3);
+    ctx.fillStyle=INK;ctx.font="700 10px system-ui";ctx.fillText(hudText("НОВАЯ ВОЛНА","NEW WAVE"),W/2,yy+17);ctx.restore();
   }
   radar(); ultGauge(); syncHUD();
 }
@@ -11434,7 +11472,7 @@ function ultGauge() {
   ctx.restore();
   if (ready && !ult.on) {
     ctx.fillStyle = "#7b3fb5"; ctx.font = "800 10px system-ui"; ctx.textAlign = "center";
-    ctx.fillText(touchMode ? "РАЗВЕДИ ПАЛЬЦЫ" : "ДВОЙНОЙ КЛИК", cx, cy + R + 15);
+    ctx.fillText(touchMode ? hudText("РАЗВЕДИ ПАЛЬЦЫ","SPREAD TWO FINGERS") : hudText("ДВОЙНОЙ КЛИК","DOUBLE CLICK"), cx, cy + R + 15);
     ctx.textAlign = "left";
   }
   ctx.restore();
@@ -11645,7 +11683,7 @@ function devLaunchFinale(forcedId=null){
   P.lvl=Math.max(P.lvl,FULL_BUILD_CHOICES+1);
   applyGear();P.hp=P.hpMax;
   const forced=forcedId&&DRAGON_TYPES.find(d=>d.id===forcedId);
-  pops.push({x:P.x,y:P.y-62,txt:forced?"ТЕСТ · "+forced.name:"ФУЛЛ 33/33",life:1.2,col:forced?forced.accent:"#b88716"});
+  pops.push({x:P.x,y:P.y-62,txt:forced?hudText("ТЕСТ · ","TEST · ")+forced.name:hudText("ФУЛЛ 33/33","FULL 33/33"),life:1.2,col:forced?forced.accent:"#b88716"});
   // +FULL equips the hero without skipping boss progression; +DRG previews assistance.
   if(forcedId)startDragonFinale(true);
 }
@@ -11715,20 +11753,21 @@ petBadge.addEventListener("pointerdown", e => {
   if (!p || p.dead > 0 || !running) return;
   p.recall = 3000;
   // The mole finishes its marked tunnel before answering the recall.
-  pops.push({ x: P.x, y: P.y - 60, txt: "КО МНЕ!", life: 1.2, col: HERO });
+  pops.push({ x: P.x, y: P.y - 60, txt: hudText("КО МНЕ!","COME HERE!"), life: 1.2, col: HERO });
   SFX.petVoice?.(p.type,p.x);
 });
 
-let lastItem = "x", lastInventory = "";
+let lastItem = "x", lastItemLanguage = "", lastInventory = "";
 function syncHUD() {
   syncRadarButton();
-  if (P.item !== lastItem) {
-    lastItem = P.item;
+  const itemLanguage=typeof uiLanguage==='undefined'?'ru':uiLanguage;
+  if (P.item !== lastItem || itemLanguage !== lastItemLanguage) {
+    lastItem = P.item; lastItemLanguage = itemLanguage;
     useBtn.disabled = !P.item;
     const ig = useIco.getContext("2d");
     ig.setTransform(2, 0, 0, 2, 0, 0); ig.clearRect(0, 0, 36, 36);
     if (P.item) drawItemIcon(ig, P.item, 18, 18, 1.35);
-    useName.textContent = P.item ? ITEMS[P.item].name : "пусто";
+    useName.textContent = P.item ? ITEMS[P.item].name : hudText("пусто","empty");
   }
   pauseBtn.style.display = running ? "flex" : "none";
   devLvl.style.display = running&&DRAGON_ADMIN_ENABLED ? "block" : "none";
@@ -11756,6 +11795,7 @@ function syncHUD() {
       const kind=slot.dataset.ability, n=inventory[kind];
       slot.disabled = !available || n <= 0;
       slot.setAttribute('aria-label',ABILITIES[kind].name+' · '+n);
+      slot.title=ABILITIES[kind].name;
       slot.querySelector("b").textContent = n > 99 ? "99+" : n;
     }
   }
@@ -11765,7 +11805,7 @@ function syncHUD() {
 // если какой-то модуль не долетел, скажем об этом прямо
 for (const [name, ref] of [["ult.js", typeof ult], ["cards.js", typeof offerCards],
                            ["pets.js", typeof updatePet], ["world.js", typeof spawn]])
-  if (ref === "undefined") fatal("Не загружен модуль src/" + name);
+  if (ref === "undefined") fatal(hudText("Не загружен модуль src/","Module failed to load: src/") + name);
 
 document.title = "Stickman Arena v" + VERSION + " — Vacky Games";
 {
@@ -11836,8 +11876,9 @@ function gameOver() {
   rememberRunStage();
   running = false; if(!P.testRun)meta.best = Math.max(meta.best, Math.round(P.runMs / 1000));
   saveMeta();
-  document.getElementById("stats").textContent =
-    `${formatRunTime(P.runMs)} · лопнул ${score} · стадия ${P.stage}/${RUN_STAGES} · ур. ${P.lvl} · прокачка ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · рекорд ${meta.best} с`;
+  document.getElementById("stats").textContent = hudText(
+    `${formatRunTime(P.runMs)} · лопнул ${score} · стадия ${P.stage}/${RUN_STAGES} · ур. ${P.lvl} · прокачка ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · рекорд ${meta.best} с`,
+    `${formatRunTime(P.runMs)} · defeated ${score} · stage ${P.stage}/${RUN_STAGES} · LV ${P.lvl} · upgrades ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · best ${meta.best} s`);
   if(typeof checkpointCamp==='function'){
    checkpointCamp();renderCampResult('overProgress');
    document.getElementById('overTitle').textContent=campText('over');
@@ -11879,6 +11920,7 @@ function platformGameHooks(){
       if(typeof refreshRunScoreReceipt==='function')refreshRunScoreReceipt();
     },
     audio:platformAudio,
+    language:()=>uiLanguage,
     catalogue(){},
   };
 }

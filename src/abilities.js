@@ -120,7 +120,7 @@ function updateAbilities(dt, k) {
     if (q.hp <= 0) {
       if (!q.dead) {
         q.dead = true; explode(q.x, q.y, 145, 9 + P.lvl * 1.5);
-        pops.push({x:q.x,y:q.y-42,txt:"ТАНК УНИЧТОЖЕН",life:1.5,col:"#3d78bd"});
+        pops.push({x:q.x,y:q.y-42,txt:gameText("ТАНК УНИЧТОЖЕН","TANK DESTROYED"),life:1.5,col:"#3d78bd"});
       }
       continue;
     }

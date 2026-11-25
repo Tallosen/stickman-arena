@@ -89,12 +89,12 @@ function triggerArenaSecret(kind,x,y,r=0){
   if(!s)return false;
   s.lit=true;s.age=0;
   const count=arenaSecrets.filter(s=>s.lit).length;
-  const name={mine:'СОЛНЕЧНЫЙ КОМПАС',nade:'КОРОЛЬ ТАЙНИКА',ice:'ЛУННЫЙ ИСТОЧНИК'}[kind];
+  const name={mine:gameText('СОЛНЕЧНЫЙ КОМПАС','SUN COMPASS'),nade:gameText('КОРОЛЬ ТАЙНИКА','CACHE KING'),ice:gameText('ЛУННЫЙ ИСТОЧНИК','MOON SPRING')}[kind];
   pops.push({x:s.x,y:s.y-65,txt:name+' · '+count+'/3',life:2.5,col:kind==='ice'?'#438fa7':'#aa7a27'});
   if(kind==='ice')SFX.ice();else SFX.chest();
   if(count===3){arenaSecretComplete=true;arenaSecretTime=0;
     queueCompassDrop();
-    pops.push({x:P.x,y:P.y-85,txt:'ЭЛИТНЫЙ ДРОП · В ЦЕНТР КОМПАСА',life:3.5,col:'#8650b1'});}
+    pops.push({x:P.x,y:P.y-85,txt:gameText('ЭЛИТНЫЙ ДРОП · В ЦЕНТР КОМПАСА','ELITE DROP · AT THE COMPASS CENTER'),life:3.5,col:'#8650b1'});}
   return true;
 }
 function queueCompassDrop(){
