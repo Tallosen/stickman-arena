@@ -34,7 +34,7 @@ run(read('cards.js'));
 const noRussian=(values,label)=>{for(const value of values)assert(!/[А-Яа-яЁё]/u.test(value),label+': '+value);};
 run('applyLanguage();hud();');
 noRussian(texts,'English combat canvas');
-for(const expected of ['LV','STAGE 2 / 20','NEW WAVE','HASTE  6','INVULNERABLE  5','XP ×2  20','TANK ×1  100/200','DRAGON · ULT','DOUBLE CLICK'])assert(texts.includes(expected),expected);
+for(const expected of ['LV','STAGE 2 / 20','NEW WAVE','HASTE  6','SHIELD  5','XP ×2  20','TANK ×1  100/200','DRAGON · ULT','DOUBLE CLICK'])assert(texts.includes(expected),expected);
 assert.equal(el('useName').textContent,'Mine');
 noRussian([el('pauseBtn').attrs.title,el('pauseBtn').attrs['aria-label'],el('victoryTag').textContent],'DOM labels');
 run(`for(const table of [GEAR,WEAPONS,ITEMS,PETS,PERKS,ABILITIES])for(const entry of Object.values(table))for(const key of ['name','desc','short'])if(entry[key])assert(!/[А-Яа-яЁё]/.test(entry[key]),entry[key]);

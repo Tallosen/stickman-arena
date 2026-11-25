@@ -1,7 +1,7 @@
 "use strict";
 /* Painted terrain is visual only. Fixed world coordinates keep it still while
    the camera moves; a bounded tile cache avoids redrawing detail each frame. */
-const MAP_TILE_SIZE=256,MAP_TILE_LIMIT=64,mapTiles=new Map();
+const MAP_TILE_SIZE=256,MAP_TILE_LIMIT=64,mapTiles=new Map(),mapPropArt=new WeakMap();
 // Shared by terrain painting and roadside scenery placement.
 const MAP_TRAILS=[
  [[-120,620],[620,420],[640,1510],[1400,1400],[2040,1300],[2250,2080],[2920,1850]],
@@ -44,14 +44,20 @@ function paintMapTile(g,tx,ty){
 }
 function drawMapGround(g,L,R,T,B){
   g.save();g.fillStyle='#d8ceb8';g.fillRect(L,T,R-L,B-T);
-  const size=MAP_TILE_SIZE;
+  const size=MAP_TILE_SIZE,columns=Math.ceil(WORLD/size);
+  const left=Math.max(0,Math.floor(L/size)),right=Math.min(columns-1,Math.floor(R/size));
+  const top=Math.max(0,Math.floor(T/size)),bottom=Math.min(columns-1,Math.floor(B/size));
+  // A wide/zoomed-out view must fit in the cache or an LRU scan repaints every
+  // visible tile every frame. Keep 64 normally, at most the finite world grid.
+  const limit=Math.max(MAP_TILE_LIMIT,Math.max(0,right-left+1)*Math.max(0,bottom-top+1));
+  while(mapTiles.size>limit)mapTiles.delete(mapTiles.keys().next().value);
   g.save();g.beginPath();g.rect(0,0,WORLD,WORLD);g.clip();
-  for(let ty=Math.max(0,Math.floor(T/size));ty<=Math.min(Math.ceil(WORLD/size)-1,Math.floor(B/size));ty++)
-    for(let tx=Math.max(0,Math.floor(L/size));tx<=Math.min(Math.ceil(WORLD/size)-1,Math.floor(R/size));tx++){
-      const key=tx+','+ty;let tile=mapTiles.get(key);
+  for(let ty=top;ty<=bottom;ty++)
+    for(let tx=left;tx<=right;tx++){
+      const key=ty*columns+tx;let tile=mapTiles.get(key);
       if(!tile){tile=document.createElement('canvas');tile.width=tile.height=size+2;paintMapTile(tile.getContext('2d'),tx,ty);}
       else mapTiles.delete(key);
-      mapTiles.set(key,tile);if(mapTiles.size>MAP_TILE_LIMIT)mapTiles.delete(mapTiles.keys().next().value);
+      mapTiles.set(key,tile);if(mapTiles.size>limit)mapTiles.delete(mapTiles.keys().next().value);
       // One-pixel bleed avoids hairline seams during fractional camera motion.
       g.drawImage(tile,tx*size-1,ty*size-1);
     }
@@ -70,8 +76,23 @@ function drawMapGround(g,L,R,T,B){
   g.strokeStyle='#796e56';g.lineWidth=2;g.strokeRect(0,0,WORLD,WORLD);g.restore();
 }
 function drawMapProp(g,o){
+  const scale=typeof DPR==='number'&&DPR>0?DPR:1,stable=g.vackyStableSketch===true;
+  let art=mapPropArt.get(o);
+  if(!art||art.scale!==scale||art.stable!==stable||art.r!==o.r||art.kind!==o.kind||art.seed!==o.seed||art.pts!==o.pts){
+    // Pixel-aligned padding includes the ground shadows and leafy overhang.
+    // Only the current density is retained; old maps are collectible via WeakMap.
+    const radius=Math.ceil((o.r*1.4+10)*scale),canvas=document.createElement('canvas');
+    canvas.width=canvas.height=radius*2;
+    const pg=canvas.getContext('2d');pg.setTransform(scale,0,0,scale,radius,radius);pg.vackyStableSketch=stable;
+    paintMapProp(pg,o);
+    art={canvas,scale,stable,r:o.r,kind:o.kind,seed:o.seed,pts:o.pts,offset:radius/scale,size:canvas.width/scale};
+    mapPropArt.set(o,art);
+  }
+  g.drawImage(art.canvas,o.x-art.offset,o.y-art.offset,art.size,art.size);
+}
+function paintMapProp(g,o){
   const r=o.r,seed=o.seed||0;
-  g.save();g.translate(o.x,o.y);g.lineJoin='round';g.lineCap='round';
+  g.save();g.lineJoin='round';g.lineCap='round';
   g.fillStyle='rgba(80,73,47,.12)';g.beginPath();g.ellipse(6,r*.36,r*1.05,r*.63,.12,0,7);g.fill();
   g.fillStyle='rgba(144,161,99,.16)';g.beginPath();g.ellipse(-6,4,r*1.13,r*.77,seed,0,7);g.fill();
   g.strokeStyle='#565442';g.lineWidth=2.2;

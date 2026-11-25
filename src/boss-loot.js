@@ -59,20 +59,22 @@ function finishBossLootOpening(){
 }
 function updateBossLootNotice(dt){
  if(!running||paused||ult.on||(typeof Playables!=='undefined'&&Playables.blocked))return;
+ if(typeof hudNoticePriority==='function'&&hudNoticePriority()==='menu')return;
  const n=bossLootNotices[0];if(!n)return;n.age+=Math.max(0,Math.min(1000,dt));if(n.age>=4200)bossLootNotices.shift();
 }
 function drawBossLootNotice(g){
  const n=bossLootNotices[0];if(!n||!running||ult.on||bossRewardPending)return;
- const wide=H<480&&W>=700,w=Math.min(360,wide?W-442:W-24);
- // In landscape use the gap between the two HUD cards, away from the hero.
- const x=wide?(276+W-158-w)/2:(W-w)/2,y=wide?8:Math.max(112,H-(H<480?184:275));
+ if(typeof hudNoticePriority==='function'&&hudNoticePriority()==='menu')return;
+ const box=typeof arenaHUDLayout==='function'?arenaHUDLayout().notice:{w:Math.min(360,W-24),x:(W-Math.min(360,W-24))/2,y:118};
+ const {w,x,y}=box;
  g.save();g.globalAlpha=Math.min(1,(4200-n.age)/400);g.fillStyle='#fff4dfee';g.strokeStyle='#b79457';g.lineWidth=1.5;
- g.beginPath();g.roundRect(x,y,w,88,13);g.fill();g.stroke();
- g.fillStyle='#eedcb4';g.beginPath();g.roundRect(x+9,y+15,58,58,11);g.fill();g.drawImage(n.icon,x+10,y+16,56,56);
- g.textAlign='left';g.fillStyle='#947035';g.font='800 9px system-ui';g.fillText(n.header||bossText('НАГРАДА БОССА · ','BOSS REWARD · ')+n.stage,x+78,y+17,w-88);
- g.fillStyle='#493624';g.font='800 14px system-ui';g.fillText(n.title,x+78,y+36,w-88);
- g.font='700 11px system-ui';g.fillStyle='#72552f';g.fillText(n.impact||bossText('Все запасы заполнены','All supplies are full'),x+78,y+55,w-88);
- g.fillStyle='#88765a';g.font='10px system-ui';g.fillText(n.category,x+78,y+73,w-88);g.restore();
+ g.beginPath();g.roundRect(x,y,w,116,13);g.fill();g.stroke();
+ g.fillStyle='#eedcb4';g.beginPath();g.roundRect(x+9,y+30,38,38,9);g.fill();g.drawImage(n.icon,x+10,y+31,36,36);
+ const wrap=(text,xx,yy,width,step)=>{if(typeof hudWrappedText==='function')hudWrappedText(g,text,xx,yy,width,step);else g.fillText(text,xx,yy,width);};
+ g.textAlign='left';g.fillStyle='#947035';g.font='800 10px system-ui';g.fillText(n.header||bossText('НАГРАДА БОССА · ','BOSS REWARD · ')+n.stage,x+10,y+18,w-20);
+ g.fillStyle='#493624';g.font='800 13px system-ui';wrap(n.title,x+54,y+43,w-64,16);
+ g.font='700 11px system-ui';g.fillStyle='#72552f';wrap(n.impact||bossText('Все запасы заполнены','All supplies are full'),x+10,y+81,w-20,13);
+ g.fillStyle='#88765a';g.font='10px system-ui';g.fillText(n.category,x+10,y+108,w-20);g.restore();
 }
 function updateBossLoot(dt,activeMs=dt){
  const q=bossLoot;if(!q||!running||paused||(typeof Playables!=='undefined'&&Playables.blocked))return;
@@ -136,9 +138,10 @@ function drawBossLootGuide(g){
   g.save();g.textAlign='center';g.font='700 11px system-ui';
   const text=q.error?bossText('Ошибка сохранения · повторяем…','Save failed · retrying…'):bossText('Трофей · ','Trophy · ')+q.stage;
   const width=Math.min(210,g.measureText(text).width+20);
-  g.fillStyle='#fff1d3';g.strokeStyle='#bf964e';g.lineWidth=1;
-  g.beginPath();g.roundRect(Math.max(8,Math.min(W-width-8,x-width/2)),y-86,width,23,7);g.fill();g.stroke();
-  g.fillStyle='#775021';g.fillText(text,Math.max(width/2+8,Math.min(W-width/2-8,x)),y-70);
+  const label=typeof hudWorldLabelRect==='function'?hudWorldLabelRect(x,y-86,width):{x:Math.max(8,Math.min(W-width-8,x-width/2)),y:y-86,w:width,h:23};
+  if(label){g.fillStyle='#fff1d3';g.strokeStyle='#bf964e';g.lineWidth=1;
+    g.beginPath();g.roundRect(label.x,label.y,label.w,label.h,7);g.fill();g.stroke();
+    g.fillStyle='#775021';g.fillText(text,label.x+label.w/2,label.y+16,label.w-12);}
   if(off){g.translate(x,y-40);g.rotate(Math.atan2(sy-y,sx-x));g.fillStyle='#d89129';g.strokeStyle='#fff1cc';g.lineWidth=2;
    g.beginPath();g.moveTo(12,0);g.lineTo(-7,-8);g.lineTo(-3,0);g.lineTo(-7,8);g.closePath();g.fill();g.stroke();}
   g.restore();

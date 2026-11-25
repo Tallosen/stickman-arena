@@ -7,9 +7,71 @@ const hudHeight = () => 84;
 // load this module without config/localization.
 const hudText=(ru,en)=>typeof gameText==='function'?gameText(ru,en):(typeof uiLanguage==='undefined'||uiLanguage==='ru'?ru:en);
 function topHUDLayout(width) {
+  const safe=typeof hudSafeArea==='undefined'?{left:0,right:0,top:0}:hudSafeArea;
+  width-=safe.left+safe.right;
   const margin=width<360?8:12,gap=8,rightW=width<380?122:146;
-  return {left:{x:margin,y:8,w:Math.min(264,width-margin*2-gap-rightW),h:54},
-    right:{x:width-margin-rightW,y:8,w:rightW,h:76}};
+  return {left:{x:safe.left+margin,y:safe.top+8,w:Math.min(264,width-margin*2-gap-rightW),h:54},
+    right:{x:safe.left+width-margin-rightW,y:safe.top+8,w:rightW,h:76}};
+}
+// Canvas notices and DOM hit targets share the same reserved screen regions.
+function arenaHUDLayout(width=W,height=H){
+  const safe=typeof hudSafeArea==='undefined'?{left:0,right:0,top:0,bottom:0}:hudSafeArea;
+  const areaW=width-safe.left-safe.right,areaH=height-safe.top-safe.bottom;
+  const compact=areaW<600||areaH<500,landscape=areaH<500&&areaW>areaH*1.2;
+  const size=Math.min(landscape?Math.max(44,Math.min(76,areaH-250)):compact?92:112,areaW*.28),left=safe.left+12;
+  const radar={x:width-safe.right-size-12,y:safe.top+94,size};
+  const noticeX=landscape?left+202:compact?left:Math.max(left,(width-340)/2);
+  const notice={x:noticeX,y:safe.top+(landscape?94:124),w:Math.min(340,radar.x-noticeX-16),h:116};
+  const buffs=landscape?{x:left+56,y:safe.top+76,w:134,h:20}:{x:radar.x,y:radar.y+size+8,w:size,h:20};
+  const boss=compact?{x:notice.x,y:notice.y+(landscape?86:124),w:notice.w,h:42}:{x:(width-340)/2,y:height-safe.bottom-236,w:340,h:42};
+  return {radar,notice,buffs,boss,compact,landscape,bottom:safe.bottom};
+}
+function hudWrappedText(g,text,x,y,width,lineHeight,maxLines=2){
+  const words=[];
+  for(const word of String(text||'').split(/\s+/)){
+    let part='';for(const char of word){
+      if(part&&g.measureText(part+char).width>width){words.push(part);part='';}part+=char;
+    }if(part)words.push(part);
+  }
+  let line='',row=0;
+  for(let i=0;i<words.length;i++){
+    const next=line?line+' '+words[i]:words[i];
+    if(line&&g.measureText(next).width>width){
+      g.fillText(line,x,y+row*lineHeight);row++;line=words[i];
+      if(row===maxLines-1){line=words.slice(i).join(' ');break;}
+    }else line=next;
+  }
+  if(g.measureText(line).width>width){while(line&&g.measureText(line+'…').width>width)line=line.slice(0,-1);line+='…';}
+  g.fillText(line,x,y+row*lineHeight);
+}
+function hudNoticePriority(){
+  if(P.abilityMenuOpen&&H<500)return 'menu';
+  if(typeof bossLootNotices!=='undefined'&&bossLootNotices.length)return 'reward';
+  const e=typeof stageBoss!=='undefined'?stageBoss?.enemy:null;
+  if(e&&e.hp>0&&(e.entryAge<2300||e.phaseBanner>0))return 'boss';
+  if(P.stagePulse>0)return 'stage';
+  if(typeof abilityBursts!=='undefined'&&abilityBursts.length)return 'ability';
+  return '';
+}
+function hudWorldLabelRect(cx,cy,width,height=23){
+  const l=arenaHUDLayout(),top=topHUDLayout(W),safe=typeof hudSafeArea==='undefined'?{left:0,right:0,top:0}:hudSafeArea;
+  const blocked=[top.left,top.right,{x:safe.left+12,y:safe.top+72,w:48,h:48},
+    {x:l.radar.x,y:l.radar.y,w:l.radar.size,h:l.radar.size},
+    {x:l.buffs.x,y:l.buffs.y,w:l.buffs.w,h:88},
+    {x:safe.left+12,y:H-l.bottom-112,w:92,h:98},
+    {x:W/2-38,y:H-l.bottom-84,w:76,h:80},
+    {x:W-safe.right-104,y:H-l.bottom-180,w:94,h:164}];
+  if(hudNoticePriority()||(typeof weaponDelivery!=='undefined'&&['flying','ground'].includes(weaponDelivery?.state)))blocked.push(l.notice);
+  if(typeof stageBoss!=='undefined'&&stageBoss?.enemy?.hp>0)blocked.push(l.boss);
+  if(P.abilityMenuOpen)blocked.push({x:W-safe.right-310,y:H-l.bottom-190,w:284,h:80});
+  const minX=safe.left+8,maxX=W-safe.right-width-8,minY=safe.top+8,maxY=H-l.bottom-height-8;
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));let best=null,distance=Infinity;
+  for(const x of [clamp(cx-width/2,minX,maxX),minX,(W-width)/2,maxX])
+    for(const y of [clamp(cy,minY,maxY),safe.top+124,l.buffs.y+92,l.notice.y+120,l.boss.y+48,H-l.bottom-140]){
+      if(y<minY||y>maxY||blocked.some(b=>x<b.x+b.w+4&&x+width>b.x-4&&y<b.y+b.h+4&&y+height>b.y-4))continue;
+      const d=(x+width/2-cx)**2+(y-cy)**2;if(d<distance){best={x,y,w:width,h:height};distance=d;}
+    }
+  return best;
 }
 function drawTopHUD(g,width,p) {
   const {left:L,right:R}=topHUDLayout(width);
@@ -80,41 +142,41 @@ function drawTopHUD(g,width,p) {
   g.restore();
 }
 function hud() {
-  const hh = hudHeight();
+  const layout=arenaHUDLayout();
   drawTopHUD(ctx,W,P);
   // шкалы эффектов живут под миникартой: слева их перекрывали пауза и +LV
-  const RS = Math.min(112, W * .28), rx = W - RS - 12;
-  let by = hh + 10 + RS + 9;
+  const RS=layout.buffs.w,rx=layout.buffs.x;
+  let by=layout.buffs.y;
   const buff = (act, max, col, label, value) => {
     if (!(act > 0)) return;
-    ctx.fillStyle = "rgba(253,246,232,.92)"; ctx.fillRect(rx, by, RS, 14);
-    ctx.fillStyle = col; ctx.fillRect(rx, by, RS * Math.min(1, act / max), 14);
-    ctx.strokeStyle = INK; ctx.lineWidth = 1.8; ctx.strokeRect(rx, by, RS, 14);
-    ctx.fillStyle = INK; ctx.font = "800 9px system-ui"; ctx.textAlign = "center";
-    ctx.fillText(label + "  " + (value === undefined ? Math.ceil(act / 1000) : value), rx + RS / 2, by + 10.4);
+    ctx.fillStyle = "rgba(253,246,232,.92)"; ctx.fillRect(rx, by, RS, 18);
+    ctx.fillStyle = col; ctx.fillRect(rx, by, RS * Math.min(1, act / max), 18);
+    ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.strokeRect(rx, by, RS, 18);
+    ctx.fillStyle = INK; ctx.font = "800 10px system-ui"; ctx.textAlign = "center";
+    ctx.fillText(label + "  " + (value === undefined ? Math.ceil(act / 1000) : value), rx + RS / 2, by + 12.5,RS-6);
     ctx.textAlign = "left";
-    by += 18;
+    by += 22;
   };
   buff(xpBoost, 20000, "#f0c443", hudText("ОПЫТ ×2", "XP ×2"));
-  buff(P.hasteT, 7000, "#f0a83a", hudText("УСКОРЕНИЕ", "HASTE"));
-  buff(P.invT, 6000, "#a9dcf0", hudText("НЕУЯЗВИМОСТЬ", "INVULNERABLE"));
+  buff(P.hasteT, 7000, "#f0a83a", hudText("СКОРОСТЬ", "HASTE"));
+  buff(P.invT, 6000, "#a9dcf0", hudText("ЗАЩИТА", "SHIELD"));
   const tankHP=allyTanks.reduce((s,q)=>s+Math.max(0,q.hp),0);
   const tankMax=allyTanks.reduce((s,q)=>s+q.hpMax,0);
   buff(tankHP, tankMax || 1, "#6b97c7", hudText("ТАНК ×", "TANK ×")+allyTanks.length,
        Math.ceil(tankHP)+"/"+Math.ceil(tankMax));
-  if (P.stagePulse > 0) {
+  if (P.stagePulse > 0 && hudNoticePriority()==='stage') {
     const a=Math.min(1,P.stagePulse/300,(1600-P.stagePulse)/260);
     ctx.save();ctx.globalAlpha=Math.max(0,a);ctx.textAlign="center";
     ctx.fillStyle="rgba(253,246,232,.94)";ctx.strokeStyle="#d2691e";ctx.lineWidth=3;
-    const ww=Math.min(310,W-34),yy=H*.25;
-    ctx.beginPath();ctx.roundRect(W/2-ww/2,yy-34,ww,68,14);ctx.fill();ctx.stroke();
-    ctx.fillStyle="#d2691e";ctx.font="900 22px system-ui";ctx.fillText(hudText("СТАДИЯ ","STAGE ")+P.stage+" / "+RUN_STAGES,W/2,yy-3);
-    ctx.fillStyle=INK;ctx.font="700 10px system-ui";ctx.fillText(hudText("НОВАЯ ВОЛНА","NEW WAVE"),W/2,yy+17);ctx.restore();
+    const q=layout.notice,cx=q.x+q.w/2;
+    ctx.beginPath();ctx.roundRect(q.x,q.y,q.w,68,14);ctx.fill();ctx.stroke();
+    ctx.fillStyle="#d2691e";ctx.font="900 "+(layout.compact?17:22)+"px system-ui";ctx.fillText(hudText("СТАДИЯ ","STAGE ")+P.stage+" / "+RUN_STAGES,cx,q.y+29,q.w-16);
+    ctx.fillStyle=INK;ctx.font="700 11px system-ui";ctx.fillText(hudText("НОВАЯ ВОЛНА","NEW WAVE"),cx,q.y+49,q.w-16);ctx.restore();
   }
   radar(); ultGauge(); syncHUD();
 }
 function ultGauge() {
-  const cx = W / 2, cy = H - 46, R = 27;
+  const cx = W / 2, cy = H - 46 - arenaHUDLayout().bottom, R = 27;
   const f = ult.charge / ULT_FULL, ready = f >= 1;
   ctx.save();
   if(empoweredUlt()){
@@ -150,12 +212,13 @@ function ultGauge() {
 }
 
 let radarNear=false;
-function radarLayout(){const size=Math.min(112,W*.28);return {x:W-size-12,y:hudHeight()+10,size,range:radarNear?680:WORLD};}
+function radarLayout(){return {...arenaHUDLayout().radar,range:radarNear?680:WORLD};}
 function radarPoint(x,y){const m=radarLayout(),s=m.size/m.range;return {x:m.x+(radarNear?(x-P.x)*s+m.size/2:x*s),y:m.y+(radarNear?(y-P.y)*s+m.size/2:y*s)};}
 function radarConsumesPointer(e){const r=cv.getBoundingClientRect(),m=radarLayout(),x=e.clientX-r.left,y=e.clientY-r.top;return running&&!paused&&x>=m.x&&x<=m.x+m.size&&y>=m.y&&y<=m.y+m.size;}
 function toggleRadar(){if(!running||paused||ult.on||bossLootLocked()||(typeof Playables!=='undefined'&&Playables.blocked))return false;radarNear=!radarNear;pointer.active=false;syncRadarButton();return true;}
 function radarPointerDown(e){if(!radarConsumesPointer(e))return false;e.preventDefault?.();e.stopImmediatePropagation?.();toggleRadar();return true;}
-function syncRadarButton(){const b=document.getElementById('radarToggle');if(!b)return;b.classList.toggle('hidden',!running||paused);b.style.top=radarLayout().y+'px';b.style.borderRadius=radarNear?'50%':'6px';b.setAttribute('aria-pressed',String(radarNear));b.setAttribute('aria-label',bossText(radarNear?'Радар рядом. Нажми: вся карта':'Вся карта. Нажми: радар рядом',radarNear?'Nearby radar. Press for full map':'Full map. Press for nearby radar'));}
+let radarButtonKey='';
+function syncRadarButton(){const b=document.getElementById('radarToggle');if(!b)return;const m=radarLayout(),label=bossText(radarNear?'Радар рядом. Нажми: вся карта':'Вся карта. Нажми: радар рядом',radarNear?'Nearby radar. Press for full map':'Full map. Press for nearby radar'),key=[running,paused,radarNear,m.x,m.y,m.size,label].join('|');if(key===radarButtonKey)return;radarButtonKey=key;b.classList.toggle('hidden',!running||paused);b.style.left=m.x+'px';b.style.right='auto';b.style.top=m.y+'px';b.style.width=b.style.height=m.size+'px';b.style.borderRadius=radarNear?'50%':'6px';b.setAttribute('aria-pressed',String(radarNear));b.setAttribute('aria-label',label);}
 const radarButton=document.getElementById('radarToggle');
 radarButton?.addEventListener('pointerdown',e=>{e.stopPropagation();pointer.active=false;});
 radarButton?.addEventListener('pointermove',e=>{e.stopPropagation();pointer.active=false;});
@@ -164,7 +227,8 @@ function radar(){
  const m=radarLayout(),{x,y,size:S}=m,g=ctx;
  const outline=()=>{g.beginPath();if(radarNear)g.arc(x+S/2,y+S/2,S/2,0,Math.PI*2);else g.roundRect(x,y,S,S,7);};
  g.save();g.fillStyle='#f8efd9';g.strokeStyle='#77664b';g.lineWidth=2.2;outline();g.fill();g.stroke();outline();g.clip();
- const dot=(o,color,r=2,diamond=false)=>{const p=radarPoint(o.x,o.y);if(p.x<x-8||p.x>x+S+8||p.y<y-8||p.y>y+S+8)return;g.fillStyle=color;g.save();g.translate(p.x,p.y);if(diamond)g.rotate(Math.PI/4);g.fillRect(-r,-r,r*2,r*2);g.restore();};
+ const scale=S/m.range,originX=x+(radarNear?S/2-P.x*scale:0),originY=y+(radarNear?S/2-P.y*scale:0);
+ const dot=(o,color,r=2,diamond=false)=>{const px=originX+o.x*scale,py=originY+o.y*scale;if(px<x-8||px>x+S+8||py<y-8||py>y+S+8)return;g.fillStyle=color;if(!diamond){g.fillRect(px-r,py-r,r*2,r*2);return;}g.save();g.translate(px,py);g.rotate(Math.PI/4);g.fillRect(-r,-r,r*2,r*2);g.restore();};
  for(const o of props)dot(o,'#a7ad87',radarNear?Math.max(2,o.r*S/m.range*.6):1.2);
  if(radarNear){g.strokeStyle='#c9b98f';g.lineWidth=.7;g.beginPath();g.arc(x+S/2,y+S/2,S*.26,0,7);g.stroke();}
  else{const p=radarPoint(cam.x,cam.y);g.strokeStyle='#bba779';g.lineWidth=1;g.strokeRect(p.x,p.y,W*S/WORLD,H*S/WORLD);}
@@ -281,7 +345,7 @@ pauseBtn.addEventListener("pointerenter", () => { pointer.active = false; });
 // тап по шкале ульты тоже запускает её
 cv.addEventListener("pointerdown", e => {
   const r = cv.getBoundingClientRect();
-  if (Math.hypot(e.clientX - r.left - W / 2, e.clientY - r.top - (H - 46)) < 34 && ultReady()) {
+  if (Math.hypot(e.clientX - r.left - W / 2, e.clientY - r.top - (H - 46 - arenaHUDLayout().bottom)) < 34 && ultReady()) {
     pointer.active = false; startUlt();
   }
 });
@@ -392,7 +456,7 @@ document.getElementById("btnRestart").onclick = () => {
 
 cv.addEventListener("pointerdown", e => {
   const r = cv.getBoundingClientRect();
-  if (Math.hypot(e.clientX - r.left - W / 2, e.clientY - r.top - (H - 46)) < 34 && ultReady()) {
+  if (Math.hypot(e.clientX - r.left - W / 2, e.clientY - r.top - (H - 46 - arenaHUDLayout().bottom)) < 34 && ultReady()) {
     pointer.active = false; startUlt();
   }
 });
@@ -428,7 +492,7 @@ petBadge.addEventListener("pointerdown", e => {
   SFX.petVoice?.(p.type,p.x);
 });
 
-let lastItem = "x", lastItemLanguage = "", lastInventory = "";
+let lastItem = "x", lastItemLanguage = "", lastInventory = "", lastControls = "", lastAbilityControls = "";
 function syncHUD() {
   syncRadarButton();
   const itemLanguage=typeof uiLanguage==='undefined'?'ru':uiLanguage;
@@ -440,6 +504,8 @@ function syncHUD() {
     if (P.item) drawItemIcon(ig, P.item, 18, 18, 1.35);
     useName.textContent = P.item ? ITEMS[P.item].name : hudText("пусто","empty");
   }
+  const controlsKey=[running,paused,ult.on,P.stage,P.runWon,DRAGON_ADMIN_ENABLED].join('|');
+  if(controlsKey!==lastControls){lastControls=controlsKey;
   pauseBtn.style.display = running ? "flex" : "none";
   devLvl.style.display = running&&DRAGON_ADMIN_ENABLED ? "block" : "none";
   devStage.style.display=running&&DRAGON_ADMIN_ENABLED?'block':'none';
@@ -451,10 +517,14 @@ function syncHUD() {
   devDragon.style.display = running&&DRAGON_ADMIN_ENABLED ? "block" : "none";
   devCompass.style.display = running&&DRAGON_ADMIN_ENABLED ? 'block' : 'none';
   abilityDock.classList.toggle("hidden", !running);
+  }
   const available=abilityMenuAvailable();
   if(!available&&P.abilityMenuOpen)setAbilityMenuOpen(false);
-  abilityPanel.hidden=!P.abilityMenuOpen;abilityToggle.disabled=!available;
-  abilityToggle.setAttribute('aria-expanded',String(!!P.abilityMenuOpen));
+  const abilityControls=[available,!!P.abilityMenuOpen].join('|');
+  if(abilityControls!==lastAbilityControls){lastAbilityControls=abilityControls;
+    abilityPanel.hidden=!P.abilityMenuOpen;abilityToggle.disabled=!available;
+    abilityToggle.setAttribute('aria-expanded',String(!!P.abilityMenuOpen));
+  }
   const invKey = ABILITY_KEYS.map(k => inventory[k]).join(",") + ":" + running + ":" + paused+':'+available+':'+uiLanguage;
   if (invKey !== lastInventory) {
     lastInventory = invKey;

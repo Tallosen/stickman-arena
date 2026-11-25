@@ -310,12 +310,16 @@ function drawAbilityScreenFX(g) {
   const A = ABILITIES[fx.kind];
   g.save();
   if (p < .22&&!visualFX('reduceFlash')) { g.globalAlpha = (1-p/.22) * .18; g.fillStyle = A.col; g.fillRect(0,0,W,H); }
-  const y = 82 - (1-a) * 18, bw = Math.min(286, W - 32);
+  if(typeof hudNoticePriority==='function'&&!['','ability'].includes(hudNoticePriority())){g.restore();return;}
+  const q=typeof arenaHUDLayout==='function'?arenaHUDLayout().notice:{x:(W-Math.min(286,W-32))/2,y:57,w:Math.min(286,W-32)};
+  const y=q.y+25,bw=q.w,x=q.x;
   g.globalAlpha = a * .94; g.fillStyle = "#fdf6e8"; g.strokeStyle = INK; g.lineWidth = 2.5;
-  g.beginPath(); g.roundRect(W/2-bw/2, y-25, bw, 50, 13); g.fill(); g.stroke();
-  g.fillStyle = A.col; g.fillRect(W/2-bw/2+3, y+19, bw-6, 3);
-  drawAbilityIcon(g, fx.kind, W/2-bw/2+31, y, 1.05);
-  g.fillStyle = INK; g.textAlign = "left"; g.font = "900 14px system-ui"; g.fillText(A.name, W/2-bw/2+55, y-2);
-  g.globalAlpha = a*.62; g.font = "700 10px system-ui"; g.fillText(A.desc, W/2-bw/2+55, y+13);
+  g.beginPath(); g.roundRect(x, q.y, bw, 80, 13); g.fill(); g.stroke();
+  g.fillStyle = A.col; g.fillRect(x+3, q.y+74, bw-6, 3);
+  drawAbilityIcon(g, fx.kind, x+28, y, .9);
+  g.fillStyle = INK; g.textAlign = "left"; g.font = "900 13px system-ui";
+  if(typeof hudWrappedText==='function')hudWrappedText(g,A.name,x+51,y-3,bw-61,16);else g.fillText(A.name,x+51,y,bw-61);
+  g.globalAlpha=a*.85;g.font='700 11px system-ui';
+  if(typeof hudWrappedText==='function')hudWrappedText(g,A.desc,x+10,q.y+55,bw-20,14);else g.fillText(A.desc,x+10,q.y+58,bw-20);
   g.restore();
 }

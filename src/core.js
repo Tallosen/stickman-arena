@@ -22,10 +22,15 @@ addEventListener("error", e => {
 
 const cv = document.getElementById("c"), ctx = cv.getContext("2d");
 let W, H, DPR;
+let hudSafeArea={top:0,right:0,bottom:0,left:0};
 function resize() {
   if(typeof Playables!=='undefined'&&Playables.hostPaused)return;
   DPR = Math.min(devicePixelRatio || 1, 2);
   W = innerWidth; H = innerHeight;
+  if(typeof getComputedStyle==='function'&&document.documentElement){
+    const css=getComputedStyle(document.documentElement);
+    for(const side of ['top','right','bottom','left'])hudSafeArea[side]=Math.max(0,parseFloat(css.getPropertyValue('--safe-'+side))||0);
+  }
   cv.width = W * DPR; cv.height = H * DPR;
   cv.style.width = W + "px"; cv.style.height = H + "px";
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);

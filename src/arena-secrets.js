@@ -65,9 +65,12 @@ function drawWeaponDeliveryHUD(g){
  const d=weaponDelivery;
  // Delivery guidance disappears on pickup. Mastery only uses short upgrade notices.
  if(!running||!['flying','ground'].includes(d?.state))return;
+ if(typeof hudNoticePriority==='function'&&hudNoticePriority())return;
  const title=bossText('АВИАДРОП','AIRDROP');
  const sub=d.state==='flying'?bossText('Доставка · отметка на карте','Incoming · marked on map'):bossText('Забери ящик · ','Collect crate · ')+Math.round(dist(d,P))+bossText(' м',' m');
- g.save();g.fillStyle='#fff3dae8';g.strokeStyle='#bb9655';g.lineWidth=1;g.beginPath();g.roundRect(10,118,194,43,8);g.fill();g.stroke();g.fillStyle='#76502b';g.textAlign='left';g.font='bold 10px system-ui';g.fillText(title,19,135,176);g.font='10px system-ui';g.fillText(sub,19,151,176);g.restore();
+ const q=typeof arenaHUDLayout==='function'?arenaHUDLayout().notice:{x:10,y:118,w:194};
+ g.save();g.fillStyle='#fff3dae8';g.strokeStyle='#bb9655';g.lineWidth=1;g.beginPath();g.roundRect(q.x,q.y,q.w,64,8);g.fill();g.stroke();g.fillStyle='#76502b';g.textAlign='left';g.font='bold 11px system-ui';g.fillText(title,q.x+10,q.y+20,q.w-20);g.font='11px system-ui';
+ if(typeof hudWrappedText==='function')hudWrappedText(g,sub,q.x+10,q.y+38,q.w-20,14);else g.fillText(sub,q.x+10,q.y+40,q.w-20);g.restore();
 }
 function resetArenaSecrets(){
   resetWeaponDelivery();

@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Stickman Arena — Vacky Games</title>
 <script src="https://www.youtube.com/game_api/v1"></script>
 <script>window.VACKY_REQUIRE_PLAYABLES=true;</script>
@@ -52,8 +52,9 @@
   .hud-btn:disabled{opacity:.42;box-shadow:none;cursor:default}
   .hud-btn:not(:disabled):active{transform:translate(2px,2px);box-shadow:1px 1px 0 #2b2620}
   .hud-btn canvas{width:36px;height:36px}
-  .hud-btn em{font-style:normal;font-size:10.5px;font-weight:700;letter-spacing:.02em}
-  .hud-pause{position:fixed;left:14px;top:72px;width:44px;height:44px;border-radius:12px;
+  :root{--safe-top:env(safe-area-inset-top,0px);--safe-right:env(safe-area-inset-right,0px);--safe-bottom:env(safe-area-inset-bottom,0px);--safe-left:env(safe-area-inset-left,0px)}
+  .hud-btn em{font-style:normal;font-size:11px;font-weight:700;letter-spacing:0;max-width:74px;line-height:1.15;overflow-wrap:anywhere;text-align:center}
+  .hud-pause{position:fixed;left:calc(14px + env(safe-area-inset-left,0px));top:calc(72px + env(safe-area-inset-top,0px));width:44px;height:44px;border-radius:12px;
     border:3px solid #2b2620;background:#fdf6e8;box-shadow:3px 3px 0 #2b2620;cursor:pointer;
     display:flex;align-items:center;justify-content:center;gap:5px;z-index:8;padding:0}
   .hud-pause:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #2b2620}
@@ -67,7 +68,7 @@
     border:2.5px dashed #8d8178;background:rgba(253,246,232,.85);color:#6d6459;cursor:pointer;
     font-family:inherit;font-weight:800;font-size:13px;letter-spacing:.06em;z-index:8}
   .hud-dev:active{transform:translate(1px,1px)}
-  .hud-badge{position:fixed;left:14px;bottom:22px;width:88px;height:88px;z-index:8;
+  .hud-badge{position:fixed;left:calc(14px + env(safe-area-inset-left,0px));bottom:calc(22px + env(safe-area-inset-bottom,0px));width:88px;height:88px;z-index:8;
     pointer-events:auto;cursor:pointer}
   .hud-badge:active{transform:scale(.94)}
   .ability-dock{position:fixed;right:calc(29px + env(safe-area-inset-right,0px));bottom:calc(120px + env(safe-area-inset-bottom,0px));z-index:8}
@@ -102,8 +103,14 @@
   body.dragon-finale .ability-dock,body.dragon-finale .hud-book{opacity:0!important;pointer-events:none!important;transition:opacity .18s ease}
   .victory-dragon{background:radial-gradient(circle at 50% 42%,#fff7cb,#e9d09d 62%,#b88745);}
   #victoryDragonCanvas{width:min(360px,88vw);height:210px}
-  @media(max-width:559px){.hud-pause{top:72px}}
   @media(max-width:420px){.ability-dock{right:calc(31px + env(safe-area-inset-right,0px))}.ability-toggle{width:52px;height:52px}.ability-panel{right:calc(100% + 8px);gap:6px;padding:6px;bottom:-5px}.ability-slot{width:48px;height:48px;flex:0 0 48px}.ability-slot canvas{width:38px;height:38px}}
+  @media(max-height:500px) and (min-aspect-ratio:6/5){
+    .hud-btn{width:72px;height:72px;bottom:calc(12px + env(safe-area-inset-bottom,0px));gap:2px}
+    .hud-btn canvas{width:30px;height:30px}.hud-btn em{max-width:64px;font-size:10px}
+    .ability-dock{right:calc(26px + env(safe-area-inset-right,0px));bottom:calc(98px + env(safe-area-inset-bottom,0px))}
+    .ability-toggle{width:48px;height:48px}.ability-toggle svg{width:26px;height:26px}.ability-toggle::after{top:13px}
+    .ability-panel{right:calc(100% + 8px);gap:6px;padding:6px;bottom:-5px}.ability-slot{width:48px;height:48px;flex:0 0 48px}.ability-slot canvas{width:38px;height:38px}
+  }
   .dragon-menu-buttons{display:grid;gap:10px;width:min(350px,100%)}
   .menu-action-row{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;align-items:center;min-width:0}
   .primary-menu-action{width:min(350px,100%)}.primary-menu-action>.btn{min-width:0;padding-left:12px;padding-right:12px}
@@ -785,10 +792,15 @@ addEventListener("error", e => {
 
 const cv = document.getElementById("c"), ctx = cv.getContext("2d");
 let W, H, DPR;
+let hudSafeArea={top:0,right:0,bottom:0,left:0};
 function resize() {
   if(typeof Playables!=='undefined'&&Playables.hostPaused)return;
   DPR = Math.min(devicePixelRatio || 1, 2);
   W = innerWidth; H = innerHeight;
+  if(typeof getComputedStyle==='function'&&document.documentElement){
+    const css=getComputedStyle(document.documentElement);
+    for(const side of ['top','right','bottom','left'])hudSafeArea[side]=Math.max(0,parseFloat(css.getPropertyValue('--safe-'+side))||0);
+  }
   cv.width = W * DPR; cv.height = H * DPR;
   cv.style.width = W + "px"; cv.style.height = H + "px";
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -2413,7 +2425,7 @@ HELP_EN.run.text[4]='Rare chests grant an airstrike, toxic fog or tank charge. T
 "use strict";
 /* Версия проекта. Меняется здесь и только здесь — дальше сама
    расходится в заголовок вкладки, на стартовый экран и в имя сборки. */
-const VERSION = "0.207";
+const VERSION = "0.208";
 function gameText(ru,en){return typeof uiLanguage==='undefined'||uiLanguage==='ru'?ru:en;}
 // Renderer defaults also work in isolated tests without the settings UI module.
 function visualFX(key){return typeof visualSettings==='undefined'?key==='shake':visualSettings[key];}
@@ -2784,7 +2796,7 @@ function drawCampMilestones(g,time){
 "use strict";
 /* Painted terrain is visual only. Fixed world coordinates keep it still while
    the camera moves; a bounded tile cache avoids redrawing detail each frame. */
-const MAP_TILE_SIZE=256,MAP_TILE_LIMIT=64,mapTiles=new Map();
+const MAP_TILE_SIZE=256,MAP_TILE_LIMIT=64,mapTiles=new Map(),mapPropArt=new WeakMap();
 // Shared by terrain painting and roadside scenery placement.
 const MAP_TRAILS=[
  [[-120,620],[620,420],[640,1510],[1400,1400],[2040,1300],[2250,2080],[2920,1850]],
@@ -2827,14 +2839,20 @@ function paintMapTile(g,tx,ty){
 }
 function drawMapGround(g,L,R,T,B){
   g.save();g.fillStyle='#d8ceb8';g.fillRect(L,T,R-L,B-T);
-  const size=MAP_TILE_SIZE;
+  const size=MAP_TILE_SIZE,columns=Math.ceil(WORLD/size);
+  const left=Math.max(0,Math.floor(L/size)),right=Math.min(columns-1,Math.floor(R/size));
+  const top=Math.max(0,Math.floor(T/size)),bottom=Math.min(columns-1,Math.floor(B/size));
+  // A wide/zoomed-out view must fit in the cache or an LRU scan repaints every
+  // visible tile every frame. Keep 64 normally, at most the finite world grid.
+  const limit=Math.max(MAP_TILE_LIMIT,Math.max(0,right-left+1)*Math.max(0,bottom-top+1));
+  while(mapTiles.size>limit)mapTiles.delete(mapTiles.keys().next().value);
   g.save();g.beginPath();g.rect(0,0,WORLD,WORLD);g.clip();
-  for(let ty=Math.max(0,Math.floor(T/size));ty<=Math.min(Math.ceil(WORLD/size)-1,Math.floor(B/size));ty++)
-    for(let tx=Math.max(0,Math.floor(L/size));tx<=Math.min(Math.ceil(WORLD/size)-1,Math.floor(R/size));tx++){
-      const key=tx+','+ty;let tile=mapTiles.get(key);
+  for(let ty=top;ty<=bottom;ty++)
+    for(let tx=left;tx<=right;tx++){
+      const key=ty*columns+tx;let tile=mapTiles.get(key);
       if(!tile){tile=document.createElement('canvas');tile.width=tile.height=size+2;paintMapTile(tile.getContext('2d'),tx,ty);}
       else mapTiles.delete(key);
-      mapTiles.set(key,tile);if(mapTiles.size>MAP_TILE_LIMIT)mapTiles.delete(mapTiles.keys().next().value);
+      mapTiles.set(key,tile);if(mapTiles.size>limit)mapTiles.delete(mapTiles.keys().next().value);
       // One-pixel bleed avoids hairline seams during fractional camera motion.
       g.drawImage(tile,tx*size-1,ty*size-1);
     }
@@ -2853,8 +2871,23 @@ function drawMapGround(g,L,R,T,B){
   g.strokeStyle='#796e56';g.lineWidth=2;g.strokeRect(0,0,WORLD,WORLD);g.restore();
 }
 function drawMapProp(g,o){
+  const scale=typeof DPR==='number'&&DPR>0?DPR:1,stable=g.vackyStableSketch===true;
+  let art=mapPropArt.get(o);
+  if(!art||art.scale!==scale||art.stable!==stable||art.r!==o.r||art.kind!==o.kind||art.seed!==o.seed||art.pts!==o.pts){
+    // Pixel-aligned padding includes the ground shadows and leafy overhang.
+    // Only the current density is retained; old maps are collectible via WeakMap.
+    const radius=Math.ceil((o.r*1.4+10)*scale),canvas=document.createElement('canvas');
+    canvas.width=canvas.height=radius*2;
+    const pg=canvas.getContext('2d');pg.setTransform(scale,0,0,scale,radius,radius);pg.vackyStableSketch=stable;
+    paintMapProp(pg,o);
+    art={canvas,scale,stable,r:o.r,kind:o.kind,seed:o.seed,pts:o.pts,offset:radius/scale,size:canvas.width/scale};
+    mapPropArt.set(o,art);
+  }
+  g.drawImage(art.canvas,o.x-art.offset,o.y-art.offset,art.size,art.size);
+}
+function paintMapProp(g,o){
   const r=o.r,seed=o.seed||0;
-  g.save();g.translate(o.x,o.y);g.lineJoin='round';g.lineCap='round';
+  g.save();g.lineJoin='round';g.lineCap='round';
   g.fillStyle='rgba(80,73,47,.12)';g.beginPath();g.ellipse(6,r*.36,r*1.05,r*.63,.12,0,7);g.fill();
   g.fillStyle='rgba(144,161,99,.16)';g.beginPath();g.ellipse(-6,4,r*1.13,r*.77,seed,0,7);g.fill();
   g.strokeStyle='#565442';g.lineWidth=2.2;
@@ -2961,9 +2994,12 @@ function drawWeaponDeliveryHUD(g){
  const d=weaponDelivery;
  // Delivery guidance disappears on pickup. Mastery only uses short upgrade notices.
  if(!running||!['flying','ground'].includes(d?.state))return;
+ if(typeof hudNoticePriority==='function'&&hudNoticePriority())return;
  const title=bossText('АВИАДРОП','AIRDROP');
  const sub=d.state==='flying'?bossText('Доставка · отметка на карте','Incoming · marked on map'):bossText('Забери ящик · ','Collect crate · ')+Math.round(dist(d,P))+bossText(' м',' m');
- g.save();g.fillStyle='#fff3dae8';g.strokeStyle='#bb9655';g.lineWidth=1;g.beginPath();g.roundRect(10,118,194,43,8);g.fill();g.stroke();g.fillStyle='#76502b';g.textAlign='left';g.font='bold 10px system-ui';g.fillText(title,19,135,176);g.font='10px system-ui';g.fillText(sub,19,151,176);g.restore();
+ const q=typeof arenaHUDLayout==='function'?arenaHUDLayout().notice:{x:10,y:118,w:194};
+ g.save();g.fillStyle='#fff3dae8';g.strokeStyle='#bb9655';g.lineWidth=1;g.beginPath();g.roundRect(q.x,q.y,q.w,64,8);g.fill();g.stroke();g.fillStyle='#76502b';g.textAlign='left';g.font='bold 11px system-ui';g.fillText(title,q.x+10,q.y+20,q.w-20);g.font='11px system-ui';
+ if(typeof hudWrappedText==='function')hudWrappedText(g,sub,q.x+10,q.y+38,q.w-20,14);else g.fillText(sub,q.x+10,q.y+40,q.w-20);g.restore();
 }
 function resetArenaSecrets(){
   resetWeaponDelivery();
@@ -5952,13 +5988,17 @@ function drawAbilityScreenFX(g) {
   const A = ABILITIES[fx.kind];
   g.save();
   if (p < .22&&!visualFX('reduceFlash')) { g.globalAlpha = (1-p/.22) * .18; g.fillStyle = A.col; g.fillRect(0,0,W,H); }
-  const y = 82 - (1-a) * 18, bw = Math.min(286, W - 32);
+  if(typeof hudNoticePriority==='function'&&!['','ability'].includes(hudNoticePriority())){g.restore();return;}
+  const q=typeof arenaHUDLayout==='function'?arenaHUDLayout().notice:{x:(W-Math.min(286,W-32))/2,y:57,w:Math.min(286,W-32)};
+  const y=q.y+25,bw=q.w,x=q.x;
   g.globalAlpha = a * .94; g.fillStyle = "#fdf6e8"; g.strokeStyle = INK; g.lineWidth = 2.5;
-  g.beginPath(); g.roundRect(W/2-bw/2, y-25, bw, 50, 13); g.fill(); g.stroke();
-  g.fillStyle = A.col; g.fillRect(W/2-bw/2+3, y+19, bw-6, 3);
-  drawAbilityIcon(g, fx.kind, W/2-bw/2+31, y, 1.05);
-  g.fillStyle = INK; g.textAlign = "left"; g.font = "900 14px system-ui"; g.fillText(A.name, W/2-bw/2+55, y-2);
-  g.globalAlpha = a*.62; g.font = "700 10px system-ui"; g.fillText(A.desc, W/2-bw/2+55, y+13);
+  g.beginPath(); g.roundRect(x, q.y, bw, 80, 13); g.fill(); g.stroke();
+  g.fillStyle = A.col; g.fillRect(x+3, q.y+74, bw-6, 3);
+  drawAbilityIcon(g, fx.kind, x+28, y, .9);
+  g.fillStyle = INK; g.textAlign = "left"; g.font = "900 13px system-ui";
+  if(typeof hudWrappedText==='function')hudWrappedText(g,A.name,x+51,y-3,bw-61,16);else g.fillText(A.name,x+51,y,bw-61);
+  g.globalAlpha=a*.85;g.font='700 11px system-ui';
+  if(typeof hudWrappedText==='function')hudWrappedText(g,A.desc,x+10,q.y+55,bw-20,14);else g.fillText(A.desc,x+10,q.y+58,bw-20);
   g.restore();
 }
 
@@ -6712,12 +6752,14 @@ function drawBossNight(g){
 }
 function drawBossHUD(g){
  const e=stageBoss?.enemy;if(!e||e.hp<=0)return;
+ if(typeof arenaHUDLayout==='function'&&arenaHUDLayout().landscape&&['reward','menu'].includes(hudNoticePriority()))return;
  const enraged=e.bossSpec.stage>=15&&e.hp<e.maxhp*.55;
  const dockInset=typeof abilityDockInset==='number'?abilityDockInset:0;
- const width=Math.min(340,W-32),x=(W-width)/2,y=H<450?66:H-236-dockInset;
+ const box=typeof arenaHUDLayout==='function'?arenaHUDLayout().boss:{w:Math.min(340,W-32),x:(W-Math.min(340,W-32))/2,y:H<450?66:H-236-dockInset};
+ const {w:width,x,y}=box;
  g.save();g.fillStyle='#211e35';g.strokeStyle=enraged?'#f0a768':'#b99ad4';g.lineWidth=enraged?2.5:1.5;g.beginPath();g.roundRect(x,y,width,42,9);g.fill();g.stroke();
  g.fillStyle=e.vulnerableT>0?'#ffe09a':'#fff0ce';g.textAlign='center';g.font='800 12px system-ui';
- g.fillText(e.vulnerableT>0?bossWindowLabel(e)+bossText(' · УРОН +40%',' · DAMAGE +40%'):bossName(stageBoss.spec)+' · '+Math.ceil(e.hp)+' / '+e.maxhp,W/2,y+16,width-18);
+ g.fillText(e.vulnerableT>0?bossWindowLabel(e)+bossText(' · УРОН +40%',' · DAMAGE +40%'):bossName(stageBoss.spec)+' · '+Math.ceil(e.hp)+' / '+e.maxhp,x+width/2,y+16,width-18);
  g.fillStyle='#53415e';g.fillRect(x+10,y+25,width-20,7);g.fillStyle=enraged?'#e99756':e.bossSpec.color;g.fillRect(x+10,y+25,(width-20)*Math.max(0,e.hp/e.maxhp),7);
  if(e.vulnerableT>0){g.fillStyle='#ffe09a';g.fillRect(x+10,y+36,(width-20)*Math.min(1,e.vulnerableT/e.vulnerableDuration),2);}
  g.restore();
@@ -6928,13 +6970,16 @@ document.getElementById('bossReward')?.addEventListener('keydown',event=>{
  }
 });
 function drawBossArrival(g){
+ if(typeof hudNoticePriority==='function'&&hudNoticePriority()!=='boss')return;
  const e=stageBoss?.enemy;if(!e||e.hp<=0)return;
  const entry=e.entryAge<2300,phase=(e.phaseBanner||0)>0;if(!entry&&!phase)return;
  const clock=entry?e.entryAge:2400-e.phaseBanner,alpha=Math.min(1,clock/220,(entry?2300-clock:2400-clock)/400);
- const w=Math.min(340,W-24),x=(W-w)/2,y=Math.min(148,H*.25);
+ const box=typeof arenaHUDLayout==='function'?arenaHUDLayout().notice:{w:Math.min(340,W-24),x:(W-Math.min(340,W-24))/2,y:Math.min(148,H*.25)};
+ const {w,x,y}=box;
  g.save();g.globalAlpha=Math.max(0,alpha);g.fillStyle='#2d2940';g.strokeStyle=phase?'#efb468':'#b89e7b';g.lineWidth=1.5;
- g.beginPath();g.roundRect(x,y,w,58,12);g.fill();g.stroke();g.fillStyle='#f8e7bd';g.textAlign='center';g.font='800 14px system-ui';g.fillText(bossName(e.bossSpec),W/2,y+23,w-20);
- g.font='11px system-ui';g.fillText(phase?bossText('ВТОРАЯ ФАЗА · НОВАЯ ТАКТИКА','PHASE TWO · NEW TACTICS'):bossText('НОЧЬ · СТАДИЯ ','NIGHT · STAGE ')+P.stage,W/2,y+43,w-20);g.restore();
+ g.beginPath();g.roundRect(x,y,w,78,12);g.fill();g.stroke();g.fillStyle='#f8e7bd';g.textAlign='center';g.font='800 14px system-ui';g.fillText(bossName(e.bossSpec),x+w/2,y+24,w-20);
+ g.font='11px system-ui';g.fillText(phase?bossText('ВТОРАЯ ФАЗА','PHASE TWO'):bossText('НОЧЬ · СТАДИЯ ','NIGHT · STAGE ')+P.stage,x+w/2,y+45,w-20);
+ if(phase)g.fillText(bossText('НОВАЯ ТАКТИКА','NEW TACTICS'),x+w/2,y+63,w-20);g.restore();
 }
 function renderBossResults(newRecord){
  document.getElementById('victoryDragonText').textContent=bossText('Время: ','Time: ')+formatRunTime(P.runMs)+bossText(' · Счёт: ',' · Score: ')+(P.redKills||0)+bossText(' · Боссов: ',' · Bosses: ')+defeatedBossStages.size;
@@ -7009,20 +7054,22 @@ function finishBossLootOpening(){
 }
 function updateBossLootNotice(dt){
  if(!running||paused||ult.on||(typeof Playables!=='undefined'&&Playables.blocked))return;
+ if(typeof hudNoticePriority==='function'&&hudNoticePriority()==='menu')return;
  const n=bossLootNotices[0];if(!n)return;n.age+=Math.max(0,Math.min(1000,dt));if(n.age>=4200)bossLootNotices.shift();
 }
 function drawBossLootNotice(g){
  const n=bossLootNotices[0];if(!n||!running||ult.on||bossRewardPending)return;
- const wide=H<480&&W>=700,w=Math.min(360,wide?W-442:W-24);
- // In landscape use the gap between the two HUD cards, away from the hero.
- const x=wide?(276+W-158-w)/2:(W-w)/2,y=wide?8:Math.max(112,H-(H<480?184:275));
+ if(typeof hudNoticePriority==='function'&&hudNoticePriority()==='menu')return;
+ const box=typeof arenaHUDLayout==='function'?arenaHUDLayout().notice:{w:Math.min(360,W-24),x:(W-Math.min(360,W-24))/2,y:118};
+ const {w,x,y}=box;
  g.save();g.globalAlpha=Math.min(1,(4200-n.age)/400);g.fillStyle='#fff4dfee';g.strokeStyle='#b79457';g.lineWidth=1.5;
- g.beginPath();g.roundRect(x,y,w,88,13);g.fill();g.stroke();
- g.fillStyle='#eedcb4';g.beginPath();g.roundRect(x+9,y+15,58,58,11);g.fill();g.drawImage(n.icon,x+10,y+16,56,56);
- g.textAlign='left';g.fillStyle='#947035';g.font='800 9px system-ui';g.fillText(n.header||bossText('НАГРАДА БОССА · ','BOSS REWARD · ')+n.stage,x+78,y+17,w-88);
- g.fillStyle='#493624';g.font='800 14px system-ui';g.fillText(n.title,x+78,y+36,w-88);
- g.font='700 11px system-ui';g.fillStyle='#72552f';g.fillText(n.impact||bossText('Все запасы заполнены','All supplies are full'),x+78,y+55,w-88);
- g.fillStyle='#88765a';g.font='10px system-ui';g.fillText(n.category,x+78,y+73,w-88);g.restore();
+ g.beginPath();g.roundRect(x,y,w,116,13);g.fill();g.stroke();
+ g.fillStyle='#eedcb4';g.beginPath();g.roundRect(x+9,y+30,38,38,9);g.fill();g.drawImage(n.icon,x+10,y+31,36,36);
+ const wrap=(text,xx,yy,width,step)=>{if(typeof hudWrappedText==='function')hudWrappedText(g,text,xx,yy,width,step);else g.fillText(text,xx,yy,width);};
+ g.textAlign='left';g.fillStyle='#947035';g.font='800 10px system-ui';g.fillText(n.header||bossText('НАГРАДА БОССА · ','BOSS REWARD · ')+n.stage,x+10,y+18,w-20);
+ g.fillStyle='#493624';g.font='800 13px system-ui';wrap(n.title,x+54,y+43,w-64,16);
+ g.font='700 11px system-ui';g.fillStyle='#72552f';wrap(n.impact||bossText('Все запасы заполнены','All supplies are full'),x+10,y+81,w-20,13);
+ g.fillStyle='#88765a';g.font='10px system-ui';g.fillText(n.category,x+10,y+108,w-20);g.restore();
 }
 function updateBossLoot(dt,activeMs=dt){
  const q=bossLoot;if(!q||!running||paused||(typeof Playables!=='undefined'&&Playables.blocked))return;
@@ -7086,9 +7133,10 @@ function drawBossLootGuide(g){
   g.save();g.textAlign='center';g.font='700 11px system-ui';
   const text=q.error?bossText('Ошибка сохранения · повторяем…','Save failed · retrying…'):bossText('Трофей · ','Trophy · ')+q.stage;
   const width=Math.min(210,g.measureText(text).width+20);
-  g.fillStyle='#fff1d3';g.strokeStyle='#bf964e';g.lineWidth=1;
-  g.beginPath();g.roundRect(Math.max(8,Math.min(W-width-8,x-width/2)),y-86,width,23,7);g.fill();g.stroke();
-  g.fillStyle='#775021';g.fillText(text,Math.max(width/2+8,Math.min(W-width/2-8,x)),y-70);
+  const label=typeof hudWorldLabelRect==='function'?hudWorldLabelRect(x,y-86,width):{x:Math.max(8,Math.min(W-width-8,x-width/2)),y:y-86,w:width,h:23};
+  if(label){g.fillStyle='#fff1d3';g.strokeStyle='#bf964e';g.lineWidth=1;
+    g.beginPath();g.roundRect(label.x,label.y,label.w,label.h,7);g.fill();g.stroke();
+    g.fillStyle='#775021';g.fillText(text,label.x+label.w/2,label.y+16,label.w-12);}
   if(off){g.translate(x,y-40);g.rotate(Math.atan2(sy-y,sx-x));g.fillStyle='#d89129';g.strokeStyle='#fff1cc';g.lineWidth=2;
    g.beginPath();g.moveTo(12,0);g.lineTo(-7,-8);g.lineTo(-3,0);g.lineTo(-7,8);g.closePath();g.fill();g.stroke();}
   g.restore();
@@ -10325,10 +10373,13 @@ function tutorialContext(){
 }
 function tutorialBounds(target){
  const width=innerWidth,height=innerHeight;
+ if((target==='health'||target==='timer')&&typeof topHUDLayout==='function'){
+  const q=topHUDLayout(width)[target==='health'?'left':'right'];return {left:q.x,top:q.y,width:q.w,height:q.h};
+ }
  if(target==="hero")return {left:width/2-42,top:height/2-55,width:84,height:100};
  if(target==="health")return {left:8,top:8,width:Math.min(264,width*.57),height:54};
  if(target==="timer")return {left:width-150,top:8,width:138,height:54};
- if(target==="ultimate")return {left:width/2-36,top:height-84,width:72,height:72};
+ if(target==="ultimate")return {left:width/2-36,top:height-82-(typeof hudSafeArea==='undefined'?0:hudSafeArea.bottom),width:72,height:72};
  const el=document.getElementById(target);if(!el||!el.getClientRects().length)return null;
  const b=el.getBoundingClientRect();if(!b.width||!b.height||b.top>=height||b.left>=width||b.top+b.height<=0)return null;
  const left=Math.max(6,b.left),top=Math.max(6,b.top);
@@ -11336,9 +11387,71 @@ const hudHeight = () => 84;
 // load this module without config/localization.
 const hudText=(ru,en)=>typeof gameText==='function'?gameText(ru,en):(typeof uiLanguage==='undefined'||uiLanguage==='ru'?ru:en);
 function topHUDLayout(width) {
+  const safe=typeof hudSafeArea==='undefined'?{left:0,right:0,top:0}:hudSafeArea;
+  width-=safe.left+safe.right;
   const margin=width<360?8:12,gap=8,rightW=width<380?122:146;
-  return {left:{x:margin,y:8,w:Math.min(264,width-margin*2-gap-rightW),h:54},
-    right:{x:width-margin-rightW,y:8,w:rightW,h:76}};
+  return {left:{x:safe.left+margin,y:safe.top+8,w:Math.min(264,width-margin*2-gap-rightW),h:54},
+    right:{x:safe.left+width-margin-rightW,y:safe.top+8,w:rightW,h:76}};
+}
+// Canvas notices and DOM hit targets share the same reserved screen regions.
+function arenaHUDLayout(width=W,height=H){
+  const safe=typeof hudSafeArea==='undefined'?{left:0,right:0,top:0,bottom:0}:hudSafeArea;
+  const areaW=width-safe.left-safe.right,areaH=height-safe.top-safe.bottom;
+  const compact=areaW<600||areaH<500,landscape=areaH<500&&areaW>areaH*1.2;
+  const size=Math.min(landscape?Math.max(44,Math.min(76,areaH-250)):compact?92:112,areaW*.28),left=safe.left+12;
+  const radar={x:width-safe.right-size-12,y:safe.top+94,size};
+  const noticeX=landscape?left+202:compact?left:Math.max(left,(width-340)/2);
+  const notice={x:noticeX,y:safe.top+(landscape?94:124),w:Math.min(340,radar.x-noticeX-16),h:116};
+  const buffs=landscape?{x:left+56,y:safe.top+76,w:134,h:20}:{x:radar.x,y:radar.y+size+8,w:size,h:20};
+  const boss=compact?{x:notice.x,y:notice.y+(landscape?86:124),w:notice.w,h:42}:{x:(width-340)/2,y:height-safe.bottom-236,w:340,h:42};
+  return {radar,notice,buffs,boss,compact,landscape,bottom:safe.bottom};
+}
+function hudWrappedText(g,text,x,y,width,lineHeight,maxLines=2){
+  const words=[];
+  for(const word of String(text||'').split(/\s+/)){
+    let part='';for(const char of word){
+      if(part&&g.measureText(part+char).width>width){words.push(part);part='';}part+=char;
+    }if(part)words.push(part);
+  }
+  let line='',row=0;
+  for(let i=0;i<words.length;i++){
+    const next=line?line+' '+words[i]:words[i];
+    if(line&&g.measureText(next).width>width){
+      g.fillText(line,x,y+row*lineHeight);row++;line=words[i];
+      if(row===maxLines-1){line=words.slice(i).join(' ');break;}
+    }else line=next;
+  }
+  if(g.measureText(line).width>width){while(line&&g.measureText(line+'…').width>width)line=line.slice(0,-1);line+='…';}
+  g.fillText(line,x,y+row*lineHeight);
+}
+function hudNoticePriority(){
+  if(P.abilityMenuOpen&&H<500)return 'menu';
+  if(typeof bossLootNotices!=='undefined'&&bossLootNotices.length)return 'reward';
+  const e=typeof stageBoss!=='undefined'?stageBoss?.enemy:null;
+  if(e&&e.hp>0&&(e.entryAge<2300||e.phaseBanner>0))return 'boss';
+  if(P.stagePulse>0)return 'stage';
+  if(typeof abilityBursts!=='undefined'&&abilityBursts.length)return 'ability';
+  return '';
+}
+function hudWorldLabelRect(cx,cy,width,height=23){
+  const l=arenaHUDLayout(),top=topHUDLayout(W),safe=typeof hudSafeArea==='undefined'?{left:0,right:0,top:0}:hudSafeArea;
+  const blocked=[top.left,top.right,{x:safe.left+12,y:safe.top+72,w:48,h:48},
+    {x:l.radar.x,y:l.radar.y,w:l.radar.size,h:l.radar.size},
+    {x:l.buffs.x,y:l.buffs.y,w:l.buffs.w,h:88},
+    {x:safe.left+12,y:H-l.bottom-112,w:92,h:98},
+    {x:W/2-38,y:H-l.bottom-84,w:76,h:80},
+    {x:W-safe.right-104,y:H-l.bottom-180,w:94,h:164}];
+  if(hudNoticePriority()||(typeof weaponDelivery!=='undefined'&&['flying','ground'].includes(weaponDelivery?.state)))blocked.push(l.notice);
+  if(typeof stageBoss!=='undefined'&&stageBoss?.enemy?.hp>0)blocked.push(l.boss);
+  if(P.abilityMenuOpen)blocked.push({x:W-safe.right-310,y:H-l.bottom-190,w:284,h:80});
+  const minX=safe.left+8,maxX=W-safe.right-width-8,minY=safe.top+8,maxY=H-l.bottom-height-8;
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));let best=null,distance=Infinity;
+  for(const x of [clamp(cx-width/2,minX,maxX),minX,(W-width)/2,maxX])
+    for(const y of [clamp(cy,minY,maxY),safe.top+124,l.buffs.y+92,l.notice.y+120,l.boss.y+48,H-l.bottom-140]){
+      if(y<minY||y>maxY||blocked.some(b=>x<b.x+b.w+4&&x+width>b.x-4&&y<b.y+b.h+4&&y+height>b.y-4))continue;
+      const d=(x+width/2-cx)**2+(y-cy)**2;if(d<distance){best={x,y,w:width,h:height};distance=d;}
+    }
+  return best;
 }
 function drawTopHUD(g,width,p) {
   const {left:L,right:R}=topHUDLayout(width);
@@ -11409,41 +11522,41 @@ function drawTopHUD(g,width,p) {
   g.restore();
 }
 function hud() {
-  const hh = hudHeight();
+  const layout=arenaHUDLayout();
   drawTopHUD(ctx,W,P);
   // шкалы эффектов живут под миникартой: слева их перекрывали пауза и +LV
-  const RS = Math.min(112, W * .28), rx = W - RS - 12;
-  let by = hh + 10 + RS + 9;
+  const RS=layout.buffs.w,rx=layout.buffs.x;
+  let by=layout.buffs.y;
   const buff = (act, max, col, label, value) => {
     if (!(act > 0)) return;
-    ctx.fillStyle = "rgba(253,246,232,.92)"; ctx.fillRect(rx, by, RS, 14);
-    ctx.fillStyle = col; ctx.fillRect(rx, by, RS * Math.min(1, act / max), 14);
-    ctx.strokeStyle = INK; ctx.lineWidth = 1.8; ctx.strokeRect(rx, by, RS, 14);
-    ctx.fillStyle = INK; ctx.font = "800 9px system-ui"; ctx.textAlign = "center";
-    ctx.fillText(label + "  " + (value === undefined ? Math.ceil(act / 1000) : value), rx + RS / 2, by + 10.4);
+    ctx.fillStyle = "rgba(253,246,232,.92)"; ctx.fillRect(rx, by, RS, 18);
+    ctx.fillStyle = col; ctx.fillRect(rx, by, RS * Math.min(1, act / max), 18);
+    ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.strokeRect(rx, by, RS, 18);
+    ctx.fillStyle = INK; ctx.font = "800 10px system-ui"; ctx.textAlign = "center";
+    ctx.fillText(label + "  " + (value === undefined ? Math.ceil(act / 1000) : value), rx + RS / 2, by + 12.5,RS-6);
     ctx.textAlign = "left";
-    by += 18;
+    by += 22;
   };
   buff(xpBoost, 20000, "#f0c443", hudText("ОПЫТ ×2", "XP ×2"));
-  buff(P.hasteT, 7000, "#f0a83a", hudText("УСКОРЕНИЕ", "HASTE"));
-  buff(P.invT, 6000, "#a9dcf0", hudText("НЕУЯЗВИМОСТЬ", "INVULNERABLE"));
+  buff(P.hasteT, 7000, "#f0a83a", hudText("СКОРОСТЬ", "HASTE"));
+  buff(P.invT, 6000, "#a9dcf0", hudText("ЗАЩИТА", "SHIELD"));
   const tankHP=allyTanks.reduce((s,q)=>s+Math.max(0,q.hp),0);
   const tankMax=allyTanks.reduce((s,q)=>s+q.hpMax,0);
   buff(tankHP, tankMax || 1, "#6b97c7", hudText("ТАНК ×", "TANK ×")+allyTanks.length,
        Math.ceil(tankHP)+"/"+Math.ceil(tankMax));
-  if (P.stagePulse > 0) {
+  if (P.stagePulse > 0 && hudNoticePriority()==='stage') {
     const a=Math.min(1,P.stagePulse/300,(1600-P.stagePulse)/260);
     ctx.save();ctx.globalAlpha=Math.max(0,a);ctx.textAlign="center";
     ctx.fillStyle="rgba(253,246,232,.94)";ctx.strokeStyle="#d2691e";ctx.lineWidth=3;
-    const ww=Math.min(310,W-34),yy=H*.25;
-    ctx.beginPath();ctx.roundRect(W/2-ww/2,yy-34,ww,68,14);ctx.fill();ctx.stroke();
-    ctx.fillStyle="#d2691e";ctx.font="900 22px system-ui";ctx.fillText(hudText("СТАДИЯ ","STAGE ")+P.stage+" / "+RUN_STAGES,W/2,yy-3);
-    ctx.fillStyle=INK;ctx.font="700 10px system-ui";ctx.fillText(hudText("НОВАЯ ВОЛНА","NEW WAVE"),W/2,yy+17);ctx.restore();
+    const q=layout.notice,cx=q.x+q.w/2;
+    ctx.beginPath();ctx.roundRect(q.x,q.y,q.w,68,14);ctx.fill();ctx.stroke();
+    ctx.fillStyle="#d2691e";ctx.font="900 "+(layout.compact?17:22)+"px system-ui";ctx.fillText(hudText("СТАДИЯ ","STAGE ")+P.stage+" / "+RUN_STAGES,cx,q.y+29,q.w-16);
+    ctx.fillStyle=INK;ctx.font="700 11px system-ui";ctx.fillText(hudText("НОВАЯ ВОЛНА","NEW WAVE"),cx,q.y+49,q.w-16);ctx.restore();
   }
   radar(); ultGauge(); syncHUD();
 }
 function ultGauge() {
-  const cx = W / 2, cy = H - 46, R = 27;
+  const cx = W / 2, cy = H - 46 - arenaHUDLayout().bottom, R = 27;
   const f = ult.charge / ULT_FULL, ready = f >= 1;
   ctx.save();
   if(empoweredUlt()){
@@ -11479,12 +11592,13 @@ function ultGauge() {
 }
 
 let radarNear=false;
-function radarLayout(){const size=Math.min(112,W*.28);return {x:W-size-12,y:hudHeight()+10,size,range:radarNear?680:WORLD};}
+function radarLayout(){return {...arenaHUDLayout().radar,range:radarNear?680:WORLD};}
 function radarPoint(x,y){const m=radarLayout(),s=m.size/m.range;return {x:m.x+(radarNear?(x-P.x)*s+m.size/2:x*s),y:m.y+(radarNear?(y-P.y)*s+m.size/2:y*s)};}
 function radarConsumesPointer(e){const r=cv.getBoundingClientRect(),m=radarLayout(),x=e.clientX-r.left,y=e.clientY-r.top;return running&&!paused&&x>=m.x&&x<=m.x+m.size&&y>=m.y&&y<=m.y+m.size;}
 function toggleRadar(){if(!running||paused||ult.on||bossLootLocked()||(typeof Playables!=='undefined'&&Playables.blocked))return false;radarNear=!radarNear;pointer.active=false;syncRadarButton();return true;}
 function radarPointerDown(e){if(!radarConsumesPointer(e))return false;e.preventDefault?.();e.stopImmediatePropagation?.();toggleRadar();return true;}
-function syncRadarButton(){const b=document.getElementById('radarToggle');if(!b)return;b.classList.toggle('hidden',!running||paused);b.style.top=radarLayout().y+'px';b.style.borderRadius=radarNear?'50%':'6px';b.setAttribute('aria-pressed',String(radarNear));b.setAttribute('aria-label',bossText(radarNear?'Радар рядом. Нажми: вся карта':'Вся карта. Нажми: радар рядом',radarNear?'Nearby radar. Press for full map':'Full map. Press for nearby radar'));}
+let radarButtonKey='';
+function syncRadarButton(){const b=document.getElementById('radarToggle');if(!b)return;const m=radarLayout(),label=bossText(radarNear?'Радар рядом. Нажми: вся карта':'Вся карта. Нажми: радар рядом',radarNear?'Nearby radar. Press for full map':'Full map. Press for nearby radar'),key=[running,paused,radarNear,m.x,m.y,m.size,label].join('|');if(key===radarButtonKey)return;radarButtonKey=key;b.classList.toggle('hidden',!running||paused);b.style.left=m.x+'px';b.style.right='auto';b.style.top=m.y+'px';b.style.width=b.style.height=m.size+'px';b.style.borderRadius=radarNear?'50%':'6px';b.setAttribute('aria-pressed',String(radarNear));b.setAttribute('aria-label',label);}
 const radarButton=document.getElementById('radarToggle');
 radarButton?.addEventListener('pointerdown',e=>{e.stopPropagation();pointer.active=false;});
 radarButton?.addEventListener('pointermove',e=>{e.stopPropagation();pointer.active=false;});
@@ -11493,7 +11607,8 @@ function radar(){
  const m=radarLayout(),{x,y,size:S}=m,g=ctx;
  const outline=()=>{g.beginPath();if(radarNear)g.arc(x+S/2,y+S/2,S/2,0,Math.PI*2);else g.roundRect(x,y,S,S,7);};
  g.save();g.fillStyle='#f8efd9';g.strokeStyle='#77664b';g.lineWidth=2.2;outline();g.fill();g.stroke();outline();g.clip();
- const dot=(o,color,r=2,diamond=false)=>{const p=radarPoint(o.x,o.y);if(p.x<x-8||p.x>x+S+8||p.y<y-8||p.y>y+S+8)return;g.fillStyle=color;g.save();g.translate(p.x,p.y);if(diamond)g.rotate(Math.PI/4);g.fillRect(-r,-r,r*2,r*2);g.restore();};
+ const scale=S/m.range,originX=x+(radarNear?S/2-P.x*scale:0),originY=y+(radarNear?S/2-P.y*scale:0);
+ const dot=(o,color,r=2,diamond=false)=>{const px=originX+o.x*scale,py=originY+o.y*scale;if(px<x-8||px>x+S+8||py<y-8||py>y+S+8)return;g.fillStyle=color;if(!diamond){g.fillRect(px-r,py-r,r*2,r*2);return;}g.save();g.translate(px,py);g.rotate(Math.PI/4);g.fillRect(-r,-r,r*2,r*2);g.restore();};
  for(const o of props)dot(o,'#a7ad87',radarNear?Math.max(2,o.r*S/m.range*.6):1.2);
  if(radarNear){g.strokeStyle='#c9b98f';g.lineWidth=.7;g.beginPath();g.arc(x+S/2,y+S/2,S*.26,0,7);g.stroke();}
  else{const p=radarPoint(cam.x,cam.y);g.strokeStyle='#bba779';g.lineWidth=1;g.strokeRect(p.x,p.y,W*S/WORLD,H*S/WORLD);}
@@ -11610,7 +11725,7 @@ pauseBtn.addEventListener("pointerenter", () => { pointer.active = false; });
 // тап по шкале ульты тоже запускает её
 cv.addEventListener("pointerdown", e => {
   const r = cv.getBoundingClientRect();
-  if (Math.hypot(e.clientX - r.left - W / 2, e.clientY - r.top - (H - 46)) < 34 && ultReady()) {
+  if (Math.hypot(e.clientX - r.left - W / 2, e.clientY - r.top - (H - 46 - arenaHUDLayout().bottom)) < 34 && ultReady()) {
     pointer.active = false; startUlt();
   }
 });
@@ -11721,7 +11836,7 @@ document.getElementById("btnRestart").onclick = () => {
 
 cv.addEventListener("pointerdown", e => {
   const r = cv.getBoundingClientRect();
-  if (Math.hypot(e.clientX - r.left - W / 2, e.clientY - r.top - (H - 46)) < 34 && ultReady()) {
+  if (Math.hypot(e.clientX - r.left - W / 2, e.clientY - r.top - (H - 46 - arenaHUDLayout().bottom)) < 34 && ultReady()) {
     pointer.active = false; startUlt();
   }
 });
@@ -11757,7 +11872,7 @@ petBadge.addEventListener("pointerdown", e => {
   SFX.petVoice?.(p.type,p.x);
 });
 
-let lastItem = "x", lastItemLanguage = "", lastInventory = "";
+let lastItem = "x", lastItemLanguage = "", lastInventory = "", lastControls = "", lastAbilityControls = "";
 function syncHUD() {
   syncRadarButton();
   const itemLanguage=typeof uiLanguage==='undefined'?'ru':uiLanguage;
@@ -11769,6 +11884,8 @@ function syncHUD() {
     if (P.item) drawItemIcon(ig, P.item, 18, 18, 1.35);
     useName.textContent = P.item ? ITEMS[P.item].name : hudText("пусто","empty");
   }
+  const controlsKey=[running,paused,ult.on,P.stage,P.runWon,DRAGON_ADMIN_ENABLED].join('|');
+  if(controlsKey!==lastControls){lastControls=controlsKey;
   pauseBtn.style.display = running ? "flex" : "none";
   devLvl.style.display = running&&DRAGON_ADMIN_ENABLED ? "block" : "none";
   devStage.style.display=running&&DRAGON_ADMIN_ENABLED?'block':'none';
@@ -11780,10 +11897,14 @@ function syncHUD() {
   devDragon.style.display = running&&DRAGON_ADMIN_ENABLED ? "block" : "none";
   devCompass.style.display = running&&DRAGON_ADMIN_ENABLED ? 'block' : 'none';
   abilityDock.classList.toggle("hidden", !running);
+  }
   const available=abilityMenuAvailable();
   if(!available&&P.abilityMenuOpen)setAbilityMenuOpen(false);
-  abilityPanel.hidden=!P.abilityMenuOpen;abilityToggle.disabled=!available;
-  abilityToggle.setAttribute('aria-expanded',String(!!P.abilityMenuOpen));
+  const abilityControls=[available,!!P.abilityMenuOpen].join('|');
+  if(abilityControls!==lastAbilityControls){lastAbilityControls=abilityControls;
+    abilityPanel.hidden=!P.abilityMenuOpen;abilityToggle.disabled=!available;
+    abilityToggle.setAttribute('aria-expanded',String(!!P.abilityMenuOpen));
+  }
   const invKey = ABILITY_KEYS.map(k => inventory[k]).join(",") + ":" + running + ":" + paused+':'+available+':'+uiLanguage;
   if (invKey !== lastInventory) {
     lastInventory = invKey;

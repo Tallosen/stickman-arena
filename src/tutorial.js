@@ -49,10 +49,13 @@ function tutorialContext(){
 }
 function tutorialBounds(target){
  const width=innerWidth,height=innerHeight;
+ if((target==='health'||target==='timer')&&typeof topHUDLayout==='function'){
+  const q=topHUDLayout(width)[target==='health'?'left':'right'];return {left:q.x,top:q.y,width:q.w,height:q.h};
+ }
  if(target==="hero")return {left:width/2-42,top:height/2-55,width:84,height:100};
  if(target==="health")return {left:8,top:8,width:Math.min(264,width*.57),height:54};
  if(target==="timer")return {left:width-150,top:8,width:138,height:54};
- if(target==="ultimate")return {left:width/2-36,top:height-84,width:72,height:72};
+ if(target==="ultimate")return {left:width/2-36,top:height-82-(typeof hudSafeArea==='undefined'?0:hudSafeArea.bottom),width:72,height:72};
  const el=document.getElementById(target);if(!el||!el.getClientRects().length)return null;
  const b=el.getBoundingClientRect();if(!b.width||!b.height||b.top>=height||b.left>=width||b.top+b.height<=0)return null;
  const left=Math.max(6,b.left),top=Math.max(6,b.top);

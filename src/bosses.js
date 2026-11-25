@@ -475,12 +475,14 @@ function drawBossNight(g){
 }
 function drawBossHUD(g){
  const e=stageBoss?.enemy;if(!e||e.hp<=0)return;
+ if(typeof arenaHUDLayout==='function'&&arenaHUDLayout().landscape&&['reward','menu'].includes(hudNoticePriority()))return;
  const enraged=e.bossSpec.stage>=15&&e.hp<e.maxhp*.55;
  const dockInset=typeof abilityDockInset==='number'?abilityDockInset:0;
- const width=Math.min(340,W-32),x=(W-width)/2,y=H<450?66:H-236-dockInset;
+ const box=typeof arenaHUDLayout==='function'?arenaHUDLayout().boss:{w:Math.min(340,W-32),x:(W-Math.min(340,W-32))/2,y:H<450?66:H-236-dockInset};
+ const {w:width,x,y}=box;
  g.save();g.fillStyle='#211e35';g.strokeStyle=enraged?'#f0a768':'#b99ad4';g.lineWidth=enraged?2.5:1.5;g.beginPath();g.roundRect(x,y,width,42,9);g.fill();g.stroke();
  g.fillStyle=e.vulnerableT>0?'#ffe09a':'#fff0ce';g.textAlign='center';g.font='800 12px system-ui';
- g.fillText(e.vulnerableT>0?bossWindowLabel(e)+bossText(' · УРОН +40%',' · DAMAGE +40%'):bossName(stageBoss.spec)+' · '+Math.ceil(e.hp)+' / '+e.maxhp,W/2,y+16,width-18);
+ g.fillText(e.vulnerableT>0?bossWindowLabel(e)+bossText(' · УРОН +40%',' · DAMAGE +40%'):bossName(stageBoss.spec)+' · '+Math.ceil(e.hp)+' / '+e.maxhp,x+width/2,y+16,width-18);
  g.fillStyle='#53415e';g.fillRect(x+10,y+25,width-20,7);g.fillStyle=enraged?'#e99756':e.bossSpec.color;g.fillRect(x+10,y+25,(width-20)*Math.max(0,e.hp/e.maxhp),7);
  if(e.vulnerableT>0){g.fillStyle='#ffe09a';g.fillRect(x+10,y+36,(width-20)*Math.min(1,e.vulnerableT/e.vulnerableDuration),2);}
  g.restore();
@@ -691,13 +693,16 @@ document.getElementById('bossReward')?.addEventListener('keydown',event=>{
  }
 });
 function drawBossArrival(g){
+ if(typeof hudNoticePriority==='function'&&hudNoticePriority()!=='boss')return;
  const e=stageBoss?.enemy;if(!e||e.hp<=0)return;
  const entry=e.entryAge<2300,phase=(e.phaseBanner||0)>0;if(!entry&&!phase)return;
  const clock=entry?e.entryAge:2400-e.phaseBanner,alpha=Math.min(1,clock/220,(entry?2300-clock:2400-clock)/400);
- const w=Math.min(340,W-24),x=(W-w)/2,y=Math.min(148,H*.25);
+ const box=typeof arenaHUDLayout==='function'?arenaHUDLayout().notice:{w:Math.min(340,W-24),x:(W-Math.min(340,W-24))/2,y:Math.min(148,H*.25)};
+ const {w,x,y}=box;
  g.save();g.globalAlpha=Math.max(0,alpha);g.fillStyle='#2d2940';g.strokeStyle=phase?'#efb468':'#b89e7b';g.lineWidth=1.5;
- g.beginPath();g.roundRect(x,y,w,58,12);g.fill();g.stroke();g.fillStyle='#f8e7bd';g.textAlign='center';g.font='800 14px system-ui';g.fillText(bossName(e.bossSpec),W/2,y+23,w-20);
- g.font='11px system-ui';g.fillText(phase?bossText('ВТОРАЯ ФАЗА · НОВАЯ ТАКТИКА','PHASE TWO · NEW TACTICS'):bossText('НОЧЬ · СТАДИЯ ','NIGHT · STAGE ')+P.stage,W/2,y+43,w-20);g.restore();
+ g.beginPath();g.roundRect(x,y,w,78,12);g.fill();g.stroke();g.fillStyle='#f8e7bd';g.textAlign='center';g.font='800 14px system-ui';g.fillText(bossName(e.bossSpec),x+w/2,y+24,w-20);
+ g.font='11px system-ui';g.fillText(phase?bossText('ВТОРАЯ ФАЗА','PHASE TWO'):bossText('НОЧЬ · СТАДИЯ ','NIGHT · STAGE ')+P.stage,x+w/2,y+45,w-20);
+ if(phase)g.fillText(bossText('НОВАЯ ТАКТИКА','NEW TACTICS'),x+w/2,y+63,w-20);g.restore();
 }
 function renderBossResults(newRecord){
  document.getElementById('victoryDragonText').textContent=bossText('Время: ','Time: ')+formatRunTime(P.runMs)+bossText(' · Счёт: ',' · Score: ')+(P.redKills||0)+bossText(' · Боссов: ',' · Bosses: ')+defeatedBossStages.size;
