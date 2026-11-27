@@ -51,6 +51,7 @@ function hudNoticePriority(){
   if(e&&e.hp>0&&(e.entryAge<2300||e.phaseBanner>0))return 'boss';
   if(P.stagePulse>0)return 'stage';
   if(typeof abilityBursts!=='undefined'&&abilityBursts.length)return 'ability';
+  if(typeof caravanInReach==='function'&&caravanInReach())return 'caravan';
   return '';
 }
 function hudWorldLabelRect(cx,cy,width,height=23){
@@ -171,7 +172,8 @@ function hud() {
     const q=layout.notice,cx=q.x+q.w/2;
     ctx.beginPath();ctx.roundRect(q.x,q.y,q.w,68,14);ctx.fill();ctx.stroke();
     ctx.fillStyle="#d2691e";ctx.font="900 "+(layout.compact?17:22)+"px system-ui";ctx.fillText(hudText("СТАДИЯ ","STAGE ")+P.stage+" / "+RUN_STAGES,cx,q.y+29,q.w-16);
-    ctx.fillStyle=INK;ctx.font="700 11px system-ui";ctx.fillText(hudText("НОВАЯ ВОЛНА","NEW WAVE"),cx,q.y+49,q.w-16);ctx.restore();
+    const subtitle=P.stageParts>0?hudText('За стадию: +','Wave cleared: +')+P.stageParts+hudText(' детали',' parts'):hudText('НОВАЯ ВОЛНА','NEW WAVE');
+    ctx.fillStyle=INK;ctx.font="700 11px system-ui";ctx.fillText(subtitle,cx,q.y+49,q.w-16);ctx.restore();
   }
   radar(); ultGauge(); syncHUD();
 }
@@ -236,6 +238,7 @@ function radar(){
  for(const c of chests)dot(c,c.rare?'#9c67bd':'#d9a335',c.elite?4:2.6,true);
  if(typeof allBossLoot==='function')for(const q of allBossLoot())dot(q,'#db9b23',3.8,true);
  if(typeof weaponDelivery!=='undefined'&&['flying','ground'].includes(weaponDelivery?.state))dot(weaponDelivery,'#567f88',4,true);
+ const cart=P.economy?.caravan;if(cart)dot(cart,'#357b70',3.6,true);
  for(const p of pickups)dot(p,BOOSTS[p.kind].col,2);
  for(const q of allyTanks)dot(q,'#3d78bd',2.8);
  for(const q of turrets)dot(q,'#57945c',2);
@@ -494,6 +497,7 @@ petBadge.addEventListener("pointerdown", e => {
 
 let lastItem = "x", lastItemLanguage = "", lastInventory = "", lastControls = "", lastAbilityControls = "";
 function syncHUD() {
+  if(typeof syncCaravanUI==='function')syncCaravanUI();
   syncRadarButton();
   const itemLanguage=typeof uiLanguage==='undefined'?'ru':uiLanguage;
   if (P.item !== lastItem || itemLanguage !== lastItemLanguage) {
@@ -611,6 +615,7 @@ function start() {
 }
 function gameOver() {
   if(typeof runSaveAction==='function'&&!runSaveDepth)return runSaveAction(()=>gameOver(),true);
+  if(typeof settleRunParts==='function')settleRunParts();
   if(typeof recordRunScore==='function')recordRunScore();
   if(typeof refreshRunScoreReceipt==='function')refreshRunScoreReceipt();
   stopGameSounds();SFX.dead();
@@ -654,7 +659,7 @@ function platformGameHooks(){
   let frozenAt=null;
   return {
     initial(){draw();drawArenaMenu(0,true);},
-    suspend(){if(frozenAt===null)frozenAt=performance.now();pointer.active=false;},
+    suspend(){if(frozenAt===null)frozenAt=performance.now();pointer.active=false;if(typeof pauseCampRangeClock==='function')pauseCampRangeClock();},
     resume(){
       const now=performance.now(),elapsed=frozenAt===null?0:now-frozenAt;frozenAt=null;
       last=now;resize();

@@ -22,6 +22,11 @@ function openGameHelp(topic,trigger){
  if((topic==='guide'||topic==='run')&&typeof campText==='function'){
   const h=document.createElement('h3');h.textContent=campText('title');body.appendChild(h);
   for(const key of ['intro','gearHint','cosmetic','trialHint']){const p=document.createElement('p');p.textContent=campText(key);body.appendChild(p);}
+  if(typeof economyWallet==='function'){
+   const p=document.createElement('p');
+   p.textContent=bossText('За пройденную обычную стадию ты получаешь 2 детали, за рюкзак босса — 8. Караван принимает детали из рюкзака. После победы или поражения остаток поступает в мастерскую лагеря.','Each cleared wave earns 2 parts, and a boss backpack holds 8. The caravan accepts parts from your current run. After victory or defeat, the rest go to your camp workshop.');
+   body.appendChild(p);
+  }
  }
  document.getElementById("gameHelp").classList.remove("hidden");document.getElementById("btnCloseHelp").focus({preventScroll:true});
 }

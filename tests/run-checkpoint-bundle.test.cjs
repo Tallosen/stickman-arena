@@ -15,7 +15,9 @@ const tick=async()=>{for(let i=0;i<40;i++)await Promise.resolve();};
 const copy=value=>JSON.parse(JSON.stringify(value));
 const exposed=`window.resumeTest={
  P,inventory,meta,start,gameOver,pauseGame,returnToMainMenu,requestRunRestart,confirmRunRestart,claimBossReward,
+ wallet:economyWallet,buy:buyCaravanItem,build:buyRangeTier,approach:()=>{const c=P.economy.caravan;P.x=c.x;P.y=c.y;bossLootNotices.length=0;P.stagePulse=0;syncHUD();},
  active:()=>({running,paused,userPaused,menuHasRun}),pending:()=>bossRewardPending,
+ defeat:()=>{stageBoss.enemy.hp=0;stageBoss.enemy.rewarded=true;updateRunProgress(0);},
  bags:()=>allBossLoot().map(q=>({stage:q.stage,reward:q.reward})),camp:()=>campProfile,ranking:()=>rankingProfile,
  delivery:()=>weaponDelivery,ultimate:()=>ult.charge,blocked:()=>Playables.blocked,
  checkpoint:()=>validateRunCheckpoint(captureRunCheckpoint()),
@@ -115,7 +117,8 @@ async function exercise(mode){
  a.start();await tick();a.finale();await tick();h=await boot(h.db,mode);a=h.api;assert.equal(a.bags()[0].stage,20);await h.continue();assert(a.collect());await tick();assert.equal(a.pending().stage,20);
  h=await boot(h.db,mode);a=h.api;await h.continue();assert.equal(a.pending().stage,20,'Reload must reopen the unclaimed final choice');
  const reward=a.pending().options.find(o=>o.kind==='supply'),total=a.inventory[reward.key];assert(a.claimBossReward(reward.id));assert.equal(a.claimBossReward(reward.id),false);await tick();assert.equal(a.inventory[reward.key],total+1);
- const wins=a.camp().wins;h=await boot(h.db,mode);a=h.api;assert.equal(a.active().menuHasRun,false,'Victory closes the run');assert.equal(a.inventory[reward.key],total+1);assert.equal(a.camp().wins,wins);assert.equal(a.pending(),null);
+ assert.equal(a.camp().parts,16,'Two collected bags, from the lost and won runs, reach camp');
+ const wins=a.camp().wins;h=await boot(h.db,mode);a=h.api;assert.equal(a.active().menuHasRun,false,'Victory closes the run');assert.equal(a.inventory[reward.key],total+1);assert.equal(a.camp().wins,wins);assert.equal(a.pending(),null);assert.equal(a.camp().parts,16);
  // Confirmed restart replaces the previous checkpoint, without resetting stock.
  a.start();await tick();a.seed();await tick();a.returnToMainMenu();await tick();assert(a.requestRunRestart('menu'));assert(a.confirmRunRestart());await tick();const supply=copy(a.inventory);
  h=await boot(h.db,mode);a=h.api;assert(a.active().menuHasRun);assert.equal(a.P.stage,1);assert.equal(a.P.redKills,0);assert.equal(a.bags().length,0);assert.deepEqual(copy(a.inventory),supply);
@@ -127,6 +130,7 @@ async function exercise(mode){
  h=await boot(new Map(beforeDb),mode);a=h.api;await h.continue();h.fail(true);assert(a.collect());await tick();assert(a.blocked(),'Uncommitted reward must gate further gameplay');
  const failedDb=new Map(h.db),old=await boot(failedDb,mode);assert.equal(old.api.inventory.airstrike,beforeInventory.airstrike);assert.equal(old.api.bags()[0].stage,5,'Failed transaction cannot leave a granted reward with an old checkpoint');
  h.fail(false);await h.retry();assert(!a.blocked());const recovered=await boot(h.db,mode);assert.equal(recovered.api.inventory.airstrike,beforeInventory.airstrike+1);assert.equal(recovered.api.bags().length,0);
+ assert.equal(old.api.wallet(),0);assert.equal(recovered.api.wallet(),8,'Bag and eight parts commit together');
  if(mode==='qa'){
   h=await boot(new Map(beforeDb),mode);a=h.api;await h.continue();a.markTest();await tick();h=await boot(h.db,mode);a=h.api;assert.equal(a.P.testRun,true);await h.continue();a.die();await tick();assert.equal(a.ranking().runs.length,0,'Admin-modified resumed runs remain unranked');
   assert([...h.db.keys()].every(k=>k.startsWith('vacky_qa_v1:')),'QA checkpoints must stay in the QA namespace');
@@ -134,8 +138,32 @@ async function exercise(mode){
  console.log('PASS checkpoint bundle '+mode+': fresh-realm resume, boss/rare rewards, spending, finale, death, restart, airdrop, live boss and save failure');
 }
 
+async function economyJourney(mode){
+ let h=await boot(new Map(),mode),a=h.api;
+ a.start();a.ready();await tick();
+ for(let n=1;n<=4;n++){a.crossStage();await tick();}
+ assert.equal(a.wallet(),8,'Four completed waves fund half the range');
+ a.defeat();await tick();a.ready();assert(a.collect());await tick();assert.equal(a.wallet(),16);
+ h=await boot(h.db,mode);a=h.api;await h.continue();a.approach();assert(!a.buy('invalid'));
+ a.P.hp=a.P.hpMax;assert(!a.buy('heal'),'Full health costs nothing');assert.equal(a.wallet(),16);
+ assert(a.buy('reroll'));assert(!a.buy('reroll'));await tick();
+ h=await boot(h.db,mode);a=h.api;await h.continue();assert.equal(a.wallet(),11);assert.equal(a.P.economy.rerolls,1);
+ a.chooseLevel();await tick();const original=copy(a.levelOffer());const reroll=h.el('levelReroll');
+ assert(!reroll.hidden);reroll.onclick();await tick();assert.equal(a.P.economy.rerolls,0);
+ const offer=copy(a.levelOffer());assert(offer.pick.some(k=>!original.pick.includes(k))||offer.pet!==original.pet);
+ h=await boot(h.db,mode);a=h.api;await h.continue();assert.deepEqual(copy(a.levelOffer()),offer);
+ h.el('cards').children[0].onclick({detail:0});await tick();
+ a.approach();a.P.hp=a.P.hpMax-1;assert(a.buy('heal'));assert.equal(a.P.hp,a.P.hpMax);assert(!a.buy('heal'));assert.equal(a.wallet(),5);
+ await tick();const beforeDeath=new Map(h.db);h.fail(true);a.die();await tick();assert(a.blocked());
+ const old=await boot(new Map(beforeDeath),mode);assert.equal(old.api.camp().parts,0);assert.equal(old.api.wallet(),5);
+ h.fail(false);await h.retry();h=await boot(h.db,mode);a=h.api;assert.equal(a.camp().parts,5);assert(!a.active().running);
+ a.start();a.ready();for(let stage=1;stage<=4;stage++){a.crossStage();await tick();}a.defeat();await tick();assert(a.collect());await tick();
+ a.die();await tick();assert.equal(a.camp().parts,21);assert(a.build(0));assert(!a.build(0),'Stale button cannot buy twice');assert(!a.build(1));await tick();
+ h=await boot(h.db,mode);assert.equal(h.api.camp().parts,5);assert.equal(h.api.camp().rangeTier,1);
+ console.log('PASS economy journey '+mode+': earn, restore stall, buy exactly once, reroll, save failure, settlement and permanent construction');
+}
 (async()=>{
- for(const mode of ['local','qa','playgama'])await exercise(mode);
+ for(const mode of ['local','qa','playgama']){await exercise(mode);await economyJourney(mode);}
  // Real transition hooks, not just test-forced checkpoints. Saving must be
  // event-driven: walking for many frames must not rewrite the cloud record.
  for(const mode of ['local','qa','playgama']){
@@ -153,7 +181,11 @@ async function exercise(mode){
  }
  const valid=await boot();valid.api.start();await tick();valid.api.seed();await tick();
  const baseline=JSON.parse(valid.api.record());
- for(const mutate of [q=>q.player.gear.gun=99,q=>q.player.hp=null,q=>q.pet.type='unknown',q=>q.delivery.weapon='invalid',q=>q.collected=[5],q=>q.clocks.queuedLevels=-1]){
+ const legacy=copy(baseline),camp=copy(valid.api.camp());delete legacy.economy;delete camp.parts;delete camp.rangeTier;delete camp.rangeBest;
+ const migrated=await boot(new Map([[RUN_KEY,JSON.stringify(legacy)],['vacky_arena_camp_v1',JSON.stringify(camp)]]));
+ assert(migrated.api.active().menuHasRun);assert.equal(migrated.api.wallet(),0);assert.equal(migrated.api.camp().parts,0);assert.equal(migrated.api.camp().kills,camp.kills);
+ await migrated.continue();migrated.api.crossStage();await tick();assert.equal(migrated.api.wallet(),2);
+ for(const mutate of [q=>q.player.gear.gun=99,q=>q.player.hp=null,q=>q.pet.type='unknown',q=>q.delivery.weapon='invalid',q=>q.collected=[5],q=>q.clocks.queuedLevels=-1,q=>q.economy.earned=500,q=>q.economy.stages=[1,1]]){
   const q=copy(baseline);mutate(q);const raw=JSON.stringify(q),h=await boot(new Map([[RUN_KEY,raw]]));assert.equal(h.api.active().menuHasRun,false);assert.equal(h.api.record(),raw);
  }
  for(const raw of ['{invalid',JSON.stringify({version:999,active:true})]){

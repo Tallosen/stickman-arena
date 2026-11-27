@@ -527,6 +527,7 @@ function draw() {
   drawMapGround(ctx,L,R,T,B);
   drawBossGround(ctx,L,R,T,B);
   drawArenaSecrets(ctx,L,R,T,B);
+  if(typeof drawCaravan==='function')drawCaravan(ctx);
 
   ctx.lineCap = "round"; ctx.lineJoin = "round";
 

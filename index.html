@@ -357,6 +357,19 @@
 <style>
 #rankingDialog{z-index:90;background:#282c43aa;padding:18px} .ranking-card{box-sizing:border-box;width:min(520px,100%);max-height:90vh;overflow:auto;background:#fff3da;border:2px solid #ac8a51;border-radius:22px;padding:22px;color:#53422d;box-shadow:0 15px 55px #211a2233}.ranking-card h2{margin:0 0 10px}.ranking-card p{font-size:13px;line-height:1.5}.ranking-card table{width:100%;border-collapse:collapse;font-size:14px}.ranking-card td{padding:10px 6px;border-bottom:1px solid #d8c7a7;overflow-wrap:anywhere}.ranking-card td:first-child{color:#b47626;font-weight:800}.ranking-card td:last-child{text-align:right;font-weight:800}.ranking-card footer{display:flex;gap:12px;margin-top:16px}.ranking-card button{flex:1;min-height:44px;border-radius:12px;border:1px solid #b89564;background:#f2dfb6;color:#624626;font-weight:700;cursor:pointer}#radarToggle:focus-visible{outline:3px solid #3d9dbc;outline-offset:3px}
 </style>
+<style>
+.parts-receipt{display:block;color:#356b58;font-size:15px}
+#caravanCounter{position:fixed;z-index:7;box-sizing:border-box;border:2px solid #927a50;border-radius:13px;background:#fff3d9;color:#533e29;padding:7px;box-shadow:0 3px 0 #927a5055;font:700 12px system-ui;text-align:center}
+#caravanCounter[hidden],#levelReroll[hidden],body.sniper-cinematic #caravanCounter,body.dragon-finale #caravanCounter{display:none}
+#caravanCounter>div{display:flex;gap:5px;margin-top:4px}#caravanCounter button,#levelReroll,#btnCampWorkshop{font:700 12px system-ui;min-height:44px;color:#344e42;background:#e3e6ce;border:1px solid #759078;border-radius:9px;cursor:pointer}
+#caravanCounter button{flex:1;min-width:0;padding:2px}#caravanCounter button:disabled{color:#746b59;background:#f3e6cb;border-color:#cab795}
+#levelReroll{padding:5px 18px;flex-shrink:0}#btnCampWorkshop{margin-inline-start:auto;padding:3px 9px}
+.camp-dock header{flex-wrap:wrap}.camp-section-nav{grid-template-columns:repeat(4,minmax(0,1fr))}
+.range-board{width:100%;padding:0;line-height:0;overflow:hidden;border-radius:14px;border:1px solid #b19567;background:#f1e4c8;cursor:crosshair}
+.range-board canvas{width:100%;height:auto;pointer-events:none}.range-board:disabled{opacity:.72;cursor:default}
+.range-status{font-weight:700;color:#476a56;font-variant-numeric:tabular-nums}.range-board:focus-visible{outline:3px solid #d47731}
+@media(max-width:490px){.camp-section-nav{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
 </head>
 <body>
 <div id="platformGate" role="status" aria-live="polite"><strong>VACKY GAMES</strong><div id="platformMessage">Loading game…</div><button id="platformRetry" hidden>Retry</button></div>
@@ -419,7 +432,7 @@
   <p class="menu-camp-hint" data-i18n="campHint">Нажми на героя, собаку, стенд или сундук</p>
   <p id="menuRecord" class="hidden" dir="auto"></p>
   <section id="campDock" class="camp-dock" aria-labelledby="campDockTitle">
-   <header><strong id="campDockTitle">Мой лагерь</strong><span id="campDockProgress"></span></header>
+   <header><strong id="campDockTitle">Мой лагерь</strong><span id="campDockProgress"></span><button id="btnCampWorkshop" type="button" aria-haspopup="dialog" aria-controls="campDialog">Мастерская</button></header>
    <nav class="camp-dock-nav" aria-label="Мой лагерь" id="campDockNav">
     <button id="btnCamp" class="camp-dock-button" aria-haspopup="dialog" aria-controls="campDialog"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M10 7h21v28H9V7h6m2-2h9v6h-9z"/><path d="m14 18 2 2 4-4m-6 10 2 2 4-4m4-6h4m-4 8h4"/></svg><strong id="campMenuLabel">Задания</strong><span class="camp-dock-arrow" aria-hidden="true">›</span></button>
     <button id="btnCampEquipment" class="camp-dock-button" aria-haspopup="dialog" aria-controls="campDialog"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="m13 6 7 4 7-4 9 9-6 5-3-4v19H13V16l-3 4-6-5z"/><path d="M20 11v17m-6-5h12"/></svg><strong id="campEquipmentLabel">Снаряжение</strong><span class="camp-dock-arrow" aria-hidden="true">›</span></button>
@@ -436,8 +449,9 @@
 <div class="menu-settings"><div class="menu-icon-controls"><button type="button" class="language-pill" id="menuLanguagestart" data-language aria-label="Язык / Language" aria-haspopup="dialog" aria-controls="languageDialog" aria-expanded="false"><span aria-hidden="true">🌐</span><span data-language-name>Русский</span></button><button type="button" class="round-setting sound-setting" id="menuSoundstart" data-sound aria-label="Выключить звук" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="sound-waves" d="M16 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/><path class="sound-slash" d="m4 3 17 18"/></svg></button></div></div><p class="menu-language-status" data-language-status role="status"></p>
  </div>
 </div>
+<div id="caravanCounter" hidden aria-live="polite"><strong id="caravanWallet"></strong><div><button id="cart-heal" type="button"></button><button id="cart-reroll" type="button"></button></div></div>
 <div id="levelup" class="overlay hidden">
-  <h2 id="levelTitle">НОВЫЙ УРОВЕНЬ</h2><div class="tag" id="queueTag"></div><div class="cards" id="cards"></div>
+  <h2 id="levelTitle">НОВЫЙ УРОВЕНЬ</h2><div class="tag" id="queueTag"></div><div class="cards" id="cards"></div><button type="button" id="levelReroll" hidden></button>
 </div>
 <div id="pause" class="overlay hidden">
  <button id="settingsLaunchpause" class="settings-launch" type="button" aria-haspopup="dialog" aria-controls="settingsDialog"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3 1-2h4l1 2 3 2 2 1v4l-2 2 1 3-2 3-3-1-2 3H9l-1-3-3-1-2-3 2-3V7l3-1z"/><circle cx="12" cy="11" r="3"/></svg><span data-i18n="settings">Настройки</span></button>
@@ -486,6 +500,7 @@
   <script type="text/vacky-module" src="src/localization.js"></script>
   <script type="text/vacky-module" src="src/config.js"></script>
   <script type="text/vacky-module" src="src/camp-progress.js"></script>
+  <script type="text/vacky-module" src="src/economy.js"></script>
   <script type="text/vacky-module" src="src/map-art.js"></script>
   <script type="text/vacky-module" src="src/arena-secrets.js"></script>
   <script type="text/vacky-module" src="src/pets.js"></script>
@@ -503,6 +518,7 @@
   <script type="text/vacky-module" src="src/arena-ending.js"></script>
   <script type="text/vacky-module" src="src/update.js"></script>
   <script type="text/vacky-module" src="src/cards.js"></script>
+  <script type="text/vacky-module" src="src/caravan.js"></script>
   <script type="text/vacky-module" src="src/draw-hero.js"></script>
   <script type="text/vacky-module" src="src/draw-foe.js"></script>
   <script type="text/vacky-module" src="src/render.js"></script>
@@ -510,6 +526,7 @@
   <script type="text/vacky-module" src="src/menu-help.js"></script>
   <script type="text/vacky-module" src="src/tutorial.js"></script>
   <script type="text/vacky-module" src="src/camp-ui.js"></script>
+  <script type="text/vacky-module" src="src/camp-range.js"></script>
   <script type="text/vacky-module" src="src/admin-ui.js"></script>
   <script type="text/vacky-module" src="src/settings-ui.js"></script>
  <script type="text/vacky-module" src="src/ranking.js"></script>

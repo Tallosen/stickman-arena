@@ -55,6 +55,13 @@ function finishBossLootOpening(){
   if(!grantBossReward(option)){q.error=true;q.retryAt=q.age+1500;return false;}
   remove();bossLootNotices.push(notice);P.hurt=Math.max(P.hurt,1000);SFX.chest?.();
  }
+ if(typeof creditRunParts==='function'){
+  const parts=creditRunParts(q.stage,true);
+  if(parts&&q.stage<20){
+   const notice=bossLootNotices[bossLootNotices.length-1];notice.parts=parts;
+   if(typeof maybeSpawnCaravan==='function')maybeSpawnCaravan(q);
+  }
+ }
  bossLootCollected.add(q.stage);return true;
 }
 function updateBossLootNotice(dt){
@@ -71,7 +78,8 @@ function drawBossLootNotice(g){
  g.beginPath();g.roundRect(x,y,w,116,13);g.fill();g.stroke();
  g.fillStyle='#eedcb4';g.beginPath();g.roundRect(x+9,y+30,38,38,9);g.fill();g.drawImage(n.icon,x+10,y+31,36,36);
  const wrap=(text,xx,yy,width,step)=>{if(typeof hudWrappedText==='function')hudWrappedText(g,text,xx,yy,width,step);else g.fillText(text,xx,yy,width);};
- g.textAlign='left';g.fillStyle='#947035';g.font='800 10px system-ui';g.fillText(n.header||bossText('НАГРАДА БОССА · ','BOSS REWARD · ')+n.stage,x+10,y+18,w-20);
+ const header=n.header||bossText('ТРОФЕЙ · ','TROPHY · ')+n.stage+(n.parts?bossText(' · +8 деталей',' · +8 parts'):'');
+ g.textAlign='left';g.fillStyle='#947035';g.font='800 10px system-ui';g.fillText(header,x+10,y+18,w-20);
  g.fillStyle='#493624';g.font='800 13px system-ui';wrap(n.title,x+54,y+43,w-64,16);
  g.font='700 11px system-ui';g.fillStyle='#72552f';wrap(n.impact||bossText('Все запасы заполнены','All supplies are full'),x+10,y+81,w-20,13);
  g.fillStyle='#88765a';g.font='10px system-ui';g.fillText(n.category,x+10,y+108,w-20);g.restore();

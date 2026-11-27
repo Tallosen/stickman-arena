@@ -357,6 +357,19 @@
 <style>
 #rankingDialog{z-index:90;background:#282c43aa;padding:18px} .ranking-card{box-sizing:border-box;width:min(520px,100%);max-height:90vh;overflow:auto;background:#fff3da;border:2px solid #ac8a51;border-radius:22px;padding:22px;color:#53422d;box-shadow:0 15px 55px #211a2233}.ranking-card h2{margin:0 0 10px}.ranking-card p{font-size:13px;line-height:1.5}.ranking-card table{width:100%;border-collapse:collapse;font-size:14px}.ranking-card td{padding:10px 6px;border-bottom:1px solid #d8c7a7;overflow-wrap:anywhere}.ranking-card td:first-child{color:#b47626;font-weight:800}.ranking-card td:last-child{text-align:right;font-weight:800}.ranking-card footer{display:flex;gap:12px;margin-top:16px}.ranking-card button{flex:1;min-height:44px;border-radius:12px;border:1px solid #b89564;background:#f2dfb6;color:#624626;font-weight:700;cursor:pointer}#radarToggle:focus-visible{outline:3px solid #3d9dbc;outline-offset:3px}
 </style>
+<style>
+.parts-receipt{display:block;color:#356b58;font-size:15px}
+#caravanCounter{position:fixed;z-index:7;box-sizing:border-box;border:2px solid #927a50;border-radius:13px;background:#fff3d9;color:#533e29;padding:7px;box-shadow:0 3px 0 #927a5055;font:700 12px system-ui;text-align:center}
+#caravanCounter[hidden],#levelReroll[hidden],body.sniper-cinematic #caravanCounter,body.dragon-finale #caravanCounter{display:none}
+#caravanCounter>div{display:flex;gap:5px;margin-top:4px}#caravanCounter button,#levelReroll,#btnCampWorkshop{font:700 12px system-ui;min-height:44px;color:#344e42;background:#e3e6ce;border:1px solid #759078;border-radius:9px;cursor:pointer}
+#caravanCounter button{flex:1;min-width:0;padding:2px}#caravanCounter button:disabled{color:#746b59;background:#f3e6cb;border-color:#cab795}
+#levelReroll{padding:5px 18px;flex-shrink:0}#btnCampWorkshop{margin-inline-start:auto;padding:3px 9px}
+.camp-dock header{flex-wrap:wrap}.camp-section-nav{grid-template-columns:repeat(4,minmax(0,1fr))}
+.range-board{width:100%;padding:0;line-height:0;overflow:hidden;border-radius:14px;border:1px solid #b19567;background:#f1e4c8;cursor:crosshair}
+.range-board canvas{width:100%;height:auto;pointer-events:none}.range-board:disabled{opacity:.72;cursor:default}
+.range-status{font-weight:700;color:#476a56;font-variant-numeric:tabular-nums}.range-board:focus-visible{outline:3px solid #d47731}
+@media(max-width:490px){.camp-section-nav{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
 </head>
 <body>
 <div id="platformGate" role="status" aria-live="polite"><strong>VACKY GAMES</strong><div id="platformMessage">Loading game…</div><button id="platformRetry" hidden>Retry</button></div>
@@ -419,7 +432,7 @@
   <p class="menu-camp-hint" data-i18n="campHint">Нажми на героя, собаку, стенд или сундук</p>
   <p id="menuRecord" class="hidden" dir="auto"></p>
   <section id="campDock" class="camp-dock" aria-labelledby="campDockTitle">
-   <header><strong id="campDockTitle">Мой лагерь</strong><span id="campDockProgress"></span></header>
+   <header><strong id="campDockTitle">Мой лагерь</strong><span id="campDockProgress"></span><button id="btnCampWorkshop" type="button" aria-haspopup="dialog" aria-controls="campDialog">Мастерская</button></header>
    <nav class="camp-dock-nav" aria-label="Мой лагерь" id="campDockNav">
     <button id="btnCamp" class="camp-dock-button" aria-haspopup="dialog" aria-controls="campDialog"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M10 7h21v28H9V7h6m2-2h9v6h-9z"/><path d="m14 18 2 2 4-4m-6 10 2 2 4-4m4-6h4m-4 8h4"/></svg><strong id="campMenuLabel">Задания</strong><span class="camp-dock-arrow" aria-hidden="true">›</span></button>
     <button id="btnCampEquipment" class="camp-dock-button" aria-haspopup="dialog" aria-controls="campDialog"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="m13 6 7 4 7-4 9 9-6 5-3-4v19H13V16l-3 4-6-5z"/><path d="M20 11v17m-6-5h12"/></svg><strong id="campEquipmentLabel">Снаряжение</strong><span class="camp-dock-arrow" aria-hidden="true">›</span></button>
@@ -436,8 +449,9 @@
 <div class="menu-settings"><div class="menu-icon-controls"><button type="button" class="language-pill" id="menuLanguagestart" data-language aria-label="Язык / Language" aria-haspopup="dialog" aria-controls="languageDialog" aria-expanded="false"><span aria-hidden="true">🌐</span><span data-language-name>Русский</span></button><button type="button" class="round-setting sound-setting" id="menuSoundstart" data-sound aria-label="Выключить звук" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="sound-waves" d="M16 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/><path class="sound-slash" d="m4 3 17 18"/></svg></button></div></div><p class="menu-language-status" data-language-status role="status"></p>
  </div>
 </div>
+<div id="caravanCounter" hidden aria-live="polite"><strong id="caravanWallet"></strong><div><button id="cart-heal" type="button"></button><button id="cart-reroll" type="button"></button></div></div>
 <div id="levelup" class="overlay hidden">
-  <h2 id="levelTitle">НОВЫЙ УРОВЕНЬ</h2><div class="tag" id="queueTag"></div><div class="cards" id="cards"></div>
+  <h2 id="levelTitle">НОВЫЙ УРОВЕНЬ</h2><div class="tag" id="queueTag"></div><div class="cards" id="cards"></div><button type="button" id="levelReroll" hidden></button>
 </div>
 <div id="pause" class="overlay hidden">
  <button id="settingsLaunchpause" class="settings-launch" type="button" aria-haspopup="dialog" aria-controls="settingsDialog"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3 1-2h4l1 2 3 2 2 1v4l-2 2 1 3-2 3-3-1-2 3H9l-1-3-3-1-2-3 2-3V7l3-1z"/><circle cx="12" cy="11" r="3"/></svg><span data-i18n="settings">Настройки</span></button>
@@ -2424,7 +2438,7 @@ HELP_EN.run.text[4]='Rare chests grant an airstrike, toxic fog or tank charge. T
 "use strict";
 /* Версия проекта. Меняется здесь и только здесь — дальше сама
    расходится в заголовок вкладки, на стартовый экран и в имя сборки. */
-const VERSION = "0.208";
+const VERSION = "0.209";
 function gameText(ru,en){return typeof uiLanguage==='undefined'||uiLanguage==='ru'?ru:en;}
 // Renderer defaults also work in isolated tests without the settings UI module.
 function visualFX(key){return typeof visualSettings==='undefined'?key==='shake':visualSettings[key];}
@@ -2664,7 +2678,7 @@ const CAMP_GOALS=[
  {id:'clean',target:1,value:p=>p.clean,reward:'lantern'},
  {id:'trial',target:1,value:p=>Object.keys(p.trialWins).length,reward:'ember'}
 ];
-function blankCamp(){return {version:1,kills:0,bosses:0,stage:0,wins:0,shotgunStage:0,clean:0,bossTypes:[],trialWins:{},best:{},weapon:'basic',style:'classic',trial:'normal'};}
+function blankCamp(){return {version:1,kills:0,bosses:0,stage:0,wins:0,shotgunStage:0,clean:0,bossTypes:[],trialWins:{},best:{},weapon:'basic',style:'classic',trial:'normal',parts:0,rangeTier:0,rangeBest:0};}
 let campReadOnly=false,campSaveError=false;
 const campStore=()=>typeof Playables==='undefined'?localStorage:Playables.storage;
 function loadCamp(){
@@ -2680,6 +2694,10 @@ function loadCamp(){
   const s=JSON.parse(raw);if(!s||s.version!==1||Array.isArray(s))throw Error('Unknown camp profile');
   for(const k of ['kills','bosses','stage','wins','shotgunStage','clean']){
    if(!Number.isSafeInteger(s[k])||s[k]<0)throw Error('Invalid camp count');p[k]=Math.min(1e9,s[k]);
+  }
+  for(const [key,max] of [['parts',1e9],['rangeTier',2],['rangeBest',1000]]){
+   if(!Object.hasOwn(s,key))continue;
+   if(!Number.isSafeInteger(s[key])||s[key]<0||s[key]>max)throw Error('Invalid workshop');p[key]=s[key];
   }
   p.stage=Math.min(20,p.stage);p.shotgunStage=Math.min(20,p.shotgunStage);
   const record=o=>o!==null&&typeof o==='object'&&!Array.isArray(o);
@@ -2789,6 +2807,59 @@ function drawCampMilestones(g,time){
   const x=843+i*15;g.fillStyle='#e4b855';g.beginPath();g.moveTo(x,269);g.lineTo(x+4,277);g.lineTo(x,285);g.lineTo(x-4,277);g.closePath();g.fill();g.stroke();
  }
  g.restore();
+}
+
+/* ===== economy.js ===== */
+"use strict";
+const ECONOMY_PRICES = {heal:6, reroll:5, range:[16,40]};
+function freshRunEconomy(){
+  return {earned:0,spent:0,rerolls:0,banked:0,settled:false,stages:[],bags:[],caravan:null};
+}
+function validateRunEconomy(e){
+  const validSources=(list,allowed)=>Array.isArray(list)&&list.length<=allowed.length&&new Set(list).size===list.length&&list.every(n=>allowed.includes(n));
+  const waves=Array.from({length:20},(_,i)=>i+1).filter(n=>n%5!==0);
+  if(!e||!validSources(e.stages,waves)||!validSources(e.bags,[5,10,15,20])||
+     e.earned!==e.stages.length*2+e.bags.length*8||!Number.isSafeInteger(e.spent)||e.spent<0||e.spent>e.earned||
+     !Number.isInteger(e.rerolls)||e.rerolls<0||e.rerolls>3||e.rerolls*5>e.spent||e.settled!==false||e.banked!==0)throw Error('Invalid parts ledger');
+  const c=e.caravan;
+  if(c!==null&&(!c||![5,10,15].includes(c.stage)||!e.bags.includes(c.stage)||!Number.isFinite(c.x)||!Number.isFinite(c.y)||
+    c.x<0||c.x>WORLD||c.y<0||c.y>WORLD||typeof c.heal!=='boolean'||typeof c.reroll!=='boolean'))throw Error('Invalid caravan');
+}
+function economyWallet(){const e=P.economy;return e&&!e.settled?e.earned-e.spent:0;}
+function economyCampBalance(){return campProfile.parts;}
+function economyRangeTier(){return campProfile.rangeTier;}
+function creditRunParts(stage,bag=false){
+  const e=P.economy;
+  if(!e||e.settled||P.testRun&&!campTestProgressAllowed())return 0;
+  const events=bag?e.bags:e.stages;
+  if(events.includes(stage))return 0;
+  events.push(stage);
+  const amount=bag?8:2;e.earned+=amount;
+  return amount;
+}
+function settleRunParts(){
+  const e=P.economy;if(!e||e.settled)return;
+  const amount=P.testRun&&!campTestProgressAllowed()?0:economyWallet();
+  const previous=campDraft||campProfile,next={...previous};
+  if(amount&&!campReadOnly){
+    next.parts=Math.min(1e9,next.parts+amount);
+    if(!saveCamp(next))campDraft=next;
+    e.banked=next.parts-previous.parts;
+  }
+  e.settled=true;
+}
+function buyRangeTier(expectedTier){
+  if(Playables.blocked||campReadOnly)return false;
+  if(!runSaveDepth&&Playables.storage.transaction)return runSaveAction(()=>buyRangeTier(expectedTier),true);
+  const next=campDraft||campProfile,cost=ECONOMY_PRICES.range[next.rangeTier];
+  if(expectedTier!==next.rangeTier||cost===undefined||next.parts<cost)return false;
+  return saveCamp({...next,parts:next.parts-cost,rangeTier:next.rangeTier+1});
+}
+function recordRangeBest(hits){
+  if(!Number.isSafeInteger(hits)||hits<1||hits>1000||Playables.blocked||campReadOnly)return false;
+  if(!runSaveDepth&&Playables.storage.transaction)return runSaveAction(()=>recordRangeBest(hits),true);
+  const next=campDraft||campProfile;
+  return hits>next.rangeBest&&saveCamp({...next,rangeBest:hits});
 }
 
 /* ===== map-art.js ===== */
@@ -4929,6 +5000,8 @@ function reset() {
     gear: Object.fromEntries(GK.map(k => [k, 0])), item: null, pet: null, wtype: "basic",
     dropWeapon:null,dropWeaponMs:0,storedGunLevel:0,laserBeam:null,laserTick:0,beamSoundT:0,
   });
+  if(typeof freshRunEconomy==='function')P.economy=freshRunEconomy();
+  P.stageParts=0;
   turrets = []; eggs = []; chicks = []; pendingPet = null; lastPetRoll = null; queuedLevels = 0;
   enemies = []; shots = []; orbs = []; puffs = []; pops = [];
   chests = []; mines = []; nades = []; ices = []; booms = []; pickups = []; corpses = [];
@@ -5052,6 +5125,7 @@ function refreshPauseStats(){
  if(typeof uiLabel==="function"){
   document.getElementById("pauseStats").textContent=`${uiLabel("stage")} ${P.stage}/${RUN_STAGES} · ${uiLabel("level")} ${P.lvl} · ${formatRunTime(P.runMs)} · ${uiLabel("defeated")}: ${score}`;
   if(typeof campText==='function')document.getElementById('pauseStats').textContent+='\n'+campText(P.trial||'normal');
+  if(typeof economyWallet==='function')document.getElementById('pauseStats').textContent+=bossText(' · Детали в рюкзаке: ',' · Parts carried: ')+economyWallet();
   return;
  }
  const english=typeof uiLanguage!=="undefined"&&uiLanguage==="en";
@@ -5090,7 +5164,9 @@ function campaignComplete(){return !!P.runWon;}
 function campaignRemaining(){return Math.max(0,(RUN_STAGES-P.stage)*STAGE_MS+stageRemaining());}
 function stageRemaining(){return isBossStage(P.stage)?0:Math.max(0,STAGE_MS-(P.stageMs||0));}
 function formatRunTime(ms){const s=Math.max(0,Math.ceil(ms/1000));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
-function enterRunStage(stage){
+function enterRunStage(stage,parts=0){
+ P.stageParts=parts;
+ if(P.economy?.caravan && stage>=P.economy.caravan.stage+5)P.economy.caravan=null;
  if(typeof requestRunCheckpoint==='function')requestRunCheckpoint();
  P.stage=stage;P.stageMs=0;P.stagePulse=1600;
  spawnT=Math.min(spawnT,stageWave(stage).interval);eliteT=Math.min(eliteT,stageWave(stage).eliteInterval);
@@ -5119,7 +5195,9 @@ function updateRunProgress(dt){
  P.stageMs=(P.stageMs||0)+elapsed;
  // Fractional frame steps can land a few nanoseconds below the boundary.
  while(P.stageMs+1e-6>=STAGE_MS&&P.stage<RUN_STAGES){
-  const remainder=Math.max(0,P.stageMs-STAGE_MS);enterRunStage(P.stage+1);
+  const remainder=Math.max(0,P.stageMs-STAGE_MS);
+  const parts=typeof creditRunParts==='function'?creditRunParts(P.stage):0;
+  enterRunStage(P.stage+1,parts);
   if(isBossStage(P.stage))break;
   P.stageMs=remainder;
  }
@@ -6769,6 +6847,7 @@ function finishArenaVictory(reward=null){
  if(typeof bossLoot!=='undefined'&&bossLoot?.stage===20)return false;
  if(bossRewardPending?.stage===20)return false;
  if(P.runWon||P.stage!==20||!BOSS_SPECS.every(s=>defeatedBossStages.has(s.stage)))return false;
+ if(typeof settleRunParts==='function')settleRunParts();
  P.runWon=true;running=false;paused=false;userPaused=false;pointer.active=false;queuedLevels=0;
  ult.on=false;ult.zoom=1;ult.rot=0;ult.lift=0;bossMarks=[];bossProjectiles=[];dragonAssist=null;
  document.body.classList.remove('sniper-cinematic','dragon-finale');document.getElementById('levelup')?.classList.add('hidden');
@@ -7049,6 +7128,13 @@ function finishBossLootOpening(){
   if(!grantBossReward(option)){q.error=true;q.retryAt=q.age+1500;return false;}
   remove();bossLootNotices.push(notice);P.hurt=Math.max(P.hurt,1000);SFX.chest?.();
  }
+ if(typeof creditRunParts==='function'){
+  const parts=creditRunParts(q.stage,true);
+  if(parts&&q.stage<20){
+   const notice=bossLootNotices[bossLootNotices.length-1];notice.parts=parts;
+   if(typeof maybeSpawnCaravan==='function')maybeSpawnCaravan(q);
+  }
+ }
  bossLootCollected.add(q.stage);return true;
 }
 function updateBossLootNotice(dt){
@@ -7065,7 +7151,8 @@ function drawBossLootNotice(g){
  g.beginPath();g.roundRect(x,y,w,116,13);g.fill();g.stroke();
  g.fillStyle='#eedcb4';g.beginPath();g.roundRect(x+9,y+30,38,38,9);g.fill();g.drawImage(n.icon,x+10,y+31,36,36);
  const wrap=(text,xx,yy,width,step)=>{if(typeof hudWrappedText==='function')hudWrappedText(g,text,xx,yy,width,step);else g.fillText(text,xx,yy,width);};
- g.textAlign='left';g.fillStyle='#947035';g.font='800 10px system-ui';g.fillText(n.header||bossText('НАГРАДА БОССА · ','BOSS REWARD · ')+n.stage,x+10,y+18,w-20);
+ const header=n.header||bossText('ТРОФЕЙ · ','TROPHY · ')+n.stage+(n.parts?bossText(' · +8 деталей',' · +8 parts'):'');
+ g.textAlign='left';g.fillStyle='#947035';g.font='800 10px system-ui';g.fillText(header,x+10,y+18,w-20);
  g.fillStyle='#493624';g.font='800 13px system-ui';wrap(n.title,x+54,y+43,w-64,16);
  g.font='700 11px system-ui';g.fillStyle='#72552f';wrap(n.impact||bossText('Все запасы заполнены','All supplies are full'),x+10,y+81,w-20,13);
  g.fillStyle='#88765a';g.font='10px system-ui';g.fillText(n.category,x+10,y+108,w-20);g.restore();
@@ -7710,7 +7797,13 @@ function rollPet() {
   return ty;
 }
 
-function offerCards(savedOffer=null) {
+function canRedrawGear(){
+  if(heroBuildComplete())return false;
+  if(!P.pet)return true;
+  const slots=P.pet.lvl<PET_MAX?3:4;
+  return GK.filter(upgradeableGear).length>slots;
+}
+function offerCards(savedOffer=null,previousOffer=null) {
   if(typeof bossRewardPending!=='undefined'&&bossRewardPending)return;
   if(heroBuildComplete()){
     queuedLevels=0;P.xp=P.xpNext;return;
@@ -7737,6 +7830,10 @@ function offerCards(savedOffer=null) {
   }
 
   if(savedOffer){pick.length=0;pick.push(...savedOffer.pick);}
+  if(previousOffer){
+    const fresh=pool.filter(key=>!previousOffer.pick.includes(key));
+    if(fresh.length&&!pick.some(key=>fresh.includes(key)))pick[0]=fresh[Math.floor(Math.random()*fresh.length)];
+  }
   if(typeof activeLevelOffer!=='undefined')activeLevelOffer={pick:[...pick],pet:pendingPet};
   if(typeof requestRunCheckpoint==='function')requestRunCheckpoint();
   const close = () => {
@@ -7789,9 +7886,83 @@ function offerCards(savedOffer=null) {
   document.getElementById("queueTag").textContent =
     queuedLevels > 1 ? gameText(`ещё уровней в очереди: ${queuedLevels - 1}`,`more levels queued: ${queuedLevels - 1}`) :
     gameText(`ПРОКАЧКА ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · выбери усиление`,`UPGRADES ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · choose a boost`);
+  const reroll=document.getElementById('levelReroll');
+  if(reroll){
+    const tokens=P.economy?.rerolls||0,alternative=pool.some(key=>!pick.includes(key))||!P.pet;
+    reroll.hidden=!tokens||!alternative;reroll.textContent=gameText('Сменить карты','Redraw cards')+' · '+tokens;
+    const offer=typeof activeLevelOffer!=='undefined'?activeLevelOffer:null;
+    reroll.onclick=()=>{
+      if(!offer||offer!==activeLevelOffer||!levelOpen()||!paused||box.cardChoice.accepted||!P.economy.rerolls||Playables.blocked||!alternative)return;
+      runSaveAction(()=>{box.cardChoice.accepted=true;P.economy.rerolls--;offerCards(null,offer);},true);
+    };
+  }
   document.getElementById("levelup").classList.remove("hidden");
 }
 
+
+/* ===== caravan.js ===== */
+"use strict";
+function maybeSpawnCaravan(bag){
+  if(![5,10,15].includes(bag.stage)||P.stage>=bag.stage+5)return;
+  if(bag.stage!==5&&Math.random()>=.5)return;
+  const point=enemyFreePoint(bag.x+76,bag.y-26,24);
+  P.economy.caravan={stage:bag.stage,x:point.x,y:point.y,heal:false,reroll:false};
+}
+function caravanInReach(){
+  const stall=P.economy?.caravan;
+  return !!stall&&running&&!paused&&!ult.on&&!dragonFinale&&!P.abilityMenuOpen&&!bossLootLocked()&&
+    !Playables.blocked&&Math.hypot(P.x-stall.x,P.y-stall.y)<=112;
+}
+function canBuyCaravanItem(kind){
+  return caravanInReach()&&(kind==='heal'||kind==='reroll')&&!P.economy.caravan[kind]&&economyWallet()>=ECONOMY_PRICES[kind]&&
+    (kind==='heal'?P.hp<P.hpMax:canRedrawGear());
+}
+function buyCaravanItem(kind){
+  if(!canBuyCaravanItem(kind)||hudNoticePriority()!=='caravan')return false;
+  if(!runSaveDepth&&Playables.storage.transaction)return runSaveAction(()=>buyCaravanItem(kind),true);
+  P.economy.spent+=ECONOMY_PRICES[kind];P.economy.caravan[kind]=true;
+  if(kind==='heal')P.hp=Math.min(P.hpMax,P.hp+2);else P.economy.rerolls++;
+  pointer.active=false;SFX.chest?.();syncCaravanUI();return true;
+}
+function drawCaravan(g){
+  const stall=P.economy?.caravan;
+  if(!stall||stall.x<cam.x-85||stall.x>cam.x+W+85||stall.y<cam.y-30||stall.y>cam.y+H+95)return;
+  g.save();g.translate(stall.x,stall.y);g.strokeStyle='#594831';g.lineJoin='round';g.lineWidth=2.5;
+  g.fillStyle='#64563a28';g.beginPath();g.ellipse(1,6,44,9,0,0,Math.PI*2);g.fill();
+  const board=(x,y,w,h,r,color)=>{g.beginPath();g.roundRect(x,y,w,h,r);g.fillStyle=color;g.fill();g.stroke();};
+  board(-34,-51,4,48,2,'#bf9561');board(29,-51,4,48,2,'#bf9561');
+  board(-37,-22,74,22,4,'#bf8a51');board(-39,-24,78,5,2,'#edc68a');
+  for(const x of [-24,24]){scircle(g,x,3,9,'#76573d');scircle(g,x,3,4,'#e6bf7c');}
+  for(let i=0;i<6;i++){const x=-39+i*13,color=i%2?'#f1ddb1':'#4a8377';
+    spoly(g,[[x+5,-59],[x+18,-59],[x+13,-46],[x,-46]],color);board(x,-46,13,6,2,color);}
+  if(!stall.heal){board(-28,-36,17,12,2,'#ece0be');g.fillStyle='#a85139';g.fillRect(-21,-34,4,8);g.fillRect(-23,-32,8,4);}
+  if(!stall.reroll){g.save();g.translate(15,-30);g.rotate(-.15);board(-6,-8,12,15,2,'#edcd88');g.fillStyle='#47766b';g.fillRect(-3,-4,6,3);g.restore();}
+  g.restore();
+}
+let caravanDisplayKey='';
+function syncCaravanUI(){
+  const panel=document.getElementById('caravanCounter');if(!panel)return;
+  if(!caravanInReach()||hudNoticePriority()!=='caravan'){if(!panel.hidden)panel.hidden=true;caravanDisplayKey='';return;}
+  const q=arenaHUDLayout().notice,stall=P.economy.caravan;
+  const key=[q.x,q.y,q.w,uiLanguage,economyWallet(),P.hp,P.hpMax,stall.heal,stall.reroll,heroBuildComplete()].join('|');
+  if(key===caravanDisplayKey)return;caravanDisplayKey=key;
+  panel.style.left=q.x+'px';panel.style.top=q.y+'px';panel.style.width=q.w+'px';panel.hidden=false;
+  document.getElementById('caravanWallet').textContent=gameText('Караван · детали: ','Caravan · parts: ')+economyWallet();
+  for(const kind of ['heal','reroll']){
+    const btn=document.getElementById('cart-'+kind),label=kind==='heal'?gameText('Лечение +2','Heal +2'):gameText('Перевыбор','Redraw');
+    btn.textContent=label+' · '+(stall[kind]?'✓':ECONOMY_PRICES[kind]);btn.disabled=!canBuyCaravanItem(kind);
+    btn.title=kind==='heal'?gameText('Восстановить до 2 сердец (F)','Restore up to 2 hearts (F)'):gameText('Сменить карты при повышении уровня (R)','Redraw an upgrade offer (R)');
+  }
+}
+const caravanCounter=document.getElementById('caravanCounter');
+if(caravanCounter){
+  for(const event of ['pointerdown','pointermove'])caravanCounter.addEventListener(event,e=>{e.stopPropagation();pointer.active=false;});
+  for(const kind of ['heal','reroll'])document.getElementById('cart-'+kind).onclick=()=>buyCaravanItem(kind);
+  addEventListener('keydown',e=>{
+    if(caravanCounter.hidden||e.repeat||e.altKey||e.metaKey||e.ctrlKey||!['KeyF','KeyR'].includes(e.code))return;
+    e.preventDefault();buyCaravanItem(e.code==='KeyF'?'heal':'reroll');
+  });
+}
 
 /* ===== draw-hero.js ===== */
 "use strict";
@@ -9359,6 +9530,7 @@ function draw() {
   drawMapGround(ctx,L,R,T,B);
   drawBossGround(ctx,L,R,T,B);
   drawArenaSecrets(ctx,L,R,T,B);
+  if(typeof drawCaravan==='function')drawCaravan(ctx);
 
   ctx.lineCap = "round"; ctx.lineJoin = "round";
 
@@ -9945,6 +10117,7 @@ function menuReact(kind){
  menuReaction={kind,start:menuSceneTime};return true;
 }
 function menuHit(x,y,time=menuSceneTime){
+ if(typeof drawCampRangeStand==='function'&&x>=742&&x<=828&&y>=422&&y<=491)return 'workshop';
  const dog=menuCompanionPose(MENU_COMPANIONS[2],time);
  if(Math.abs(x-dog.x)<49&&y>dog.y-60&&y<dog.y+12)return 'dog';
  const hero=menuHeroPose(time,menuHeroSeed,menuReaction),scale=3+1.4*hero.depth,root=hero.y+80*hero.depth;
@@ -9963,7 +10136,9 @@ if(typeof document!=='undefined'){
  canvas?.addEventListener('pointercancel',()=>{press=null;});
  canvas?.addEventListener('pointerup',e=>{
   const start=press;press=null;if(!start||start.id!==e.pointerId||Math.hypot(e.clientX-start.x,e.clientY-start.y)>8)return;
-  const p=menuPoint(e,canvas.getBoundingClientRect()),kind=menuHit(p.x,p.y);if(kind&&menuReact(kind)){e.preventDefault();e.stopPropagation();}
+  const p=menuPoint(e,canvas.getBoundingClientRect()),kind=menuHit(p.x,p.y);
+  if(kind==='workshop'){e.preventDefault();e.stopPropagation();openCampPanel('campWorkshop');return;}
+  if(kind&&menuReact(kind)){e.preventDefault();e.stopPropagation();}
  });
  canvas?.addEventListener('keydown',e=>{const kind=e.key==='ArrowLeft'?'rack':e.key==='ArrowRight'?'chest':e.key==='Enter'||e.key===' '?'hero':null;if(kind){e.preventDefault();e.stopPropagation();menuReact(kind);}});
 }
@@ -10221,6 +10396,7 @@ function paintArenaCamp(g,w,h,time=0){
  drawMenuCampRewardDetails(g,time,campRewards);
  if(typeof drawCampMilestones==='function')drawCampMilestones(g,time);
  drawMenuScorePlaque(g);
+ if(typeof drawCampRangeStand==='function')drawCampRangeStand(g,785,484,economyRangeTier(),time);
  const hero=menuHeroPose(time,menuHeroSeed,reaction),gear={...MENU_HERO_GEAR,_campStyle:typeof campProfile==='undefined'?'classic':campProfile.style};
  const floor=440+80*hero.depth,scale=3+1.4*hero.depth;
  const pets=MENU_COMPANIONS.map(p=>p.type==='cat'?menuCatPose(time):p.type==='parrot'?menuParrotPose(time,menuHeroSeed,hero):menuCompanionPose(p,time)).map((p,i)=>launch?{...p,x:p.x+(hero.x+(i-2)*35-p.x)*launch*.3}:p).sort((a,b)=>a.y-b.y);
@@ -10296,6 +10472,11 @@ function openGameHelp(topic,trigger){
  if((topic==='guide'||topic==='run')&&typeof campText==='function'){
   const h=document.createElement('h3');h.textContent=campText('title');body.appendChild(h);
   for(const key of ['intro','gearHint','cosmetic','trialHint']){const p=document.createElement('p');p.textContent=campText(key);body.appendChild(p);}
+  if(typeof economyWallet==='function'){
+   const p=document.createElement('p');
+   p.textContent=bossText('За пройденную обычную стадию ты получаешь 2 детали, за рюкзак босса — 8. Караван принимает детали из рюкзака. После победы или поражения остаток поступает в мастерскую лагеря.','Each cleared wave earns 2 parts, and a boss backpack holds 8. The caravan accepts parts from your current run. After victory or defeat, the rest go to your camp workshop.');
+   body.appendChild(p);
+  }
  }
  document.getElementById("gameHelp").classList.remove("hidden");document.getElementById("btnCloseHelp").focus({preventScroll:true});
 }
@@ -10482,7 +10663,8 @@ Object.assign(CAMP_TEXT,{
  trialReward:['Праздничное оформление + цвет плаща «Тлеющий огонь»','Festival decorations + Ember cape colour'],
  campFinale:['Все 8 заданий: павильон чемпиона, золотая корона и праздничные огни. Только внешний вид.','All 8 quests: champion pavilion, golden crown and festive lights. Cosmetic only.']
 });
-const CAMP_SECTIONS=[['campGoals','tasks'],['campEquipment','equipment'],['campTrials','trials']];
+const CAMP_SECTIONS=[['campGoals','tasks'],['campEquipment','equipment'],['campTrials','trials'],['campWorkshop','workshop']];
+CAMP_TEXT.workshop=['Мастерская','Workshop'];
 Object.assign(CAMP_TEXT,{
  equipment:['Арсенал и облик','Arsenal & appearance'],loadout:['Ветка оружия','Weapon branch'],styles:['Облик плаща','Cape appearance'],
  gearHint:['Выбери путь развития. Каждый забег — с простой формы, затем 4 улучшения. Выбор действует со следующего забега.','Choose an evolution path. Every run starts simple, followed by 4 upgrades. Applies to the next run.'],
@@ -10522,6 +10704,7 @@ function fireArsenalPreview(button,now=performance.now()){
  soundCue(sound,null,.75);drawArsenalPreview(now,true);return true;
 }
 function drawArsenalPreview(now=0,force=false){
+ if(campPanelActive&&campActiveSection==='campWorkshop'&&typeof tickCampRange==='function'){tickCampRange(now,force);return;}
  if(!campPanelActive||campActiveSection!=='campEquipment'||(typeof Playables!=='undefined'&&Playables.blocked))return;
  if(campEquipmentView==='appearance'){drawCampStylePreview(now,force);return;}
  const canvas=document.getElementById('arsenalPreview');if(!canvas||(!force&&now-arsenalPreviewLast<33))return;arsenalPreviewLast=now;
@@ -10603,6 +10786,7 @@ function refreshCampMenu(){
  document.getElementById('campEquipmentLabel').textContent=campText('equipment');
  document.getElementById('campTrialsLabel').textContent=campText('trials');
  document.getElementById('campDockProgress').textContent=CAMP_GOALS.filter(g=>campUnlocked(g.id)).length+'/8 '+campText('earned');
+ if(typeof refreshRangeDock==='function')refreshRangeDock();
  document.getElementById('campNextGoal').textContent=campGoalText(campNextGoal());
  document.getElementById('campMenuStatus').textContent=campStatus();
  const weaponName=w=>campText(w==='shotgun'?'shotgunWeapon':w);
@@ -10620,16 +10804,18 @@ function openCampPanel(section='campGoals'){
  campActiveSection=CAMP_SECTIONS.some(([id])=>id===section)?section:'campGoals';
  document.getElementById('campDialog').classList.remove('hidden');renderCampPanel();
  document.getElementById('campPanel').scrollTop=0;
- if(['campEquipment','campTrials'].includes(section)){
+ if(['campEquipment','campTrials','campWorkshop'].includes(section)){
   document.getElementById(section)?.focus({preventScroll:true});
  }else document.getElementById('campTitle').focus({preventScroll:true});return true;
 }
 function switchCampSection(section){
  if(!campPanelActive||!CAMP_SECTIONS.some(([id])=>id===section)||(typeof Playables!=='undefined'&&Playables.blocked))return false;
+ if(campActiveSection==='campWorkshop'&&section!==campActiveSection&&typeof leaveCampRange==='function')leaveCampRange();
  campActiveSection=section;renderCampPanel();document.getElementById('campPanel').scrollTop=0;
  document.getElementById('campNav-'+section)?.focus({preventScroll:true});return true;
 }
 function closeCampPanel(){
+ if(typeof leaveCampRange==='function')leaveCampRange();
  arsenalPreviewShot=null;campPanelActive=false;document.getElementById('campDialog').classList.add('hidden');
  campReturnFocus?.focus?.({preventScroll:true});campReturnFocus=null;menuScenePainted=false;
 }
@@ -10649,7 +10835,7 @@ function renderCampPanel(){
  for(const [id,key] of CAMP_SECTIONS){
   const button=campNode('button',campText(key));button.id='campNav-'+id;button.type='button';
   button.setAttribute('aria-pressed',String(id===campActiveSection));button.setAttribute('aria-controls','campSectionContent');
-  button.onclick=()=>switchCampSection(id);nav.appendChild(button);
+  button.onclick=()=>{if(document.getElementById(button.id)===button)switchCampSection(id);};nav.appendChild(button);
  }
  const warning=campNode('p',campStatus(),'camp-save-warning');warning.setAttribute('role','status');root.appendChild(warning);
  if(campSaveError&&!campReadOnly){
@@ -10731,6 +10917,9 @@ function renderCampPanel(){
  }
  if(!campUnlocked('clear'))content.appendChild(campNode('p',campText('trialGate'),'camp-footnote'));
  }
+ if(campActiveSection==='campWorkshop'&&typeof renderCampRange==='function'){
+  heading('campWorkshop',campText('workshop'));renderCampRange(content);
+ }
  if(focusedId)document.getElementById(focusedId)?.focus({preventScroll:true});
  if(panel)panel.scrollTop=scroll;
 }
@@ -10757,6 +10946,9 @@ function requestRunRestart(origin){
  runRestartRequest={owner:P.campRun,focus:document.activeElement};pointer.active=false;
  document.getElementById('runConfirmTitle').textContent=campText('restartTitle');
  document.getElementById('runConfirmHint').textContent=campText('restartHint');
+ if(typeof economyWallet==='function'&&economyWallet()>0){
+   document.getElementById('runConfirmHint').textContent+=bossText(' Сбросятся детали этого забега: ',' Parts from this run will be lost: ')+economyWallet()+'.';
+ }
  document.getElementById('runConfirmStats').textContent=campText('stats').split(' / ')[0]+' '+P.stage+'/20 · '+formatRunTime(P.runMs);
  document.getElementById('btnCancelNewRun').textContent=campText('restartCancel');document.getElementById('btnConfirmNewRun').textContent=campText('restartAccept');
  document.getElementById('runConfirm').classList.remove('hidden');document.getElementById('btnCancelNewRun').focus({preventScroll:true});return true;
@@ -10773,6 +10965,11 @@ function confirmRunRestart(){
 }
 function renderCampResult(id){
  const root=document.getElementById(id);if(!root)return;root.innerHTML='';
+ if(P.economy?.settled){
+   const {earned,spent,banked}=P.economy;
+   root.appendChild(campNode('strong',bossText('В лагерь доставлено: ','Delivered to camp: ')+'+'+banked+bossText(' дет.',' parts'),'parts-receipt'));
+   if(spent)root.appendChild(campNode('p',bossText('Собрано: ','Found: ')+earned+bossText(' · Потрачено у каравана: ',' · Spent at caravan: ')+spent,'camp-explainer'));
+ }
  root.appendChild(campNode('strong',P.testRun?campText('test'):campStatus()?campText('journal'):campText('saved')));
  root.appendChild(campNode('p',campText(P.trial||'normal'),'camp-explainer'));
  if(P.testRun)return;
@@ -10805,6 +11002,7 @@ function initCampUI(){
  document.getElementById('btnCamp').onclick=()=>openCampPanel('campGoals');
  document.getElementById('btnCampEquipment').onclick=()=>openCampPanel('campEquipment');
  document.getElementById('btnCampTrials').onclick=()=>openCampPanel('campTrials');
+ const workshop=document.getElementById('btnCampWorkshop');if(workshop)workshop.onclick=()=>openCampPanel('campWorkshop');
  document.getElementById('btnCloseCamp').onclick=closeCampPanel;
  document.getElementById('campDialog').addEventListener('click',e=>{if(e.target===e.currentTarget)closeCampPanel();});
  document.getElementById('btnOverMenu').onclick=showCampAfterRun;
@@ -10815,6 +11013,7 @@ function initCampUI(){
  document.addEventListener('keydown',e=>{
   if(!campPanelActive)return;e.stopPropagation();
   if(e.key==='Escape'||e.code==='Escape'){e.preventDefault();closeCampPanel();return;}
+  if(campActiveSection==='campWorkshop'&&typeof handleCampRangeKey==='function'&&handleCampRangeKey(e))return;
   if(e.key!=='Tab')return;
   const dialog=document.getElementById('campDialog'),nodes=[...dialog.querySelectorAll('button:not(:disabled)')],first=nodes[0],last=nodes[nodes.length-1];
   if(!nodes.length)return;
@@ -10823,6 +11022,111 @@ function initCampUI(){
   else if(!e.shiftKey&&(document.activeElement===last||entering)){e.preventDefault();first.focus();}
  },true);
  refreshCampMenu();
+}
+
+/* ===== camp-range.js ===== */
+"use strict";
+const RANGE_DURATION=20000;
+let rangeSession=null,rangeBoard=null;
+function refreshRangeDock(){
+  const b=document.getElementById('btnCampWorkshop');
+  if(b)b.textContent=gameText('Мастерская · ','Workshop · ')+economyCampBalance()+gameText(' дет.',' parts');
+}
+function leaveCampRange(){rangeSession=null;rangeBoard=null;}
+function pauseCampRangeClock(){if(rangeSession)rangeSession.last=null;}
+document.addEventListener('visibilitychange',pauseCampRangeClock);
+function newRangeSession(){
+  return {playing:false,finished:false,elapsed:0,hits:0,shots:0,last:null,lastPaint:-Infinity,lastShot:-Infinity,impact:null,aim:352};
+}
+function targetAtRange(s){
+  return {x:s.playing?350+Math.sin(s.elapsed/870+s.hits*.61)*108:352,y:110,r:28};
+}
+function paintTarget(g,x,y,r){
+  g.save();g.strokeStyle='#6a533a';g.lineWidth=4;scircle(g,x,y,r,'#cf975d');
+  g.lineWidth=1.5;scircle(g,x,y,r*.77,'#ffedc3');scircle(g,x,y,r*.5,'#be6742');scircle(g,x,y,r*.23,'#f5d89d');g.restore();
+}
+function drawCampRangeStand(g,x,y,tier,time){
+  g.save();g.translate(x,y);g.strokeStyle='#755a40';g.lineWidth=4;
+  g.fillStyle='#75674f22';g.beginPath();g.ellipse(0,4,43,8,0,0,7);g.fill();
+  for(const side of [-1,1])sline(g,side*26,-29,side*31,3);
+  if(tier){sline(g,-37,-28,37,-28);const offset=tier===2?Math.sin(time*1.5)*13:0;sline(g,offset,-28,offset,-45);paintTarget(g,offset,-50,19);
+    if(tier===2){g.fillStyle='#527971';g.fillRect(-30,-27,60,4);}}
+  else{g.fillStyle='#ead7b2';g.fillRect(-33,-37,66,27);g.strokeRect(-33,-37,66,27);g.fillStyle='#826c48';g.font='bold 17px system-ui';g.textAlign='center';g.fillText('⚒',0,-17);}
+  g.restore();
+}
+function renderCampRange(content){
+  if(!rangeSession)rangeSession=newRangeSession();
+  const tier=economyRangeTier(),balance=economyCampBalance();
+  const top=campNode('div',undefined,'camp-kit-bar');top.appendChild(campNode('strong',gameText('Оружейный тир','Shooting range')));
+  top.appendChild(campNode('span',balance+gameText(' дет.',' parts')));content.appendChild(top);
+  const button=campNode('button',undefined,'range-board');button.type='button';button.id='rangeBoard';button.disabled=tier===0;
+  button.setAttribute('aria-label',gameText('Выстрелить в мишень. Стрелки — прицел, пробел — выстрел','Shoot the target. Arrow keys to aim, Space to fire'));
+  const canvas=campNode('canvas');canvas.width=520;canvas.height=210;canvas.setAttribute('aria-hidden','true');button.appendChild(canvas);content.appendChild(button);
+  const status=campNode('p',undefined,'range-status');status.id='rangeStatus';content.appendChild(status);
+  rangeBoard={button,canvas,status};
+  button.onclick=e=>{
+    const r=canvas.getBoundingClientRect(),keyboard=!e||e.detail===0;
+    shootAtRange(keyboard?rangeSession.aim:(e.clientX-r.left)*520/r.width,keyboard?110:(e.clientY-r.top)*210/r.height);
+  };
+  if(tier<2){
+    const cost=ECONOMY_PRICES.range[tier],buy=campNode('button',
+      (tier?gameText('Подвижные мишени','Moving targets'):gameText('Построить тир','Build range'))+' · '+cost+gameText(' дет.',' parts'),'menu-secondary');
+    buy.id='rangeBuild';buy.type='button';buy.disabled=balance<cost||campReadOnly;
+    buy.onclick=()=>{if(document.getElementById(buy.id)!==buy||!campPanelActive)return;
+      const ok=buyRangeTier(tier);refreshCampMenu();
+      if(ok){menuScenePainted=false;document.getElementById('rangeBoard')?.focus();}};
+    content.appendChild(buy);
+    if(!tier)content.appendChild(campNode('p',gameText('Детали из забега попадут сюда после победы или поражения.','Parts arrive here after a win or a defeat.'),'camp-footnote'));
+  }else{
+    const start=campNode('button',gameText('Серия на 20 секунд','20-second round'),'menu-secondary');start.id='rangeStart';start.type='button';content.appendChild(start);
+    start.onclick=()=>{if(Playables.blocked||rangeSession?.playing||!campPanelActive||campActiveSection!=='campWorkshop')return;
+      rangeSession=newRangeSession();rangeSession.playing=true;rangeSession.last=performance.now();start.hidden=true;button.focus();tickCampRange(performance.now(),true);};
+    start.hidden=rangeSession.playing;
+  }
+  tickCampRange(performance.now(),true);
+}
+function shootAtRange(x,y){
+  const s=rangeSession,now=performance.now();
+  if(!s||!rangeBoard||!campPanelActive||campActiveSection!=='campWorkshop'||!economyRangeTier()||Playables.blocked||document.hidden)return;
+  tickCampRange(now);
+  if(s.finished||now-s.lastShot<180)return;
+  const target=targetAtRange(s),hit=Math.hypot(target.x-x,target.y-y)<=target.r;
+  s.lastShot=now;s.shots++;s.hits+=Number(hit);s.impact={x,y,hit};s.aim=Math.max(235,Math.min(478,x));
+  const w=campProfile.weapon;soundCue(w==='sniper'?'arrow':w==='basic'?'rifle':w,null,.7);
+  tickCampRange(now,true);
+}
+function handleCampRangeKey(e){
+  if(!rangeSession||document.activeElement!==rangeBoard?.button||!['ArrowLeft','ArrowRight'].includes(e.key))return false;
+  e.preventDefault();rangeSession.aim=Math.max(235,Math.min(478,rangeSession.aim+(e.key==='ArrowLeft'?-12:12)));tickCampRange(performance.now(),true);return true;
+}
+function tickCampRange(now,force=false){
+  const s=rangeSession;if(!s||!rangeBoard)return;
+  if(document.hidden||Playables.blocked){s.last=null;return;}
+  if(s.playing){
+    if(s.last!==null)s.elapsed+=Math.max(0,now-s.last);s.last=now;
+    if(s.elapsed>=RANGE_DURATION){
+      s.elapsed=RANGE_DURATION;s.playing=false;s.finished=true;force=true;recordRangeBest(s.hits);
+      const start=document.getElementById('rangeStart');if(start)start.hidden=false;
+    }
+  }
+  if(!force&&(!s.playing&&now-s.lastShot>500&&s.lastPaint>s.lastShot+350||now-s.lastPaint<32))return;
+  s.lastPaint=now;
+  const tier=economyRangeTier(),g=rangeBoard.canvas.getContext('2d'),target=targetAtRange(s);
+  g.save();g.fillStyle='#f1e4c8';g.fillRect(0,0,520,210);g.lineCap='round';
+  g.strokeStyle='#d3bd94';g.lineWidth=2;for(const y of [160,170])sline(g,10,y,510,y);
+  g.lineWidth=5;g.strokeStyle='#806542';sline(g,target.x,132,target.x,164);paintTarget(g,target.x,target.y,target.r);
+  const weapon=campProfile.weapon;
+  drawHero(g,74,166,1,0,{helm:1,jacket:1,gloves:1,boots:1,cape:1,gun:0,_w:weapon,_holdWeapon:true,_campStyle:campProfile.style},1.7,0,now-s.lastShot<100?1:0);
+  if(tier){
+    g.strokeStyle='#416f68';g.lineWidth=1.6;const x=s.aim;sline(g,x-8,110,x-3,110);sline(g,x+3,110,x+8,110);sline(g,x,102,x,106);sline(g,x,114,x,118);
+    if(s.impact&&now-s.lastShot<350){const impact=s.impact;g.globalAlpha=Math.max(0,1-(now-s.lastShot)/350);
+      g.strokeStyle=impact.hit?'#b77722':'#81765e';g.lineWidth=2;sline(g,102,111,impact.x,impact.y);g.beginPath();g.arc(impact.x,impact.y,7+(now-s.lastShot)/35,0,7);g.stroke();}
+  }
+  g.restore();
+  const value=!tier?gameText('Чертёж · неподвижная мишень','Blueprint · stationary target'):
+    s.finished?gameText('Попадания: ','Hits: ')+s.hits+'/'+s.shots+gameText(' · Рекорд тира: ',' · Range best: ')+campProfile.rangeBest:
+    (s.playing?Math.ceil((RANGE_DURATION-s.elapsed)/1000)+gameText(' с · ',' s · '):gameText('Тренировка · ','Practice · '))+gameText('Попадания: ','Hits: ')+s.hits+'/'+s.shots;
+  if(rangeBoard.status.textContent!==value)rangeBoard.status.textContent=value;
 }
 
 /* ===== ranking.js ===== */
@@ -10992,7 +11296,7 @@ function captureRunCheckpoint(){
   // Quantised prop geometry keeps a full map comfortably inside the SDK limit.
   props:props.map(p=>[p.kind,Math.round(p.x*10)/10,Math.round(p.y*10)/10,Math.round(p.r*10)/10]),
   secrets:arenaSecrets.map(s=>fields(s,['kind','x','y','r','lit','age'])),secretComplete:arenaSecretComplete,secretIssued:arenaSecretDropIssued,
-  delivery:runCopy(weaponDelivery),
+  economy:P.economy?runCopy(P.economy):undefined,delivery:runCopy(weaponDelivery),
   chests:chests.filter(c=>!c.dead&&!c.rewardGranted).slice(0,80).map(c=>fields(c,['x','y','a','rare','elite','compassReward','dropT','dropDuration','landT','item','rewardKind'])),
   pickups:pickups.slice(0,80).map(c=>fields(c,['x','y','a','kind'])),
   defeated:[...defeatedBossStages],logs:runCopy(bossRunLog),lastBoss:lastBossArchetype,boss,
@@ -11009,6 +11313,7 @@ function validateRunCheckpoint(q){
  const stages=v=>{list(v,4).forEach(s=>one(s,[5,10,15,20]));if(new Set(v).size!==v.length)bad();};
  if(!obj(q)||q.version!==1||typeof q.active!=='boolean')bad();
  if(!q.active)return q;
+ if(Object.hasOwn(q,'economy'))validateRunEconomy(q.economy);
  const p=q.player;if(!obj(p)||!obj(p.gear)||!obj(q.clocks)||!obj(q.camp))bad();
  for(const [key,range] of Object.entries(RUN_NUMBERS))n(p[key],...range);
  for(const key of ['stage','lvl','redKills','damageHits','storedGunLevel'])if(!Number.isInteger(p[key]))bad();
@@ -11054,6 +11359,7 @@ function loadRunCheckpoint(){
  // An admin-modified run must never become a ranked public continuation.
  if(q.player.testRun&&!Playables.testStorage){runSaveReadOnly=true;runSaveNotice='unreadable';return false;}
  Object.assign(P,q.player,{gear:{...q.player.gear},campRun:runCopy(q.camp),runWon:false,rankingRecorded:false,rankingQueued:false});
+ if(q.economy)P.economy=runCopy(q.economy);
  applyGear();P.hurt=1500;P.seen={x:P.x,y:P.y};pointer={x:P.x,y:P.y,active:false};
  ({t,spawnT,shotT,eliteT,chestT,healT,score,xpBoost,queuedLevels}=q.clocks);ult.charge=q.clocks.charge;
  if(q.pet){P.pet=Object.assign(makePet(q.pet.type),q.pet);P.pet.hpMax=petStats(P.pet).hp;P.pet.hp=Math.min(P.pet.hp,P.pet.hpMax);}
@@ -11150,6 +11456,7 @@ function adminCampFixture(id){
  if(!adminAllowed()||adminConflict()||!['all','reset',...CAMP_GOALS.map(g=>g.id)].includes(id))return false;
  if(campDraft||campReadOnly)return false;
  const next=id==='reset'?blankCamp():JSON.parse(JSON.stringify(campProfile));
+ if(id==='reset')for(const key of ['parts','rangeTier','rangeBest'])next[key]=campProfile[key];
  const fill=key=>{
   if(key==='first')next.bosses=Math.max(1,next.bosses);
   if(key==='ten')next.stage=Math.max(10,next.stage);
@@ -11216,6 +11523,7 @@ function initAdminUI(){
  };
  let grid=group('Быстрая проверка лагеря','Все 8 заданий и их награды одним нажатием. Работает и во время забега: герой, снаряжение и текущий бой не меняются. Только QA-профиль.');
  button(grid,'Завершить все задания лагеря',()=>adminCampFixture('all'));
+ button(grid,'Мастерская · +56 деталей',()=>runSaveAction(()=>{const next=campDraft||campProfile;const ok=saveCamp({...next,parts:Math.min(1e9,next.parts+56)});if(ok)refreshCampMenu();return ok;},true));
  button(grid,'Выполнить следующее задание → лагерь',adminNextCampGoal,()=>!!campNextGoal());
  adminNodes.reset=button(grid,'Сбросить все задания лагеря',()=>{
   if(!adminResetArmed){adminResetArmed=true;return true;}
@@ -11430,6 +11738,7 @@ function hudNoticePriority(){
   if(e&&e.hp>0&&(e.entryAge<2300||e.phaseBanner>0))return 'boss';
   if(P.stagePulse>0)return 'stage';
   if(typeof abilityBursts!=='undefined'&&abilityBursts.length)return 'ability';
+  if(typeof caravanInReach==='function'&&caravanInReach())return 'caravan';
   return '';
 }
 function hudWorldLabelRect(cx,cy,width,height=23){
@@ -11550,7 +11859,8 @@ function hud() {
     const q=layout.notice,cx=q.x+q.w/2;
     ctx.beginPath();ctx.roundRect(q.x,q.y,q.w,68,14);ctx.fill();ctx.stroke();
     ctx.fillStyle="#d2691e";ctx.font="900 "+(layout.compact?17:22)+"px system-ui";ctx.fillText(hudText("СТАДИЯ ","STAGE ")+P.stage+" / "+RUN_STAGES,cx,q.y+29,q.w-16);
-    ctx.fillStyle=INK;ctx.font="700 11px system-ui";ctx.fillText(hudText("НОВАЯ ВОЛНА","NEW WAVE"),cx,q.y+49,q.w-16);ctx.restore();
+    const subtitle=P.stageParts>0?hudText('За стадию: +','Wave cleared: +')+P.stageParts+hudText(' детали',' parts'):hudText('НОВАЯ ВОЛНА','NEW WAVE');
+    ctx.fillStyle=INK;ctx.font="700 11px system-ui";ctx.fillText(subtitle,cx,q.y+49,q.w-16);ctx.restore();
   }
   radar(); ultGauge(); syncHUD();
 }
@@ -11615,6 +11925,7 @@ function radar(){
  for(const c of chests)dot(c,c.rare?'#9c67bd':'#d9a335',c.elite?4:2.6,true);
  if(typeof allBossLoot==='function')for(const q of allBossLoot())dot(q,'#db9b23',3.8,true);
  if(typeof weaponDelivery!=='undefined'&&['flying','ground'].includes(weaponDelivery?.state))dot(weaponDelivery,'#567f88',4,true);
+ const cart=P.economy?.caravan;if(cart)dot(cart,'#357b70',3.6,true);
  for(const p of pickups)dot(p,BOOSTS[p.kind].col,2);
  for(const q of allyTanks)dot(q,'#3d78bd',2.8);
  for(const q of turrets)dot(q,'#57945c',2);
@@ -11873,6 +12184,7 @@ petBadge.addEventListener("pointerdown", e => {
 
 let lastItem = "x", lastItemLanguage = "", lastInventory = "", lastControls = "", lastAbilityControls = "";
 function syncHUD() {
+  if(typeof syncCaravanUI==='function')syncCaravanUI();
   syncRadarButton();
   const itemLanguage=typeof uiLanguage==='undefined'?'ru':uiLanguage;
   if (P.item !== lastItem || itemLanguage !== lastItemLanguage) {
@@ -11990,6 +12302,7 @@ function start() {
 }
 function gameOver() {
   if(typeof runSaveAction==='function'&&!runSaveDepth)return runSaveAction(()=>gameOver(),true);
+  if(typeof settleRunParts==='function')settleRunParts();
   if(typeof recordRunScore==='function')recordRunScore();
   if(typeof refreshRunScoreReceipt==='function')refreshRunScoreReceipt();
   stopGameSounds();SFX.dead();
@@ -12033,7 +12346,7 @@ function platformGameHooks(){
   let frozenAt=null;
   return {
     initial(){draw();drawArenaMenu(0,true);},
-    suspend(){if(frozenAt===null)frozenAt=performance.now();pointer.active=false;},
+    suspend(){if(frozenAt===null)frozenAt=performance.now();pointer.active=false;if(typeof pauseCampRangeClock==='function')pauseCampRangeClock();},
     resume(){
       const now=performance.now(),elapsed=frozenAt===null?0:now-frozenAt;frozenAt=null;
       last=now;resize();

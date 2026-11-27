@@ -14,7 +14,7 @@ const CAMP_GOALS=[
  {id:'clean',target:1,value:p=>p.clean,reward:'lantern'},
  {id:'trial',target:1,value:p=>Object.keys(p.trialWins).length,reward:'ember'}
 ];
-function blankCamp(){return {version:1,kills:0,bosses:0,stage:0,wins:0,shotgunStage:0,clean:0,bossTypes:[],trialWins:{},best:{},weapon:'basic',style:'classic',trial:'normal'};}
+function blankCamp(){return {version:1,kills:0,bosses:0,stage:0,wins:0,shotgunStage:0,clean:0,bossTypes:[],trialWins:{},best:{},weapon:'basic',style:'classic',trial:'normal',parts:0,rangeTier:0,rangeBest:0};}
 let campReadOnly=false,campSaveError=false;
 const campStore=()=>typeof Playables==='undefined'?localStorage:Playables.storage;
 function loadCamp(){
@@ -30,6 +30,10 @@ function loadCamp(){
   const s=JSON.parse(raw);if(!s||s.version!==1||Array.isArray(s))throw Error('Unknown camp profile');
   for(const k of ['kills','bosses','stage','wins','shotgunStage','clean']){
    if(!Number.isSafeInteger(s[k])||s[k]<0)throw Error('Invalid camp count');p[k]=Math.min(1e9,s[k]);
+  }
+  for(const [key,max] of [['parts',1e9],['rangeTier',2],['rangeBest',1000]]){
+   if(!Object.hasOwn(s,key))continue;
+   if(!Number.isSafeInteger(s[key])||s[key]<0||s[key]>max)throw Error('Invalid workshop');p[key]=s[key];
   }
   p.stage=Math.min(20,p.stage);p.shotgunStage=Math.min(20,p.shotgunStage);
   const record=o=>o!==null&&typeof o==='object'&&!Array.isArray(o);

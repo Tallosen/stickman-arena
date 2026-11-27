@@ -493,6 +493,7 @@ function finishArenaVictory(reward=null){
  if(typeof bossLoot!=='undefined'&&bossLoot?.stage===20)return false;
  if(bossRewardPending?.stage===20)return false;
  if(P.runWon||P.stage!==20||!BOSS_SPECS.every(s=>defeatedBossStages.has(s.stage)))return false;
+ if(typeof settleRunParts==='function')settleRunParts();
  P.runWon=true;running=false;paused=false;userPaused=false;pointer.active=false;queuedLevels=0;
  ult.on=false;ult.zoom=1;ult.rot=0;ult.lift=0;bossMarks=[];bossProjectiles=[];dragonAssist=null;
  document.body.classList.remove('sniper-cinematic','dragon-finale');document.getElementById('levelup')?.classList.add('hidden');

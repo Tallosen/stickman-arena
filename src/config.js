@@ -1,7 +1,7 @@
 "use strict";
 /* Версия проекта. Меняется здесь и только здесь — дальше сама
    расходится в заголовок вкладки, на стартовый экран и в имя сборки. */
-const VERSION = "0.208";
+const VERSION = "0.209";
 function gameText(ru,en){return typeof uiLanguage==='undefined'||uiLanguage==='ru'?ru:en;}
 // Renderer defaults also work in isolated tests without the settings UI module.
 function visualFX(key){return typeof visualSettings==='undefined'?key==='shake':visualSettings[key];}

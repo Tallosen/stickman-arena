@@ -37,7 +37,8 @@ Object.assign(CAMP_TEXT,{
  trialReward:['Праздничное оформление + цвет плаща «Тлеющий огонь»','Festival decorations + Ember cape colour'],
  campFinale:['Все 8 заданий: павильон чемпиона, золотая корона и праздничные огни. Только внешний вид.','All 8 quests: champion pavilion, golden crown and festive lights. Cosmetic only.']
 });
-const CAMP_SECTIONS=[['campGoals','tasks'],['campEquipment','equipment'],['campTrials','trials']];
+const CAMP_SECTIONS=[['campGoals','tasks'],['campEquipment','equipment'],['campTrials','trials'],['campWorkshop','workshop']];
+CAMP_TEXT.workshop=['Мастерская','Workshop'];
 Object.assign(CAMP_TEXT,{
  equipment:['Арсенал и облик','Arsenal & appearance'],loadout:['Ветка оружия','Weapon branch'],styles:['Облик плаща','Cape appearance'],
  gearHint:['Выбери путь развития. Каждый забег — с простой формы, затем 4 улучшения. Выбор действует со следующего забега.','Choose an evolution path. Every run starts simple, followed by 4 upgrades. Applies to the next run.'],
@@ -77,6 +78,7 @@ function fireArsenalPreview(button,now=performance.now()){
  soundCue(sound,null,.75);drawArsenalPreview(now,true);return true;
 }
 function drawArsenalPreview(now=0,force=false){
+ if(campPanelActive&&campActiveSection==='campWorkshop'&&typeof tickCampRange==='function'){tickCampRange(now,force);return;}
  if(!campPanelActive||campActiveSection!=='campEquipment'||(typeof Playables!=='undefined'&&Playables.blocked))return;
  if(campEquipmentView==='appearance'){drawCampStylePreview(now,force);return;}
  const canvas=document.getElementById('arsenalPreview');if(!canvas||(!force&&now-arsenalPreviewLast<33))return;arsenalPreviewLast=now;
@@ -158,6 +160,7 @@ function refreshCampMenu(){
  document.getElementById('campEquipmentLabel').textContent=campText('equipment');
  document.getElementById('campTrialsLabel').textContent=campText('trials');
  document.getElementById('campDockProgress').textContent=CAMP_GOALS.filter(g=>campUnlocked(g.id)).length+'/8 '+campText('earned');
+ if(typeof refreshRangeDock==='function')refreshRangeDock();
  document.getElementById('campNextGoal').textContent=campGoalText(campNextGoal());
  document.getElementById('campMenuStatus').textContent=campStatus();
  const weaponName=w=>campText(w==='shotgun'?'shotgunWeapon':w);
@@ -175,16 +178,18 @@ function openCampPanel(section='campGoals'){
  campActiveSection=CAMP_SECTIONS.some(([id])=>id===section)?section:'campGoals';
  document.getElementById('campDialog').classList.remove('hidden');renderCampPanel();
  document.getElementById('campPanel').scrollTop=0;
- if(['campEquipment','campTrials'].includes(section)){
+ if(['campEquipment','campTrials','campWorkshop'].includes(section)){
   document.getElementById(section)?.focus({preventScroll:true});
  }else document.getElementById('campTitle').focus({preventScroll:true});return true;
 }
 function switchCampSection(section){
  if(!campPanelActive||!CAMP_SECTIONS.some(([id])=>id===section)||(typeof Playables!=='undefined'&&Playables.blocked))return false;
+ if(campActiveSection==='campWorkshop'&&section!==campActiveSection&&typeof leaveCampRange==='function')leaveCampRange();
  campActiveSection=section;renderCampPanel();document.getElementById('campPanel').scrollTop=0;
  document.getElementById('campNav-'+section)?.focus({preventScroll:true});return true;
 }
 function closeCampPanel(){
+ if(typeof leaveCampRange==='function')leaveCampRange();
  arsenalPreviewShot=null;campPanelActive=false;document.getElementById('campDialog').classList.add('hidden');
  campReturnFocus?.focus?.({preventScroll:true});campReturnFocus=null;menuScenePainted=false;
 }
@@ -204,7 +209,7 @@ function renderCampPanel(){
  for(const [id,key] of CAMP_SECTIONS){
   const button=campNode('button',campText(key));button.id='campNav-'+id;button.type='button';
   button.setAttribute('aria-pressed',String(id===campActiveSection));button.setAttribute('aria-controls','campSectionContent');
-  button.onclick=()=>switchCampSection(id);nav.appendChild(button);
+  button.onclick=()=>{if(document.getElementById(button.id)===button)switchCampSection(id);};nav.appendChild(button);
  }
  const warning=campNode('p',campStatus(),'camp-save-warning');warning.setAttribute('role','status');root.appendChild(warning);
  if(campSaveError&&!campReadOnly){
@@ -286,6 +291,9 @@ function renderCampPanel(){
  }
  if(!campUnlocked('clear'))content.appendChild(campNode('p',campText('trialGate'),'camp-footnote'));
  }
+ if(campActiveSection==='campWorkshop'&&typeof renderCampRange==='function'){
+  heading('campWorkshop',campText('workshop'));renderCampRange(content);
+ }
  if(focusedId)document.getElementById(focusedId)?.focus({preventScroll:true});
  if(panel)panel.scrollTop=scroll;
 }
@@ -312,6 +320,9 @@ function requestRunRestart(origin){
  runRestartRequest={owner:P.campRun,focus:document.activeElement};pointer.active=false;
  document.getElementById('runConfirmTitle').textContent=campText('restartTitle');
  document.getElementById('runConfirmHint').textContent=campText('restartHint');
+ if(typeof economyWallet==='function'&&economyWallet()>0){
+   document.getElementById('runConfirmHint').textContent+=bossText(' Сбросятся детали этого забега: ',' Parts from this run will be lost: ')+economyWallet()+'.';
+ }
  document.getElementById('runConfirmStats').textContent=campText('stats').split(' / ')[0]+' '+P.stage+'/20 · '+formatRunTime(P.runMs);
  document.getElementById('btnCancelNewRun').textContent=campText('restartCancel');document.getElementById('btnConfirmNewRun').textContent=campText('restartAccept');
  document.getElementById('runConfirm').classList.remove('hidden');document.getElementById('btnCancelNewRun').focus({preventScroll:true});return true;
@@ -328,6 +339,11 @@ function confirmRunRestart(){
 }
 function renderCampResult(id){
  const root=document.getElementById(id);if(!root)return;root.innerHTML='';
+ if(P.economy?.settled){
+   const {earned,spent,banked}=P.economy;
+   root.appendChild(campNode('strong',bossText('В лагерь доставлено: ','Delivered to camp: ')+'+'+banked+bossText(' дет.',' parts'),'parts-receipt'));
+   if(spent)root.appendChild(campNode('p',bossText('Собрано: ','Found: ')+earned+bossText(' · Потрачено у каравана: ',' · Spent at caravan: ')+spent,'camp-explainer'));
+ }
  root.appendChild(campNode('strong',P.testRun?campText('test'):campStatus()?campText('journal'):campText('saved')));
  root.appendChild(campNode('p',campText(P.trial||'normal'),'camp-explainer'));
  if(P.testRun)return;
@@ -360,6 +376,7 @@ function initCampUI(){
  document.getElementById('btnCamp').onclick=()=>openCampPanel('campGoals');
  document.getElementById('btnCampEquipment').onclick=()=>openCampPanel('campEquipment');
  document.getElementById('btnCampTrials').onclick=()=>openCampPanel('campTrials');
+ const workshop=document.getElementById('btnCampWorkshop');if(workshop)workshop.onclick=()=>openCampPanel('campWorkshop');
  document.getElementById('btnCloseCamp').onclick=closeCampPanel;
  document.getElementById('campDialog').addEventListener('click',e=>{if(e.target===e.currentTarget)closeCampPanel();});
  document.getElementById('btnOverMenu').onclick=showCampAfterRun;
@@ -370,6 +387,7 @@ function initCampUI(){
  document.addEventListener('keydown',e=>{
   if(!campPanelActive)return;e.stopPropagation();
   if(e.key==='Escape'||e.code==='Escape'){e.preventDefault();closeCampPanel();return;}
+  if(campActiveSection==='campWorkshop'&&typeof handleCampRangeKey==='function'&&handleCampRangeKey(e))return;
   if(e.key!=='Tab')return;
   const dialog=document.getElementById('campDialog'),nodes=[...dialog.querySelectorAll('button:not(:disabled)')],first=nodes[0],last=nodes[nodes.length-1];
   if(!nodes.length)return;

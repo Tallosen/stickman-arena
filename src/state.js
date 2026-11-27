@@ -37,6 +37,8 @@ function reset() {
     gear: Object.fromEntries(GK.map(k => [k, 0])), item: null, pet: null, wtype: "basic",
     dropWeapon:null,dropWeaponMs:0,storedGunLevel:0,laserBeam:null,laserTick:0,beamSoundT:0,
   });
+  if(typeof freshRunEconomy==='function')P.economy=freshRunEconomy();
+  P.stageParts=0;
   turrets = []; eggs = []; chicks = []; pendingPet = null; lastPetRoll = null; queuedLevels = 0;
   enemies = []; shots = []; orbs = []; puffs = []; pops = [];
   chests = []; mines = []; nades = []; ices = []; booms = []; pickups = []; corpses = [];
@@ -160,6 +162,7 @@ function refreshPauseStats(){
  if(typeof uiLabel==="function"){
   document.getElementById("pauseStats").textContent=`${uiLabel("stage")} ${P.stage}/${RUN_STAGES} · ${uiLabel("level")} ${P.lvl} · ${formatRunTime(P.runMs)} · ${uiLabel("defeated")}: ${score}`;
   if(typeof campText==='function')document.getElementById('pauseStats').textContent+='\n'+campText(P.trial||'normal');
+  if(typeof economyWallet==='function')document.getElementById('pauseStats').textContent+=bossText(' · Детали в рюкзаке: ',' · Parts carried: ')+economyWallet();
   return;
  }
  const english=typeof uiLanguage!=="undefined"&&uiLanguage==="en";

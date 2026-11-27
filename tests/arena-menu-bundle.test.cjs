@@ -180,7 +180,7 @@ const exposed='window.testGame={delivery:()=>weaponDelivery,collectDelivery:()=>
  assert.equal(JSON.stringify({P:api.P,meta:api.meta,inventory:api.inventory}),beforeCamp,'Camp navigation mutates gameplay');
  el('btnCamp').onclick();assert(!el('campDialog').classList.contains('hidden'));assert(el('campTitle').focused);
  assert.equal(el('campContent').querySelectorAll('*').filter(e=>e.tag==='article').length,8);
- assert.equal(el('campContent').querySelectorAll('*').find(e=>e.tag==='nav').children.length,3);
+ assert.equal(el('campContent').querySelectorAll('*').find(e=>e.tag==='nav').children.length,4);
  assert(!el('camp-weapon-sniper'));assert(!el('camp-trial-rush'));
  el('campPanel').scrollTop=250;el('campNav-campEquipment').onclick();
  assert.equal(el('campPanel').scrollTop,0);assert(!el('campGoals'));assert(el('campNav-campEquipment').focused);

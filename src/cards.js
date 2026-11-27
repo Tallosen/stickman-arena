@@ -57,7 +57,13 @@ function rollPet() {
   return ty;
 }
 
-function offerCards(savedOffer=null) {
+function canRedrawGear(){
+  if(heroBuildComplete())return false;
+  if(!P.pet)return true;
+  const slots=P.pet.lvl<PET_MAX?3:4;
+  return GK.filter(upgradeableGear).length>slots;
+}
+function offerCards(savedOffer=null,previousOffer=null) {
   if(typeof bossRewardPending!=='undefined'&&bossRewardPending)return;
   if(heroBuildComplete()){
     queuedLevels=0;P.xp=P.xpNext;return;
@@ -84,6 +90,10 @@ function offerCards(savedOffer=null) {
   }
 
   if(savedOffer){pick.length=0;pick.push(...savedOffer.pick);}
+  if(previousOffer){
+    const fresh=pool.filter(key=>!previousOffer.pick.includes(key));
+    if(fresh.length&&!pick.some(key=>fresh.includes(key)))pick[0]=fresh[Math.floor(Math.random()*fresh.length)];
+  }
   if(typeof activeLevelOffer!=='undefined')activeLevelOffer={pick:[...pick],pet:pendingPet};
   if(typeof requestRunCheckpoint==='function')requestRunCheckpoint();
   const close = () => {
@@ -136,6 +146,16 @@ function offerCards(savedOffer=null) {
   document.getElementById("queueTag").textContent =
     queuedLevels > 1 ? gameText(`ещё уровней в очереди: ${queuedLevels - 1}`,`more levels queued: ${queuedLevels - 1}`) :
     gameText(`ПРОКАЧКА ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · выбери усиление`,`UPGRADES ${buildUpgradeCount()}/${FULL_BUILD_CHOICES} · choose a boost`);
+  const reroll=document.getElementById('levelReroll');
+  if(reroll){
+    const tokens=P.economy?.rerolls||0,alternative=pool.some(key=>!pick.includes(key))||!P.pet;
+    reroll.hidden=!tokens||!alternative;reroll.textContent=gameText('Сменить карты','Redraw cards')+' · '+tokens;
+    const offer=typeof activeLevelOffer!=='undefined'?activeLevelOffer:null;
+    reroll.onclick=()=>{
+      if(!offer||offer!==activeLevelOffer||!levelOpen()||!paused||box.cardChoice.accepted||!P.economy.rerolls||Playables.blocked||!alternative)return;
+      runSaveAction(()=>{box.cardChoice.accepted=true;P.economy.rerolls--;offerCards(null,offer);},true);
+    };
+  }
   document.getElementById("levelup").classList.remove("hidden");
 }
 

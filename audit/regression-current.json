@@ -1,14 +1,14 @@
 {
-  "version": "0.208",
+  "version": "0.209",
   "artifactHashes": {
-    "dist/playgama/index.html": "344fb5c415b042e140c01797b3c32caf8980b275cdb049f72c2f564d368e4bcf",
+    "dist/playgama/index.html": "c76e6295dec8bebc4bc3e1582704b37715bcd3e5a83b15a9560d5ca9409cf05a",
     "dist/playgama/playgama-bridge-config.json": "2fd83cc2d8d1c72fee284045bfc2cd48a9110adcef16674fc77a7dcd72a424bb",
-    "dist/StickmanArena_v0.208_QA.html": "cdd7b0b37ce59b24dd276416e5026b4e3f75ab79a7941daf9e1712922057cf34"
+    "dist/StickmanArena_v0.209_QA.html": "d6646fb4046eb31f234cbd7aed1fa1f74d29ae241f084f4c9624b5600ad2c450"
   },
-  "startedAt": "2026-11-25T23:06:26.262Z",
-  "finishedAt": "2026-11-25T23:06:41.133Z",
+  "startedAt": "2026-11-27T14:43:15.045Z",
+  "finishedAt": "2026-11-27T14:43:27.552Z",
   "node": "v26.13.0",
-  "sourceFingerprint": "79d2cfcf6fe790d4bf99b92d411e3a95bfae5f606a13bc8fbf54be0bbb385582",
+  "sourceFingerprint": "2ae1c7b708b19a103eddfbcbb0aa1a302b046bdfc492f6bcc58be58ed70c0f2e",
   "sourceUnchanged": true,
   "exitCode": 0,
   "signal": null,

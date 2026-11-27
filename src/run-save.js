@@ -43,7 +43,7 @@ function captureRunCheckpoint(){
   // Quantised prop geometry keeps a full map comfortably inside the SDK limit.
   props:props.map(p=>[p.kind,Math.round(p.x*10)/10,Math.round(p.y*10)/10,Math.round(p.r*10)/10]),
   secrets:arenaSecrets.map(s=>fields(s,['kind','x','y','r','lit','age'])),secretComplete:arenaSecretComplete,secretIssued:arenaSecretDropIssued,
-  delivery:runCopy(weaponDelivery),
+  economy:P.economy?runCopy(P.economy):undefined,delivery:runCopy(weaponDelivery),
   chests:chests.filter(c=>!c.dead&&!c.rewardGranted).slice(0,80).map(c=>fields(c,['x','y','a','rare','elite','compassReward','dropT','dropDuration','landT','item','rewardKind'])),
   pickups:pickups.slice(0,80).map(c=>fields(c,['x','y','a','kind'])),
   defeated:[...defeatedBossStages],logs:runCopy(bossRunLog),lastBoss:lastBossArchetype,boss,
@@ -60,6 +60,7 @@ function validateRunCheckpoint(q){
  const stages=v=>{list(v,4).forEach(s=>one(s,[5,10,15,20]));if(new Set(v).size!==v.length)bad();};
  if(!obj(q)||q.version!==1||typeof q.active!=='boolean')bad();
  if(!q.active)return q;
+ if(Object.hasOwn(q,'economy'))validateRunEconomy(q.economy);
  const p=q.player;if(!obj(p)||!obj(p.gear)||!obj(q.clocks)||!obj(q.camp))bad();
  for(const [key,range] of Object.entries(RUN_NUMBERS))n(p[key],...range);
  for(const key of ['stage','lvl','redKills','damageHits','storedGunLevel'])if(!Number.isInteger(p[key]))bad();
@@ -105,6 +106,7 @@ function loadRunCheckpoint(){
  // An admin-modified run must never become a ranked public continuation.
  if(q.player.testRun&&!Playables.testStorage){runSaveReadOnly=true;runSaveNotice='unreadable';return false;}
  Object.assign(P,q.player,{gear:{...q.player.gear},campRun:runCopy(q.camp),runWon:false,rankingRecorded:false,rankingQueued:false});
+ if(q.economy)P.economy=runCopy(q.economy);
  applyGear();P.hurt=1500;P.seen={x:P.x,y:P.y};pointer={x:P.x,y:P.y,active:false};
  ({t,spawnT,shotT,eliteT,chestT,healT,score,xpBoost,queuedLevels}=q.clocks);ult.charge=q.clocks.charge;
  if(q.pet){P.pet=Object.assign(makePet(q.pet.type),q.pet);P.pet.hpMax=petStats(P.pet).hp;P.pet.hp=Math.min(P.pet.hp,P.pet.hpMax);}

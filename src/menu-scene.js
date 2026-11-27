@@ -291,6 +291,7 @@ function menuReact(kind){
  menuReaction={kind,start:menuSceneTime};return true;
 }
 function menuHit(x,y,time=menuSceneTime){
+ if(typeof drawCampRangeStand==='function'&&x>=742&&x<=828&&y>=422&&y<=491)return 'workshop';
  const dog=menuCompanionPose(MENU_COMPANIONS[2],time);
  if(Math.abs(x-dog.x)<49&&y>dog.y-60&&y<dog.y+12)return 'dog';
  const hero=menuHeroPose(time,menuHeroSeed,menuReaction),scale=3+1.4*hero.depth,root=hero.y+80*hero.depth;
@@ -309,7 +310,9 @@ if(typeof document!=='undefined'){
  canvas?.addEventListener('pointercancel',()=>{press=null;});
  canvas?.addEventListener('pointerup',e=>{
   const start=press;press=null;if(!start||start.id!==e.pointerId||Math.hypot(e.clientX-start.x,e.clientY-start.y)>8)return;
-  const p=menuPoint(e,canvas.getBoundingClientRect()),kind=menuHit(p.x,p.y);if(kind&&menuReact(kind)){e.preventDefault();e.stopPropagation();}
+  const p=menuPoint(e,canvas.getBoundingClientRect()),kind=menuHit(p.x,p.y);
+  if(kind==='workshop'){e.preventDefault();e.stopPropagation();openCampPanel('campWorkshop');return;}
+  if(kind&&menuReact(kind)){e.preventDefault();e.stopPropagation();}
  });
  canvas?.addEventListener('keydown',e=>{const kind=e.key==='ArrowLeft'?'rack':e.key==='ArrowRight'?'chest':e.key==='Enter'||e.key===' '?'hero':null;if(kind){e.preventDefault();e.stopPropagation();menuReact(kind);}});
 }
@@ -567,6 +570,7 @@ function paintArenaCamp(g,w,h,time=0){
  drawMenuCampRewardDetails(g,time,campRewards);
  if(typeof drawCampMilestones==='function')drawCampMilestones(g,time);
  drawMenuScorePlaque(g);
+ if(typeof drawCampRangeStand==='function')drawCampRangeStand(g,785,484,economyRangeTier(),time);
  const hero=menuHeroPose(time,menuHeroSeed,reaction),gear={...MENU_HERO_GEAR,_campStyle:typeof campProfile==='undefined'?'classic':campProfile.style};
  const floor=440+80*hero.depth,scale=3+1.4*hero.depth;
  const pets=MENU_COMPANIONS.map(p=>p.type==='cat'?menuCatPose(time):p.type==='parrot'?menuParrotPose(time,menuHeroSeed,hero):menuCompanionPose(p,time)).map((p,i)=>launch?{...p,x:p.x+(hero.x+(i-2)*35-p.x)*launch*.3}:p).sort((a,b)=>a.y-b.y);

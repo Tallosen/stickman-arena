@@ -62,6 +62,7 @@ function adminCampFixture(id){
  if(!adminAllowed()||adminConflict()||!['all','reset',...CAMP_GOALS.map(g=>g.id)].includes(id))return false;
  if(campDraft||campReadOnly)return false;
  const next=id==='reset'?blankCamp():JSON.parse(JSON.stringify(campProfile));
+ if(id==='reset')for(const key of ['parts','rangeTier','rangeBest'])next[key]=campProfile[key];
  const fill=key=>{
   if(key==='first')next.bosses=Math.max(1,next.bosses);
   if(key==='ten')next.stage=Math.max(10,next.stage);
@@ -128,6 +129,7 @@ function initAdminUI(){
  };
  let grid=group('Быстрая проверка лагеря','Все 8 заданий и их награды одним нажатием. Работает и во время забега: герой, снаряжение и текущий бой не меняются. Только QA-профиль.');
  button(grid,'Завершить все задания лагеря',()=>adminCampFixture('all'));
+ button(grid,'Мастерская · +56 деталей',()=>runSaveAction(()=>{const next=campDraft||campProfile;const ok=saveCamp({...next,parts:Math.min(1e9,next.parts+56)});if(ok)refreshCampMenu();return ok;},true));
  button(grid,'Выполнить следующее задание → лагерь',adminNextCampGoal,()=>!!campNextGoal());
  adminNodes.reset=button(grid,'Сбросить все задания лагеря',()=>{
   if(!adminResetArmed){adminResetArmed=true;return true;}
